@@ -1,0 +1,86 @@
+id: kernel/process.wakeup
+
+module: kernel/process
+
+operation: wakeup
+stage: process
+purpose: >
+  Wake all processes sleeping on a given wait channel.
+  Each woken process transitions from SLEEPING to RUNNABLE.
+
+related_slice: slice-04-process
+related_adr: null
+depends_on:
+  requires_modules:
+    - kernel/process
+
+  requires_ops: []
+
+rely:
+  state_assumptions:
+    - at least one process may be sleeping on chan
+  callable_interfaces:
+    - proc table
+  resource_assumptions:
+    - none
+  lock_assumptions:
+    - the lock associated with chan is held (same as was
+      passed to sleep)
+
+guarantee:
+  returns:
+    - void
+  state_updates: []
+  side_effects:
+    - all SLEEPING processes on chan become RUNNABLE
+  emitted_events:
+    - none
+
+preconditions:
+  - chan is the same wait channel used in sleep()
+  - caller holds the lock that was passed to sleep()
+postconditions:
+  - all processes on chan are RUNNABLE or RUNNING
+invariants_preserved:
+  - process state consistency
+failure_semantics:
+  - no-op if no processes are sleeping on chan
+
+concurrency:
+  atomicity: per-process wake under p->lock
+  lock_order:
+    - p->lock (per process)
+  interrupt_state: push_off/pop_off
+  wait_wakeup_rules:
+    - wakeup on chan causes sleep on chan to return
+
+security:
+  authority_check: none (kernel-internal)
+  isolation_boundary: none
+  user_pointer_policy: none
+
+observability:
+  traces: []
+  counters: []
+  expected_logs: []
+
+test_obligations:
+  public:
+    - wakeup_all_on_chan
+    - wakeup_empty_chan
+  generated: []
+  hidden_tags: []
+
+codegen:
+  targets:
+    - kind: symbol
+      path: kernel/process.c
+      symbols: [wakeup]
+      owner: kernel/process
+      mode: create
+  forbidden_changes:
+    - do not modify code outside the marked region
+    - do not create helper files
+    - do not modify build scripts
+  required_followup_checks:
+    - make build

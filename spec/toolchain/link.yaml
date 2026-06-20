@@ -1,0 +1,12 @@
+# xv6 RISC-V link specification
+
+link:
+  linker_script: kernel/link.ld
+  entry_symbol: _start
+  section_rules:
+    - text at 0x80000000
+    - data follows text
+    - bss follows data
+  relocation_model: static
+  abi_constraints:
+    - riscv64 lp64

@@ -1,0 +1,34 @@
+id: ADR-001
+
+date: 2025-01-01
+status: accepted
+decision: >
+  Use Sv39 (three-level) virtual memory with 4 KiB pages for
+  the xv6-riscv kernel. Kernel uses direct-mapped identity
+  mapping from 0x80000000 to PHYSTOP, and a trampoline page
+  is mapped at the top of the virtual address space.
+context: >
+  RISC-V defines Sv32 (32-bit), Sv39 (39-bit), Sv48, and Sv57
+  paging modes. xv6-riscv targets qemu-system-riscv64 virt
+  machine which uses Sv39 by default. A three-level page table
+  is the simplest teaching-friendly model that still supports
+  a 512 GiB virtual address space.
+alternatives:
+  - option: Sv32
+    rejected_reason: Only supports 32-bit virtual addresses;
+      insufficient for teaching 64-bit OS concepts.
+  - option: Sv48
+    rejected_reason: Adds a fourth page-table level without
+      significant pedagogical benefit for core OS topics.
+tradeoffs:
+  - Sv39 requires 3 memory accesses per TLB miss, acceptable
+    for a teaching kernel.
+  - Page-table walking code is slightly more complex than a
+    flat model, but necessary for virtual memory education.
+affected_specs:
+  - slice-02-memory
+  - module: memory
+verification_impact:
+  - kvmmake_identity_mapping test validates correct page-table
+    construction.
+  - walkaddr tests validate three-level walk correctness.

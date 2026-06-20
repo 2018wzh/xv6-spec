@@ -1,0 +1,12 @@
+# xv6 RISC-V image generation specification
+
+image:
+  output_kind: kernel-elf
+  objcopy_rules:
+    - riscv64-unknown-elf-objcopy -O binary build/kernel.elf build/kernel.bin
+  boot_chain:
+    - OpenSBI -> kernel.elf
+  required_artifacts:
+    - build/kernel.elf
+
+    - build/kernel.bin

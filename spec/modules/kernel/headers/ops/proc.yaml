@@ -1,0 +1,122 @@
+id: kernel/headers.proc
+
+module: kernel/headers
+
+operation: generate_proc_h
+stage: process
+purpose: >
+  Generate include/proc.h with struct context (13 callee-
+  saved registers for swtch), enum procstate (UNUSED, USED,
+  SLEEPING, RUNNABLE, RUNNING, ZOMBIE), struct trapframe
+  (32 user registers + kernel metadata), and struct proc
+  (per-process state). Also declares extern struct proc
+  proc[NPROC] and extern struct proc *initproc.
+
+related_slice: slice-04-process
+related_adr: null
+depends_on:
+  requires_modules:
+    - kernel/headers
+
+  requires_ops:
+    - kernel/headers.types
+
+    - kernel/headers.param
+
+    - kernel/headers.riscv
+
+    - kernel/headers.spinlock
+
+
+rely:
+  state_assumptions: []
+  callable_interfaces: []
+  resource_assumptions: []
+  lock_assumptions: []
+
+guarantee:
+  declarations:
+    typedefs: []
+    constants: []
+    enums:
+      - name: procstate
+        values: [UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE]
+    structs:
+      - name: context
+        comment: callee-saved registers for swtch
+        fields: [ra, sp, s0, s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11]
+        types: all uint64
+      - name: trapframe
+        comment: saved user registers during a trap
+        fields:
+          metadata: [kernel_satp, kernel_sp, kernel_trap, epc, kernel_hartid]
+          user_regs: [ra, sp, gp, tp, t0, t1, t2, s0, s1, a0, a1, a2,
+                      a3, a4, a5, a6, a7, s2, s3, s4, s5, s6, s7, s8,
+                      s9, s10, s11, t3, t4, t5, t6]
+        all_types: uint64
+      - name: proc
+        comment: per-process state
+        fields:
+          - "struct spinlock lock"
+          - "enum procstate state"
+          - "struct proc *parent"
+          - "void *chan"
+          - "int killed"
+          - "int xstate"
+          - "int pid"
+          - "uint64 kstack"
+          - "uint64 sz"
+          - "pagetable_t pagetable"
+          - "struct trapframe *trapframe"
+          - "struct context context"
+    macros: []
+    function_declarations:
+      - "extern struct proc proc[NPROC]"
+      - "extern struct proc *initproc"
+  returns: []
+  state_updates: []
+  side_effects:
+    - include/proc.h created
+  emitted_events: []
+
+preconditions:
+  - include/types.h, param.h, riscv.h, spinlock.h exist
+postconditions:
+  - include/proc.h exists
+invariants_preserved: []
+failure_semantics: []
+
+concurrency:
+  atomicity: build-time only
+  lock_order: []
+  interrupt_state: n/a
+  wait_wakeup_rules: []
+
+security:
+  authority_check: n/a
+  isolation_boundary: n/a
+  user_pointer_policy: n/a
+
+observability:
+  traces: []
+  counters: []
+  expected_logs: []
+
+test_obligations:
+  public:
+    - proc_h_self_consistent
+    - proc_h_struct_sizes
+  generated: []
+  hidden_tags: []
+
+codegen:
+  targets:
+    - kind: file
+      path: include/proc.h
+      symbols: [generate_proc_h]
+      owner: kernel/headers
+      mode: create
+  forbidden_changes:
+    - do not modify files outside include/
+  required_followup_checks:
+    - make build

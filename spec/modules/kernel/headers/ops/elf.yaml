@@ -1,0 +1,110 @@
+id: kernel/headers.elf
+
+module: kernel/headers
+
+operation: generate_elf_h
+stage: process
+purpose: >
+  Generate include/elf.h with ELF64 header and program
+  header struct definitions plus ELF_MAGIC, ELF_PROG_LOAD,
+  and ELF_PROG_FLAG_* constants. Used by the kernel to
+  load user executables.
+
+related_slice: slice-04-process
+related_adr: null
+depends_on:
+  requires_modules:
+    - kernel/headers
+
+  requires_ops:
+    - kernel/headers.types
+
+
+rely:
+  state_assumptions: []
+  callable_interfaces: []
+  resource_assumptions: []
+  lock_assumptions: []
+
+guarantee:
+  declarations:
+    typedefs: []
+    constants:
+      - name: ELF_MAGIC
+        value: "0x464C457FU  // \\x7FELF LE"
+      - name: ELF_PROG_LOAD
+        value: "1"
+      - name: ELF_PROG_FLAG_EXEC
+        value: "1"
+      - name: ELF_PROG_FLAG_WRITE
+        value: "2"
+      - name: ELF_PROG_FLAG_READ
+        value: "4"
+    structs:
+      - name: elf64_hdr
+        fields:
+          - "uint32 magic[4]  // must be ELF_MAGIC"
+          - "uint64 entry"
+          - "uint64 phoff"
+          - "uint16 phnum"
+          - "uint16 type"
+          - "uint16 machine"
+          - "uint32 version"
+      - name: elf64_phdr
+        fields:
+          - "uint32 type"
+          - "uint32 flags"
+          - "uint64 offset"
+          - "uint64 vaddr"
+          - "uint64 paddr"
+          - "uint64 filesz"
+          - "uint64 memsz"
+          - "uint64 align"
+    macros: []
+    function_declarations: []
+  returns: []
+  state_updates: []
+  side_effects:
+    - include/elf.h created
+  emitted_events: []
+
+preconditions:
+  - include/types.h exists
+postconditions:
+  - include/elf.h exists
+invariants_preserved: []
+failure_semantics: []
+
+concurrency:
+  atomicity: build-time only
+  lock_order: []
+  interrupt_state: n/a
+  wait_wakeup_rules: []
+
+security:
+  authority_check: n/a
+  isolation_boundary: n/a
+  user_pointer_policy: n/a
+
+observability:
+  traces: []
+  counters: []
+  expected_logs: []
+
+test_obligations:
+  public:
+    - elf_h_self_consistent
+  generated: []
+  hidden_tags: []
+
+codegen:
+  targets:
+    - kind: file
+      path: include/elf.h
+      symbols: [generate_elf_h]
+      owner: kernel/headers
+      mode: create
+  forbidden_changes:
+    - do not modify files outside include/
+  required_followup_checks:
+    - make build

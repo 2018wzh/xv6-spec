@@ -1,0 +1,85 @@
+id: kernel/process.swtch
+
+module: kernel/process
+
+operation: swtch
+stage: process
+purpose: >
+  Save callee-saved registers in old context, restore
+  callee-saved registers from new context, and return.
+  This is the assembly-level thread switch primitive.
+
+related_slice: slice-04-process
+related_adr: null
+depends_on:
+  requires_modules:
+    - kernel/process
+
+  requires_ops: []
+
+rely:
+  state_assumptions:
+    - old and new context pointers are valid
+  callable_interfaces:
+    - none (assembly only)
+  resource_assumptions:
+    - stack is valid for both contexts
+  lock_assumptions:
+    - p->lock held by caller (scheduler or sched)
+
+guarantee:
+  returns:
+    - void (but returns in new context's stack frame)
+  state_updates: []
+  side_effects:
+    - callee-saved registers saved to *old
+    - callee-saved registers restored from *new
+    - ra (return address) changed to new context
+  emitted_events:
+    - none
+
+preconditions:
+  - called from sched() with interrupts disabled
+  - "*old and *new are valid struct context"
+postconditions:
+  - execution continues in new context
+invariants_preserved:
+  - no register leakage between contexts
+failure_semantics:
+  - undefined behavior if context pointers invalid
+
+concurrency:
+  atomicity: whole function is the context switch
+  lock_order: []
+  interrupt_state: must be called with interrupts off
+  wait_wakeup_rules: []
+
+security:
+  authority_check: none
+  isolation_boundary: no crossing privilege levels
+  user_pointer_policy: never touches user memory
+
+observability:
+  traces: []
+  counters: []
+  expected_logs: []
+
+test_obligations:
+  public:
+    - swtch_roundtrip
+  generated: []
+  hidden_tags: []
+
+codegen:
+  targets:
+    - kind: symbol
+      path: kernel/swtch.S
+      symbols: [swtch]
+      owner: kernel/process
+      mode: create
+  forbidden_changes:
+    - do not modify code outside the marked region
+    - do not create helper files
+    - do not modify build scripts
+  required_followup_checks:
+    - make build

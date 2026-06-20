@@ -1,0 +1,92 @@
+id: kernel/headers.spinlock
+
+module: kernel/headers
+
+operation: generate_spinlock_h
+stage: trap
+purpose: >
+  Generate include/spinlock.h with struct spinlock
+  definition (locked, name, cpu fields) and function
+  declarations for initlock, acquire, release, holding,
+  push_off, pop_off.
+
+related_slice: slice-03-trap
+related_adr: null
+depends_on:
+  requires_modules:
+    - kernel/headers
+
+  requires_ops:
+    - kernel/headers.types
+
+
+rely:
+  state_assumptions: []
+  callable_interfaces: []
+  resource_assumptions: []
+  lock_assumptions: []
+
+guarantee:
+  declarations:
+    typedefs: []
+    constants: []
+    structs:
+      - name: spinlock
+        fields:
+          - "uint locked"
+          - "const char *name"
+          - "struct cpu *cpu"
+    macros: []
+    function_declarations:
+      - "void initlock(struct spinlock *lk, const char *name)"
+      - "void acquire(struct spinlock *lk)"
+      - "void release(struct spinlock *lk)"
+      - "int holding(struct spinlock *lk)"
+      - "void push_off(void)"
+      - "void pop_off(void)"
+  returns: []
+  state_updates: []
+  side_effects:
+    - include/spinlock.h created
+  emitted_events: []
+
+preconditions:
+  - include/types.h exists
+postconditions:
+  - include/spinlock.h exists
+invariants_preserved: []
+failure_semantics: []
+
+concurrency:
+  atomicity: build-time only
+  lock_order: []
+  interrupt_state: n/a
+  wait_wakeup_rules: []
+
+security:
+  authority_check: n/a
+  isolation_boundary: n/a
+  user_pointer_policy: n/a
+
+observability:
+  traces: []
+  counters: []
+  expected_logs: []
+
+test_obligations:
+  public:
+    - spinlock_h_self_consistent
+  generated: []
+  hidden_tags: []
+
+codegen:
+  targets:
+    - kind: file
+      path: include/spinlock.h
+      symbols: [generate_spinlock_h]
+      owner: kernel/headers
+      mode: create
+  forbidden_changes:
+    - do not modify files outside include/
+  required_followup_checks:
+    - make build

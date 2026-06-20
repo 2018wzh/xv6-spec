@@ -1,0 +1,40 @@
+id: kernel/headers
+
+module: kernel/headers
+
+stage: boot
+purpose: >
+  Infrastructure header files and linker scripts for the
+  xv6 kernel. Generates all include/*.h headers defining
+  types, constants, macros, structs, and function
+  declarations, plus the kernel linker script kernel/link.ld.
+related_slices:
+  - slice-01-boot
+related_adrs: []
+owned_state:
+  - none (headers are stateless declarations)
+exported_interfaces:
+  - generate_types_h
+  - generate_riscv_h
+  - generate_memlayout_h
+  - generate_param_h
+  - generate_spinlock_h
+  - generate_proc_h
+  - generate_elf_h
+  - generate_defs_h
+  - generate_link_ld
+imported_interfaces: []
+module_invariants:
+  - all generated headers are self-consistent
+  - header include order respects dependencies
+  - linker script places .text at 0x80000000
+error_model:
+  - missing declarations cause compile errors in dependent modules
+resource_lifetime_rules:
+  - headers are static files, generated once before compilation
+security_boundary:
+  - none (build-time artifacts)
+test_surfaces:
+  - header self-consistency (each header compiles standalone)
+  - cross-header consistency (all headers compile together)
+  - linker script produces valid ELF

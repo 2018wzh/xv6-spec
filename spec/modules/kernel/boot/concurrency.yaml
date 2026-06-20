@@ -1,0 +1,18 @@
+module: kernel/boot
+
+shared_state:
+  - none (stack-only, no global mutable state beyond BSS)
+lock_types: []
+lock_order: []
+atomic_sections: []
+interrupt_rules:
+  - interrupts disabled throughout boot
+rely:
+  - single-hart execution from OpenSBI
+guarantee:
+  - boot banner is printed before any subsystem init
+  - BSS is zeroed
+wait_wakeup_rules: []
+forbidden_patterns:
+  - calling boot functions after paging is enabled
+  - performing heap allocation during boot

@@ -1,0 +1,90 @@
+id: kernel/trap.usertrapret
+
+module: kernel/trap
+
+operation: usertrapret
+stage: trap
+purpose: >
+  Restore user context from the trapframe and return
+  to usermode. Sets up stvec for usermode traps and
+  re-enables user page table.
+
+related_slice: slice-03-trap
+related_adr: null
+depends_on:
+  requires_modules:
+    - kernel/trap
+
+  requires_ops:
+    - kernel/trap.trap_init
+
+
+rely:
+  state_assumptions:
+    - current process trapframe is valid
+    - kernel mapped trampoline page
+  callable_interfaces:
+    - userret (assembly in trampoline)
+  resource_assumptions:
+    - trapframe page is mapped
+  lock_assumptions:
+    - no locks held
+
+guarantee:
+  returns:
+    - void (jumps to usermode)
+  state_updates: []
+  side_effects:
+    - stvec set to uservec (trampoline)
+    - satp set to user page table
+    - all user registers restored from trapframe
+    - sret to sepc in U-mode
+  emitted_events:
+    - none
+
+preconditions:
+  - sepc points to valid usermode instruction
+  - trapframe contains valid register state
+postconditions:
+  - process runs in U-mode with restored context
+invariants_preserved:
+  - kernel paging not accessible from U-mode
+failure_semantics:
+  - panics if trapframe is invalid
+
+concurrency:
+  atomicity: hardware sret
+  lock_order: []
+  interrupt_state: disabled; re-enabled by sret
+  wait_wakeup_rules: []
+
+security:
+  authority_check: none
+  isolation_boundary: satp switch enforces isolation
+  user_pointer_policy: all user-visible CSR state from
+    trapframe
+
+observability:
+  traces: []
+  counters: []
+  expected_logs: []
+
+test_obligations:
+  public:
+    - usertrapret_roundtrip
+  generated: []
+  hidden_tags: []
+
+codegen:
+  targets:
+    - kind: symbol
+      path: kernel/trap.c
+      symbols: [usertrapret]
+      owner: kernel/trap
+      mode: create
+  forbidden_changes:
+    - do not modify code outside the marked region
+    - do not create helper files
+    - do not modify build scripts
+  required_followup_checks:
+    - make build

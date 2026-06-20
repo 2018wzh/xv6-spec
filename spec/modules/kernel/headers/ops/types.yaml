@@ -1,0 +1,95 @@
+id: kernel/headers.types
+
+module: kernel/headers
+
+operation: generate_types_h
+stage: boot
+purpose: >
+  Generate include/types.h with fundamental integer type
+  definitions for the xv6 RISC-V kernel. Must provide
+  uint64, int64, uint32, int32, uint16, int16, uint8, int8,
+  uint, usize, pte_t, pagetable_t, and spinlock_t typedefs,
+  plus PGSIZE (4096) and PGSHIFT (12) constants.
+
+related_slice: slice-01-boot
+related_adr: null
+depends_on:
+  requires_modules: []
+  requires_ops: []
+
+rely:
+  state_assumptions: []
+  callable_interfaces: []
+  resource_assumptions: []
+  lock_assumptions: []
+
+guarantee:
+  declarations:
+    typedefs:
+      - uint64: "unsigned long long"
+      - int64: "long long"
+      - uint32: "unsigned int"
+      - int32: "int"
+      - uint16: "unsigned short"
+      - int16: "short"
+      - uint8: "unsigned char"
+      - int8: "signed char"
+      - uint: "unsigned int"
+      - usize: "uint64"
+      - pte_t: "uint64  // Sv39 page table entry"
+      - pagetable_t: "uint64*  // L2 page directory pointer"
+      - spinlock_t: "struct spinlock"
+    constants:
+      - name: PGSIZE
+        value: 4096
+      - name: PGSHIFT
+        value: 12
+    structs: []
+    macros: []
+    function_declarations: []
+  returns: []
+  state_updates: []
+  side_effects:
+    - include/types.h created with type definitions
+  emitted_events: []
+
+preconditions: []
+postconditions:
+  - include/types.h exists and is self-consistent
+invariants_preserved: []
+failure_semantics: []
+
+concurrency:
+  atomicity: build-time only
+  lock_order: []
+  interrupt_state: n/a
+  wait_wakeup_rules: []
+
+security:
+  authority_check: n/a
+  isolation_boundary: n/a
+  user_pointer_policy: n/a
+
+observability:
+  traces: []
+  counters: []
+  expected_logs: []
+
+test_obligations:
+  public:
+    - types_h_self_consistent
+  generated: []
+  hidden_tags: []
+
+codegen:
+  targets:
+    - kind: file
+      path: include/types.h
+      symbols: [generate_types_h]
+      owner: kernel/headers
+      mode: create
+  forbidden_changes:
+    - do not modify files outside include/
+    - do not create helper files outside include/
+  required_followup_checks:
+    - make build

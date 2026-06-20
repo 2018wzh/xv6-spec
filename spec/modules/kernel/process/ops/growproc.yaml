@@ -1,0 +1,92 @@
+id: kernel/process.growproc
+
+module: kernel/process
+
+operation: growproc
+stage: process
+purpose: >
+  Grow or shrink the current process's address space by
+  n bytes. Positive n allocates new pages; negative n
+  deallocates pages.
+
+related_slice: slice-04-process
+related_adr: null
+depends_on:
+  requires_modules:
+    - kernel/process
+
+    - kernel/memory
+
+  requires_ops:
+    - kernel/memory.uvmalloc
+
+    - kernel/memory.uvmdealloc
+
+
+rely:
+  state_assumptions:
+    - current process has valid pagetable
+  callable_interfaces:
+    - uvmalloc, uvmdealloc
+  resource_assumptions:
+    - free pages available for positive n
+  lock_assumptions:
+    - none
+
+guarantee:
+  returns:
+    - 0 on success
+    - -1 on failure (e.g., out of memory)
+  state_updates: []
+  side_effects:
+    - process address space expanded or shrunk
+  emitted_events:
+    - none
+
+preconditions:
+  - n may be positive or negative
+postconditions:
+  - process->sz updated accordingly
+invariants_preserved:
+  - max user address < PLIC (or other device boundary)
+failure_semantics:
+  - returns -1 if uvmalloc fails
+  - returns -1 if shrinking below 0
+
+concurrency:
+  atomicity: non-atomic across page operations
+  lock_order: []
+  interrupt_state: interrupts enabled
+  wait_wakeup_rules: []
+
+security:
+  authority_check: only current process can grow
+  isolation_boundary: new pages isolated from kernel
+  user_pointer_policy: pages allocated as user-accessible
+
+observability:
+  traces: []
+  counters: []
+  expected_logs: []
+
+test_obligations:
+  public:
+    - growproc_positive
+    - growproc_negative
+  generated:
+    - growproc_boundary
+  hidden_tags: []
+
+codegen:
+  targets:
+    - kind: symbol
+      path: kernel/process.c
+      symbols: [growproc]
+      owner: kernel/process
+      mode: create
+  forbidden_changes:
+    - do not modify code outside the marked region
+    - do not create helper files
+    - do not modify build scripts
+  required_followup_checks:
+    - make build

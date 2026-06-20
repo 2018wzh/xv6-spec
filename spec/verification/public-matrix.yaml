@@ -1,0 +1,123 @@
+stage: xv6-core
+public_requirements:
+  - id: verify-boot-banner
+    description: Kernel prints boot banner before XV6_BOOT_OK
+    related_specs:
+      - module: kernel/boot
+        operation: boot_banner
+    required_tests:
+      - bootstrap_banner_not_null
+      - bootstrap_banner_length_positive
+      - boot_banner_printable
+    required_artifacts:
+      - qemu_boot.log
+
+  - id: verify-page-allocator
+    description: Physical page allocator passes alloc-free cycle
+    related_specs:
+      - module: kernel/memory
+        operation: kalloc
+      - module: kernel/memory
+        operation: kfree
+    required_tests:
+      - kalloc_exhaustion
+      - kalloc_alignment
+      - kalloc_kfree_cycle
+    required_artifacts:
+      - kernel.elf
+
+  - id: verify-kernel-page-table
+    description: Kernel page table maps identity and trampoline
+    related_specs:
+      - module: kernel/memory
+        operation: kvmmake
+    required_tests:
+      - kvmmake_identity_mapping
+      - kvmmake_trampoline_mapped
+    required_artifacts:
+      - kernel.elf
+
+  - id: verify-trap-vector
+    description: stvec is correctly set after trap_init
+    related_specs:
+      - module: kernel/trap
+        operation: trap_init
+    required_tests:
+      - trap_init_stvec_set
+    required_artifacts:
+      - kernel.elf
+
+  - id: verify-timer-interrupt
+    description: Timer interrupts are handled and re-scheduled
+    related_specs:
+      - module: kernel/trap
+        operation: devintr
+      - module: kernel/trap
+        operation: usertrap
+    required_tests:
+      - devintr_timer
+      - usertrap_timer
+    required_artifacts:
+      - qemu_timer.log
+
+  - id: verify-fork-exit-wait
+    description: Fork, exit, wait lifecycle is correct
+    related_specs:
+      - module: kernel/process
+        operation: fork
+      - module: kernel/process
+        operation: exit
+      - module: kernel/process
+        operation: wait
+    required_tests:
+      - fork_returns_different_pid
+      - fork_memory_isolation
+      - exit_zombie
+      - wait_reap_child
+    required_artifacts:
+      - kernel.elf
+
+  - id: verify-syscall-dispatch
+    description: Syscall numbers are validated and dispatched
+    related_specs:
+      - module: kernel/syscall
+        operation: syscall
+    required_tests:
+      - syscall_valid_number
+      - syscall_invalid_number
+    required_artifacts:
+      - kernel.elf
+
+  - id: verify-sys-write
+    description: sys_write validates buffer and writes bytes
+    related_specs:
+      - module: kernel/syscall
+        operation: sys_write
+    required_tests:
+      - invalid_user_pointer_write
+      - sys_write_basic
+      - sys_write_large_buffer
+    required_artifacts:
+      - kernel.elf
+
+  - id: verify-fork-syscall
+    description: sys_fork creates child and returns PIDs
+    related_specs:
+      - module: kernel/syscall
+        operation: sys_fork
+    required_tests:
+      - sys_fork_parent_pid
+      - sys_fork_child_zero
+    required_artifacts:
+      - kernel.elf
+
+  - id: verify-sbrk
+    description: sys_sbrk grows and shrinks address space
+    related_specs:
+      - module: kernel/syscall
+        operation: sys_sbrk
+    required_tests:
+      - sys_sbrk_grow
+      - sys_sbrk_shrink
+    required_artifacts:
+      - kernel.elf

@@ -1,0 +1,94 @@
+id: user/programs.user_ld
+module: user/programs
+operation: generate_user_ld
+stage: process
+purpose: >
+  Generate user/user.ld, the GNU ld linker script for
+  xv6 user programs. Places .text at 0x0 (base of user
+  virtual address space), followed by .rodata, .data,
+  and .bss. Exports _end symbol for size calculation.
+  Entry symbol is _start (user-level entry point).
+
+related_slice: slice-04-process
+related_adr: null
+depends_on:
+  requires_modules:
+    - user/programs
+  requires_ops: []
+
+rely:
+  state_assumptions:
+    - user programs are linked at virtual address 0
+  callable_interfaces: []
+  resource_assumptions: []
+  lock_assumptions: []
+
+guarantee:
+  linker_sections:
+    - name: .text
+      vma: "0x0"
+      flags: "RX"
+      inputs: ["*(.text .text.*)"]
+    - name: .rodata
+      vma: "ALIGN(16)"
+      flags: "R"
+      inputs: ["*(.rodata .rodata.*)"]
+    - name: .data
+      vma: "ALIGN(16)"
+      flags: "RW"
+      inputs: ["*(.data .data.*)"]
+    - name: .bss
+      vma: "ALIGN(16)"
+      flags: "RW"
+      inputs: ["*(.bss .bss.*)", "*(COMMON)"]
+  exported_symbols:
+    - name: _end
+      value: "current location after .bss"
+  discarded_sections: ["*(.eh_frame)", "*(.note .note.*)"]
+  returns: []
+  state_updates: []
+  side_effects:
+    - user/user.ld created
+  emitted_events: []
+
+preconditions:
+  - none
+postconditions:
+  - user/user.ld exists and is valid GNU ld syntax
+invariants_preserved: []
+failure_semantics:
+  - invalid linker script causes link failure
+
+concurrency:
+  atomicity: build-time only
+  lock_order: []
+  interrupt_state: n/a
+  wait_wakeup_rules: []
+
+security:
+  authority_check: n/a
+  isolation_boundary: n/a
+  user_pointer_policy: n/a
+
+observability:
+  traces: []
+  counters: []
+  expected_logs: []
+
+test_obligations:
+  public:
+    - user_ld_valid_syntax
+  generated: []
+  hidden_tags: []
+
+codegen:
+  targets:
+    - kind: file
+      path: user/user.ld
+      symbols: [generate_user_ld]
+      owner: user/programs
+      mode: create
+  forbidden_changes:
+    - do not modify files outside user/
+  required_followup_checks:
+    - make build

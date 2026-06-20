@@ -1,0 +1,162 @@
+id: kernel/headers.defs
+
+module: kernel/headers
+
+operation: generate_defs_h
+stage: boot
+purpose: >
+  Generate include/defs.h with forward declarations of all
+  globally-visible functions exported by all kernel modules
+  (boot, memory, trap, process, syscall). Includes all
+  other headers. This is the single include that kernel
+  source files use to access any kernel API.
+
+  Must declare:
+  boot: boot_banner, console_putchar, console_write, shutdown, kernel_main
+  memory: kinit, kalloc, kfree, kvmmake, kvmmap, walk, walkaddr,
+    uvmcreate, uvminit, uvmalloc, uvmdealloc, uvmfree, uvmunmap,
+    uvmcopy, copyin, copyout, copyinstr
+  trap: trap_init, usertrap, kerneltrap, usertrapret, devintr
+  process: proc_init, allocproc, freeproc, scheduler, swtch, yield,
+    fork, exit, wait, sleep, wakeup, growproc, userinit
+  syscall: syscall, sys_write, sys_exit, sys_fork, sys_wait,
+    sys_sbrk, argint, argaddr, fetchaddr, fetchstr
+
+related_slice: slice-01-boot
+related_adr: null
+depends_on:
+  requires_modules:
+    - kernel/headers
+
+  requires_ops:
+    - kernel/headers.types
+
+    - kernel/headers.param
+
+    - kernel/headers.riscv
+
+    - kernel/headers.memlayout
+
+    - kernel/headers.spinlock
+
+    - kernel/headers.proc
+
+    - kernel/headers.elf
+
+
+rely:
+  state_assumptions:
+    - all other headers already generated
+  callable_interfaces: []
+  resource_assumptions: []
+  lock_assumptions: []
+
+guarantee:
+  declarations:
+    typedefs: []
+    constants: []
+    structs: []
+    macros: []
+    function_declarations:
+      # boot module
+      - "const char *boot_banner(void)"
+      - "void console_putchar(int c)"
+      - "void console_write(const char *buf, int n)"
+      - "void shutdown(void)"
+      - "void kernel_main(void)"
+      # memory module
+      - "void kinit(void)"
+      - "void *kalloc(void)"
+      - "void kfree(void *pa)"
+      - "pagetable_t kvmmake(void)"
+      - "void kvmmap(pagetable_t, uint64 va, uint64 pa, uint64 sz, int perm)"
+      - "pte_t *walk(pagetable_t, uint64 va, int alloc)"
+      - "uint64 walkaddr(pagetable_t, uint64 va)"
+      - "pagetable_t uvmcreate(void)"
+      - "void uvminit(pagetable_t, pagetable_t)"
+      - "uint64 uvmalloc(pagetable_t, uint64 oldsz, uint64 newsz)"
+      - "uint64 uvmdealloc(pagetable_t, uint64 oldsz, uint64 newsz)"
+      - "void uvmfree(pagetable_t, uint64 sz)"
+      - "void uvmunmap(pagetable_t, uint64 va, uint64 npages, int do_free)"
+      - "pagetable_t uvmcopy(pagetable_t old, uint64 sz)"
+      - "int copyin(pagetable_t, char *dst, uint64 srcva, uint64 len)"
+      - "int copyout(pagetable_t, uint64 dstva, char *src, uint64 len)"
+      - "int copyinstr(pagetable_t, char *dst, uint64 srcva, uint64 max)"
+      # trap module
+      - "void trap_init(void)"
+      - "void usertrap(void)"
+      - "void kerneltrap(void)"
+      - "void usertrapret(void)"
+      - "int devintr(void)"
+      # process module
+      - "void proc_init(void)"
+      - "struct proc *allocproc(void)"
+      - "void freeproc(struct proc *p)"
+      - "void scheduler(void)"
+      - "void swtch(struct context*, struct context*)"
+      - "void yield(void)"
+      - "int fork(void)"
+      - "void exit(int status)"
+      - "int wait(uint64 addr)"
+      - "void sleep(void *chan, struct spinlock *lk)"
+      - "void wakeup(void *chan)"
+      - "int growproc(int n)"
+      - "void userinit(void)"
+      # syscall module
+      - "void syscall(void)"
+      - "uint64 sys_write(void)"
+      - "uint64 sys_exit(void)"
+      - "uint64 sys_fork(void)"
+      - "uint64 sys_wait(void)"
+      - "uint64 sys_sbrk(void)"
+      - "int argint(int n, int *ip)"
+      - "int argaddr(int n, uint64 *ip)"
+      - "int fetchaddr(uint64 addr, uint64 *ip)"
+      - "int fetchstr(uint64 addr, char *buf, int max)"
+  returns: []
+  state_updates: []
+  side_effects:
+    - include/defs.h created
+  emitted_events: []
+
+preconditions:
+  - all other include/*.h headers exist
+postconditions:
+  - include/defs.h exists with all kernel API declarations
+invariants_preserved: []
+failure_semantics: []
+
+concurrency:
+  atomicity: build-time only
+  lock_order: []
+  interrupt_state: n/a
+  wait_wakeup_rules: []
+
+security:
+  authority_check: n/a
+  isolation_boundary: n/a
+  user_pointer_policy: n/a
+
+observability:
+  traces: []
+  counters: []
+  expected_logs: []
+
+test_obligations:
+  public:
+    - defs_h_self_consistent
+    - defs_h_all_declarations
+  generated: []
+  hidden_tags: []
+
+codegen:
+  targets:
+    - kind: file
+      path: include/defs.h
+      symbols: [generate_defs_h]
+      owner: kernel/headers
+      mode: create
+  forbidden_changes:
+    - do not modify files outside include/
+  required_followup_checks:
+    - make build

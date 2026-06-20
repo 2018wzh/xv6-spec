@@ -1,0 +1,114 @@
+id: kernel/boot.kernel_main
+
+module: kernel/boot
+
+operation: kernel_main
+stage: boot
+purpose: >
+  The kernel's C entry point. Initializes all subsystems
+  in order: page allocator (kinit), kernel page table
+  (kvmmake), process table (proc_init), trap vector
+  (trap_init), user init process (userinit), and then
+  hands control to the scheduler. Prints the boot banner
+  before entering the scheduler loop.
+
+related_slice: slice-01-boot
+related_adr: null
+depends_on:
+  requires_modules:
+    - kernel/boot
+
+    - kernel/headers
+
+  requires_ops:
+    - kernel/boot.boot_banner
+
+    - kernel/boot.console_write
+
+    - kernel/memory.kinit
+
+    - kernel/memory.kvmmake
+
+    - kernel/process.proc_init
+
+    - kernel/trap.trap_init
+
+    - kernel/process.userinit
+
+    - kernel/process.scheduler
+
+
+rely:
+  state_assumptions:
+    - entered from _start with valid stack and zeroed BSS
+    - single hart execution
+  callable_interfaces:
+    - boot_banner, console_write, kinit, kvmmake,
+      proc_init, trap_init, userinit, scheduler
+  resource_assumptions:
+    - sufficient physical memory for all subsystems
+  lock_assumptions:
+    - none during init
+
+guarantee:
+  returns:
+    - void (never returns; enters scheduler loop)
+  state_updates: []
+  side_effects:
+    - page allocator initialized
+    - kernel page table created and paging enabled
+    - process table initialized
+    - trap vector installed
+    - first user process created
+    - scheduler started
+  emitted_events:
+    - boot banner printed to console
+
+preconditions:
+  - called exactly once at boot
+  - console UART is functional
+postconditions:
+  - kernel is fully operational
+  - scheduler is running
+invariants_preserved:
+  - "init order: memory -> trap -> process -> scheduler"
+failure_semantics:
+  - panics on any subsystem initialization failure
+
+concurrency:
+  atomicity: single-hart init sequence
+  lock_order: []
+  interrupt_state: disabled until scheduler starts
+  wait_wakeup_rules: []
+
+security:
+  authority_check: none
+  isolation_boundary: paging enabled after kvmmake
+  user_pointer_policy: none during init
+
+observability:
+  traces: []
+  counters: []
+  expected_logs:
+    - boot banner printed before scheduler entry
+
+test_obligations:
+  public:
+    - kernel_main_boots
+    - kernel_main_banner_printed
+  generated: []
+  hidden_tags: []
+
+codegen:
+  targets:
+    - kind: symbol
+      path: kernel/boot.c
+      symbols: [kernel_main]
+      owner: kernel/boot
+      mode: create
+  forbidden_changes:
+    - do not modify code outside the marked region
+    - do not create helper files
+    - do not modify build scripts
+  required_followup_checks:
+    - make build

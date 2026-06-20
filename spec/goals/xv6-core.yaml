@@ -1,0 +1,36 @@
+goal_id: xv6-core-early
+category: core-functionality
+summary: >
+  Achieve the early-stage bootable xv6-riscv kernel that covers the
+  boot, memory, trap, process, and syscall stages. The kernel must
+  boot cleanly under QEMU, pass the early public validation gates, and
+  support the minimal syscall interface required for the first user
+  process.
+
+baseline: No kernel exists; the project starts from scratch.
+target: >
+  All public_requirements listed in spec/verification/public-matrix.yaml
+  pass, and the kernel boots to the first user process under QEMU.
+
+correctness_guard:
+  - No kernel segfault from raw user-pointer dereference.
+  - Page allocator freelist integrity under alloc-free cycles.
+  - Process isolation: after fork, child and parent share no writable pages.
+  - Trap dispatch: syscalls always traverse trap -> syscall -> handler.
+
+benchmark_or_oracle:
+  - QEMU boot smoke: XV6_BOOT_OK appears in UART output within 30 s.
+  - Syscall round-trip: ecall -> usertrap -> syscall -> usertrapret without panic.
+  - init: first user process prints its banner and does not exit.
+
+negative_tradeoff_checks:
+  - No debug or verbose logging is permanently enabled in release builds.
+  - Memory allocator must not leak pages under repeated alloc/free stress.
+  - Syscall handlers must reject invalid user pointers instead of dereferencing them.
+
+evidence_required:
+  - QEMU boot log
+  - Kernel ELF build artifact
+  - Page allocator test log
+  - Fork/exit/wait test log
+  - Syscall dispatch test log

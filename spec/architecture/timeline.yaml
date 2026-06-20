@@ -1,0 +1,61 @@
+# xv6-riscv Architecture Timeline
+# Maps each stage to its ArchitectureSlice and lists the
+# mechanisms introduced, modules affected, and validation gates.
+
+timeline:
+  - stage: boot
+    slice: slice-01-boot
+    title: Early Boot and Banner
+    introduced_mechanisms:
+      - S-mode entry from OpenSBI
+      - BSS zeroing and stack setup
+      - SBI console abstraction
+      - boot banner display
+      - graceful shutdown
+    affected_modules: [kernel/boot]
+    validation_gate: [build_kernel, qemu_boot_smoke, verify_boot_banner]
+
+  - stage: memory
+    slice: slice-02-memory
+    title: Physical Memory and Page Table Setup
+    introduced_mechanisms:
+      - physical page freelist allocator
+      - Sv39 three-level page table
+      - kernel identity mapping
+      - satp paging enable
+    affected_modules: [kernel/memory]
+    validation_gate: [build_kernel, verify_page_allocator, verify_kernel_page_table]
+
+  - stage: trap
+    slice: slice-03-trap
+    title: Trap Handling and Context Switching
+    introduced_mechanisms:
+      - stvec-based trap vector
+      - per-process trap frame
+      - usertrap / kerneltrap dispatch
+      - timer interrupt handling
+      - userret trampoline
+    affected_modules: [kernel/trap, kernel/process]
+    validation_gate: [build_kernel, verify_trap_vector, verify_timer_interrupt]
+
+  - stage: process
+    slice: slice-04-process
+    title: Process Abstraction and Scheduler
+    introduced_mechanisms:
+      - struct proc with lifecycle state
+      - per-process kernel stack and pagetable
+      - round-robin scheduler (swtch)
+      - fork / exit / wait lifecycle
+    affected_modules: [kernel/process, kernel/memory, kernel/trap, user]
+    validation_gate: [build_kernel, verify_fork_exit_wait]
+
+  - stage: syscall
+    slice: slice-05-syscall
+    title: System Call Interface
+    introduced_mechanisms:
+      - syscall dispatch table
+      - argument marshalling from a0-a5
+      - user-pointer validation
+      - sys_write / sys_exit / sys_fork / sys_wait / sys_sbrk
+    affected_modules: [kernel/syscall, kernel/process, kernel/memory]
+    validation_gate: [build_kernel, verify_syscall_dispatch, verify_sys_write, verify_fork_syscall]

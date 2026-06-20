@@ -1,0 +1,39 @@
+# Report Contract
+
+report_contract:
+  version: "1.0"
+  applicable_stages: [boot, memory, trap, process, syscall]
+
+  required_sections:
+    - section: architecture_reference
+      description: >
+        List the ArchitectureSlices and ADRs that guided this stage's
+        implementation.
+      min_items: 1
+
+    - section: module_specs_covered
+      description: >
+        Enumerate the ModuleSpecs and OperationContracts that were
+        implemented or modified.
+      min_items: 1
+
+    - section: verification_evidence
+      description: >
+        Provide artifact paths and pass/fail status for every
+        public_requirement listed in public-matrix.yaml.
+      min_items: 1
+
+    - section: spec_evolution
+      description: >
+        Note whether any SpecPatch was applied during this stage.
+        If not, state that the spec is unchanged from the baseline.
+
+    - section: ai_involvement
+      description: >
+        Declare whether AI assistance was used (yes/no) and, if yes,
+        which operations were generated or reviewed by an agent.
+
+    - section: references
+      description: >
+        List any external references consulted (e.g., xv6 book,
+        RISC-V privileged spec, SBI spec).

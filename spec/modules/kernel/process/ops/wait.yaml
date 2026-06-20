@@ -1,0 +1,89 @@
+id: kernel/process.wait
+
+module: kernel/process
+
+operation: wait
+stage: process
+purpose: >
+  Wait for a child process to exit. Returns the child's
+  PID. If no child has exited, sleep until one does.
+
+related_slice: slice-04-process
+related_adr: null
+depends_on:
+  requires_modules:
+    - kernel/process
+
+  requires_ops:
+    - kernel/process.sleep
+
+
+rely:
+  state_assumptions:
+    - current process has children
+  callable_interfaces:
+    - sleep
+  resource_assumptions:
+    - none
+  lock_assumptions:
+    - acquires wait_lock and child p->lock
+
+guarantee:
+  returns:
+    - child PID on success
+    - -1 if no children exist
+  state_updates: []
+  side_effects:
+    - child resources freed (pagetable, trapframe, etc.)
+    - child slot returned to free pool
+  emitted_events:
+    - none
+
+preconditions:
+  - called from usermode via sys_wait
+postconditions:
+  - exited child is fully reaped
+invariants_preserved:
+  - proc table maintains at least one free slot for parent
+failure_semantics:
+  - returns -1 if caller has no children
+
+concurrency:
+  atomicity: reaping under wait_lock
+  lock_order:
+    - wait_lock -> child p->lock
+  interrupt_state: push_off/pop_off
+  wait_wakeup_rules:
+    - sleep(current, wait_lock)
+
+security:
+  authority_check: only parent can reap child
+  isolation_boundary: child memory freed
+  user_pointer_policy: none
+
+observability:
+  traces: []
+  counters: []
+  expected_logs: []
+
+test_obligations:
+  public:
+    - wait_reap_child
+    - wait_no_children
+  generated:
+    - wait_multiple_children
+  hidden_tags: []
+
+codegen:
+  targets:
+    - kind: symbol
+      path: kernel/process.c
+      symbols: [wait]
+      owner: kernel/process
+      mode: create
+  forbidden_changes:
+    - do not modify code outside the marked region
+    - do not create helper files
+    - do not modify build scripts
+  required_followup_checks:
+    - make build

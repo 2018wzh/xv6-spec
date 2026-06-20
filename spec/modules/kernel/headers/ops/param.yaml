@@ -1,0 +1,88 @@
+id: kernel/headers.param
+
+module: kernel/headers
+
+operation: generate_param_h
+stage: boot
+purpose: >
+  Generate include/param.h with system-wide configuration
+  parameters: NPROC=64, STACK_SIZE=4096, NOFILE=16,
+  MAXARG=32.
+
+related_slice: slice-04-process
+related_adr: null
+depends_on:
+  requires_modules:
+    - kernel/headers
+
+  requires_ops:
+    - kernel/headers.types
+
+
+rely:
+  state_assumptions: []
+  callable_interfaces: []
+  resource_assumptions: []
+  lock_assumptions: []
+
+guarantee:
+  declarations:
+    typedefs: []
+    constants:
+      - name: NPROC
+        value: "64"
+      - name: STACK_SIZE
+        value: "4096"
+      - name: NOFILE
+        value: "16"
+      - name: MAXARG
+        value: "32"
+    structs: []
+    macros: []
+    function_declarations: []
+  returns: []
+  state_updates: []
+  side_effects:
+    - include/param.h created
+  emitted_events: []
+
+preconditions:
+  - include/types.h exists
+postconditions:
+  - include/param.h exists
+invariants_preserved: []
+failure_semantics: []
+
+concurrency:
+  atomicity: build-time only
+  lock_order: []
+  interrupt_state: n/a
+  wait_wakeup_rules: []
+
+security:
+  authority_check: n/a
+  isolation_boundary: n/a
+  user_pointer_policy: n/a
+
+observability:
+  traces: []
+  counters: []
+  expected_logs: []
+
+test_obligations:
+  public:
+    - param_h_self_consistent
+  generated: []
+  hidden_tags: []
+
+codegen:
+  targets:
+    - kind: file
+      path: include/param.h
+      symbols: [generate_param_h]
+      owner: kernel/headers
+      mode: create
+  forbidden_changes:
+    - do not modify files outside include/
+  required_followup_checks:
+    - make build

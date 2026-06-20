@@ -1,0 +1,111 @@
+id: kernel/headers.memlayout
+
+module: kernel/headers
+
+operation: generate_memlayout_h
+stage: boot
+purpose: >
+  Generate include/memlayout.h with physical and virtual
+  memory layout constants for the xv6 RISC-V kernel on
+  QEMU virt. Defines KERNBASE (0x80000000), PHYSTOP
+  (0x88000000), UART0 (0x10000000), CLINT (0x02000000),
+  PLIC (0x0C000000), VIRTIO0 (0x10001000), TRAMPOLINE
+  (MAXVA-PGSIZE), TRAPFRAME (TRAMPOLINE-PGSIZE).
+
+related_slice: slice-02-memory
+related_adr: ADR-001
+depends_on:
+  requires_modules:
+    - kernel/headers
+
+  requires_ops:
+    - kernel/headers.types
+
+    - kernel/headers.riscv
+
+
+rely:
+  state_assumptions: []
+  callable_interfaces: []
+  resource_assumptions: []
+  lock_assumptions: []
+
+guarantee:
+  declarations:
+    typedefs: []
+    constants:
+      - name: KERNBASE
+        value: "0x80000000L"
+      - name: PHYSTOP
+        value: "0x88000000L"
+      - name: UART0
+        value: "0x10000000L"
+      - name: UART0_IRQ
+        value: "10"
+      - name: VIRTIO0
+        value: "0x10001000L"
+      - name: VIRTIO0_IRQ
+        value: "1"
+      - name: CLINT
+        value: "0x02000000L"
+      - name: CLINT_MTIMECMP
+        value: "(CLINT+0x4000)"
+      - name: CLINT_MTIME
+        value: "(CLINT+0xBFF8)"
+      - name: PLIC
+        value: "0x0C000000L"
+      - name: PLIC_SCLAIM
+        value: "(PLIC+0x201000)"
+      - name: TRAMPOLINE
+        value: "(MAXVA-PGSIZE)"
+      - name: TRAPFRAME
+        value: "(TRAMPOLINE-PGSIZE)"
+    structs: []
+    macros: []
+    function_declarations: []
+  returns: []
+  state_updates: []
+  side_effects:
+    - include/memlayout.h created
+  emitted_events: []
+
+preconditions:
+  - include/types.h and include/riscv.h exist
+postconditions:
+  - include/memlayout.h exists with all layout constants
+invariants_preserved: []
+failure_semantics: []
+
+concurrency:
+  atomicity: build-time only
+  lock_order: []
+  interrupt_state: n/a
+  wait_wakeup_rules: []
+
+security:
+  authority_check: n/a
+  isolation_boundary: n/a
+  user_pointer_policy: n/a
+
+observability:
+  traces: []
+  counters: []
+  expected_logs: []
+
+test_obligations:
+  public:
+    - memlayout_h_self_consistent
+  generated: []
+  hidden_tags: []
+
+codegen:
+  targets:
+    - kind: file
+      path: include/memlayout.h
+      symbols: [generate_memlayout_h]
+      owner: kernel/headers
+      mode: create
+  forbidden_changes:
+    - do not modify files outside include/
+  required_followup_checks:
+    - make build

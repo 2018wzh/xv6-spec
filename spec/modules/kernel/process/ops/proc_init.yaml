@@ -1,0 +1,82 @@
+id: kernel/process.proc_init
+
+module: kernel/process
+
+operation: proc_init
+stage: process
+purpose: >
+  Initialize the process table: zero all proc structs
+  and initialize per-process spinlocks.
+
+related_slice: slice-04-process
+related_adr: null
+depends_on:
+  requires_modules:
+    - kernel/process
+
+  requires_ops: []
+
+rely:
+  state_assumptions:
+    - spinlock subsystem initialized
+  callable_interfaces:
+    - initlock
+  resource_assumptions:
+    - none
+  lock_assumptions:
+    - none
+
+guarantee:
+  returns:
+    - void
+  state_updates: []
+  side_effects:
+    - all proc[NPROC] zeroed
+    - all proc[NPROC].lock initialized
+  emitted_events:
+    - none
+
+preconditions:
+  - called once during kernel init
+postconditions:
+  - proc table is consistent
+invariants_preserved:
+  - no stale proc state
+failure_semantics:
+  - none
+
+concurrency:
+  atomicity: init only
+  lock_order: []
+  interrupt_state: disabled
+  wait_wakeup_rules: []
+
+security:
+  authority_check: none
+  isolation_boundary: none
+  user_pointer_policy: none
+
+observability:
+  traces: []
+  counters: []
+  expected_logs: []
+
+test_obligations:
+  public:
+    - proc_init_zeroed
+  generated: []
+  hidden_tags: []
+
+codegen:
+  targets:
+    - kind: symbol
+      path: kernel/process.c
+      symbols: [proc_init]
+      owner: kernel/process
+      mode: create
+  forbidden_changes:
+    - do not modify code outside the marked region
+    - do not create helper files
+    - do not modify build scripts
+  required_followup_checks:
+    - make build

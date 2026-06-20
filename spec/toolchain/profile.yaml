@@ -1,0 +1,22 @@
+# xv6 RISC-V toolchain profile
+
+toolchain:
+  target_arch: riscv64
+  target_triple: riscv64-unknown-elf
+  c_compiler: gcc
+  asm_compiler: gcc
+  linker: ld
+  archiver: ar
+
+environment:
+  required_tools:
+    - gcc: ">=9.0"
+    - ld: ">=2.32"
+    - ar: ">=2.30"
+    - riscv64-unknown-elf-objcopy: ">=2.40"
+  allowed_versions:
+    - gcc >= 9.0
+    - ld >= 2.32
+    - ar >= 2.30
+    - riscv64-unknown-elf-objcopy >= 2.40
+  disallowed_tools: []

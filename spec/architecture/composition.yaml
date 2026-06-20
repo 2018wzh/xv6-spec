@@ -1,0 +1,60 @@
+id: xv6-riscv-arch-composition
+
+title: Cross-Module Architectural Composition
+summary: >
+  Synthesises the cross-cutting invariants, authority boundaries,
+  and data-flow constraints that span multiple modules in the
+  xv6-riscv kernel.
+
+related_slices:
+  - slice-01-boot
+  - slice-02-memory
+  - slice-03-trap
+  - slice-04-process
+  - slice-05-syscall
+
+affected_modules: [kernel, user]
+
+cross_component_rules:
+  - name: boot-to-paging-transition
+    description: >
+      After kvmmake, the kernel runs with Sv39 paging enabled.
+      The boot path must not access physical addresses directly
+      after satp is written.
+    invariant: >
+      All kernel accesses after paging_init use virtual addresses
+      backed by kernel_pagetable.
+    affected_modules: [kernel/boot, kernel/memory]
+    tests: [kvmmake_identity_mapping]
+
+  - name: trap-dispatches-to-syscall
+    description: >
+      usertrap dispatches software-interrupt ecalls to the
+      syscall handler. No alternate path may bypass syscall
+      number validation.
+    invariant: >
+      scause == 8 (environment call from U-mode) always
+      reaches syscall() with sepc advanced by 4.
+    affected_modules: [kernel/trap, kernel/syscall]
+    tests: [usertrap_syscall_dispatched, syscall_valid_number]
+
+  - name: syscall-validates-via-memory
+    description: >
+      Every syscall that accepts user pointers must route
+      through walkaddr/copyin/copyout before dereferencing.
+      No raw user address may be used as a kernel pointer.
+    invariant: >
+      Kernel never segfaults from a raw user pointer dereference.
+    affected_modules: [kernel/syscall, kernel/memory]
+    tests: [copyin_invalid_address, sys_write_invalid_buffer]
+
+  - name: process-memory-isolation
+    description: >
+      User processes have independent page tables. No two
+      processes share a writable page. The kernel page table
+      is never exposed to U-mode.
+    invariant: >
+      satp in U-mode always points to the current process's
+      user page table; kernel mappings are not accessible.
+    affected_modules: [kernel/process, kernel/memory, kernel/trap]
+    tests: [fork_memory_isolation]

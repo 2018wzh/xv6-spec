@@ -1,0 +1,87 @@
+id: kernel/boot.boot_banner
+
+module: kernel/boot
+
+operation: boot_banner
+stage: boot
+purpose: >
+  Provide a deterministic boot banner string printed during
+  early kernel startup before any subsystem initialization.
+
+related_slice: slice-01-boot
+related_adr: null
+depends_on:
+  requires_modules:
+    - kernel/boot
+
+  requires_ops: []
+
+rely:
+  state_assumptions:
+    - boot banner is consumed during early startup before heap init
+  callable_interfaces:
+    - boot_banner (returns const char *)
+  resource_assumptions:
+    - stack is available
+  lock_assumptions:
+    - none
+
+guarantee:
+  returns:
+    - const char * pointing to a null-terminated static banner
+  state_updates: []
+  side_effects:
+    - none
+  emitted_events:
+    - none
+
+preconditions:
+  - implementation must be valid in a freestanding (no_std) context
+postconditions:
+  - returned string is static and byte-for-byte printable via UART
+invariants_preserved:
+  - no global state is mutated
+failure_semantics:
+  - do not panic or abort during normal banner retrieval
+
+concurrency:
+  atomicity: not applicable (single-hart, early boot)
+  lock_order: []
+  interrupt_state: interrupts disabled during boot
+  wait_wakeup_rules: []
+
+security:
+  authority_check: none
+  isolation_boundary: none (pre-user context)
+  user_pointer_policy: none
+
+observability:
+  traces: []
+  counters: []
+  expected_logs:
+    - banner string appears in UART output before XV6_BOOT_OK
+
+test_obligations:
+  public:
+    - bootstrap_banner_not_null
+    - bootstrap_banner_length_positive
+  generated:
+    - boot_banner_printable
+  hidden_tags:
+    - banner_does_not_panic
+
+codegen:
+  targets:
+    - kind: symbol
+      path: kernel/boot.c
+      symbols: [boot_banner]
+      owner: kernel/boot
+      mode: create
+  forbidden_changes:
+    - do not modify code outside the marked region
+    - do not create helper files
+    - do not modify build scripts or linker settings
+    - do not use format machinery (sprintf, itoa, etc.)
+  required_followup_checks:
+    - make build
+    - check that banner string is null-terminated

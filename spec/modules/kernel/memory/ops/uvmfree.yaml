@@ -1,0 +1,91 @@
+id: kernel/memory.uvmfree
+
+module: kernel/memory
+
+operation: uvmfree
+stage: memory
+purpose: >
+  Free a user page table and all its physical memory.
+  Walk all three levels of the page table, free leaf
+  pages and intermediate page-table pages.
+
+related_slice: slice-02-memory
+related_adr: null
+depends_on:
+  requires_modules:
+    - kernel/memory
+
+  requires_ops:
+    - kernel/memory.uvmunmap
+
+    - kernel/memory.kfree
+
+
+rely:
+  state_assumptions:
+    - pagetable is a valid user page table
+    - no other references to the page table exist
+  callable_interfaces:
+    - uvmunmap, kfree
+  resource_assumptions:
+    - none
+  lock_assumptions:
+    - none
+
+guarantee:
+  returns:
+    - void
+  state_updates: []
+  side_effects:
+    - all leaf pages freed via kfree
+    - all page-table pages freed via kfree
+    - pagetable root page freed
+  emitted_events:
+    - none
+
+preconditions:
+  - pagetable is a valid root page directory
+  - process is exiting or fork has failed
+postconditions:
+  - all memory associated with pagetable is released
+invariants_preserved:
+  - no memory leak
+failure_semantics:
+  - none (always succeeds)
+
+concurrency:
+  atomicity: non-atomic
+  lock_order: []
+  interrupt_state: interrupts enabled
+  wait_wakeup_rules: []
+
+security:
+  authority_check: none (called during process teardown)
+  isolation_boundary: freed pages returned to kernel allocator
+  user_pointer_policy: none
+
+observability:
+  traces: []
+  counters: []
+  expected_logs: []
+
+test_obligations:
+  public:
+    - uvmfree_all_pages
+    - uvmfree_empty_pagetable
+  generated: []
+  hidden_tags: []
+
+codegen:
+  targets:
+    - kind: symbol
+      path: kernel/memory.c
+      symbols: [uvmfree]
+      owner: kernel/memory
+      mode: create
+  forbidden_changes:
+    - do not modify code outside the marked region
+    - do not create helper files
+    - do not modify build scripts
+  required_followup_checks:
+    - make build

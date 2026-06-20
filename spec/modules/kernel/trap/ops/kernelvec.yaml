@@ -1,0 +1,93 @@
+id: kernel/trap.kernelvec
+
+module: kernel/trap
+
+operation: kernelvec
+stage: trap
+purpose: >
+  RISC-V assembly trap vector for kernel-mode traps.
+  Save all 32 general-purpose registers onto the kernel
+  stack, call kerneltrap() to handle the trap, restore
+  all registers from the stack, and execute sret to
+  return to the interrupted kernel code.
+
+related_slice: slice-03-trap
+related_adr: null
+depends_on:
+  requires_modules:
+    - kernel/trap
+
+  requires_ops:
+    - kernel/trap.kerneltrap
+
+
+rely:
+  state_assumptions:
+    - entered from S-mode via a trap (interrupt or exception)
+    - kernel stack pointer is valid
+    - kernel page table is active
+  callable_interfaces:
+    - kerneltrap (C handler)
+  resource_assumptions:
+    - sufficient kernel stack space for 32-register save area
+  lock_assumptions:
+    - none
+
+guarantee:
+  returns:
+    - void (returns via sret to interrupted code)
+  state_updates: []
+  side_effects:
+    - all registers saved to and restored from kernel stack
+    - sstatus/sepc saved and restored
+    - trap handled via kerneltrap
+  emitted_events:
+    - none
+
+preconditions:
+  - stvec points to kernelvec
+  - sp points to top of current hart's kernel stack
+postconditions:
+  - execution resumes at the instruction pointed to by sepc
+invariants_preserved:
+  - all register values restored identically (except a0 if used for return)
+  - sstatus.SPP restored correctly
+failure_semantics:
+  - panics via kerneltrap on unexpected exceptions
+
+concurrency:
+  atomicity: hardware atomic trap entry/exit
+  lock_order: []
+  interrupt_state: interrupts disabled on entry (SIE clear in sstatus)
+  wait_wakeup_rules: []
+
+security:
+  authority_check: none (hardware-mediated)
+  isolation_boundary: stays in S-mode; no privilege change
+  user_pointer_policy: none
+
+observability:
+  traces: []
+  counters: []
+  expected_logs: []
+
+test_obligations:
+  public:
+    - kernelvec_save_restore
+    - kernelvec_timer_dispatch
+  generated: []
+  hidden_tags: []
+
+codegen:
+  targets:
+    - kind: symbol
+      path: kernel/kernelvec.S
+      symbols: [kernelvec]
+      owner: kernel/trap
+      mode: create
+  forbidden_changes:
+    - do not modify code outside the marked region
+    - do not create helper files
+    - do not modify build scripts
+  required_followup_checks:
+    - make build

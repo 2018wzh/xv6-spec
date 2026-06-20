@@ -1,0 +1,30 @@
+id: kernel
+module: kernel
+stage: syscall
+purpose: >
+  Aggregate namespace for all kernel-space xv6 modules. This
+  parent ModuleSpec is referenced by early-stage architecture
+  composition and expands stage-scoped to kernel/* descendants.
+related_slices:
+  - slice-01-boot
+  - slice-02-memory
+  - slice-03-trap
+  - slice-04-process
+  - slice-05-syscall
+related_adrs: []
+owned_state:
+  - none (aggregation namespace only)
+exported_interfaces:
+  - kernel/*
+imported_interfaces: []
+module_invariants:
+  - references to kernel expand only to active kernel/* modules at the selected stage
+  - concrete runtime behavior is defined by descendant kernel/* modules
+error_model:
+  - none directly; child modules define concrete error semantics
+resource_lifetime_rules:
+  - namespace remains stable for all kernel descendants through stage syscall
+security_boundary:
+  - aggregates only S-mode kernel modules
+test_surfaces:
+  - architecture slices may reference kernel as a stage-scoped aggregate

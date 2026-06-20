@@ -1,0 +1,96 @@
+id: kernel/process.fork
+
+module: kernel/process
+
+operation: fork
+stage: process
+purpose: >
+  Create a new process by duplicating the calling process.
+  The child has a copy of the parent's memory and file
+  descriptors (when fd layer is available).
+
+related_slice: slice-04-process
+related_adr: null
+depends_on:
+  requires_modules:
+    - kernel/process
+
+    - kernel/memory
+
+  requires_ops:
+    - kernel/process.allocproc
+
+    - kernel/memory.uvmcopy
+
+
+rely:
+  state_assumptions:
+    - current process is valid
+  callable_interfaces:
+    - allocproc, uvmcopy
+  resource_assumptions:
+    - free proc slot and enough memory for copy
+  lock_assumptions:
+    - acquires child p->lock
+
+guarantee:
+  returns:
+    - child PID (> 0) to parent
+    - 0 to child
+    - -1 on failure
+  state_updates: []
+  side_effects:
+    - child process created with copied memory
+    - child state set to RUNNABLE
+  emitted_events:
+    - none
+
+preconditions:
+  - called from usermode via sys_fork
+postconditions:
+  - parent and child are distinct RUNNABLE processes
+invariants_preserved:
+  - process table capacity not exceeded
+  - no shared writable memory
+failure_semantics:
+  - returns -1 if allocproc or uvmcopy fails
+  - cleans up partial state on failure
+
+concurrency:
+  atomicity: non-atomic (copy may span timer interrupts)
+  lock_order:
+    - p->lock (on child during setup)
+  interrupt_state: push_off/pop_off around critical updates
+  wait_wakeup_rules: []
+
+security:
+  authority_check: none
+  isolation_boundary: child inherits parent's U/GIDs
+  user_pointer_policy: inherited from parent
+
+observability:
+  traces: []
+  counters: []
+  expected_logs: []
+
+test_obligations:
+  public:
+    - fork_returns_different_pid
+    - fork_memory_isolation
+  generated:
+    - fork_exhaustion
+  hidden_tags: []
+
+codegen:
+  targets:
+    - kind: symbol
+      path: kernel/process.c
+      symbols: [fork]
+      owner: kernel/process
+      mode: create
+  forbidden_changes:
+    - do not modify code outside the marked region
+    - do not create helper files
+    - do not modify build scripts
+  required_followup_checks:
+    - make build

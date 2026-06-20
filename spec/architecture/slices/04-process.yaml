@@ -1,0 +1,65 @@
+id: slice-04-process
+
+stage: process
+title: Process Abstraction and Scheduler
+summary: >
+  Define the process structure (struct proc), implement a
+  round-robin scheduler, provide fork and exec primitives,
+  and manage process lifecycle.
+
+depends_on_slices:
+  - slice-02-memory
+  - slice-03-trap
+depends_on_adrs: []
+
+mechanisms:
+  - "struct proc with state, pagetable, trapframe, context"
+  - "per-process kernel stack"
+  - "round-robin scheduler (swtch)"
+  - "fork: copy process state and memory"
+  - "exit: release resources and set ZOMBIE state"
+  - "wait: reap child processes"
+affected_modules:
+  - kernel/process
+  - kernel/memory
+  - kernel/trap
+  - user
+
+new_operations:
+  - kernel/process.proc_init
+
+  - kernel/process.allocproc
+
+  - kernel/process.scheduler
+
+  - kernel/process.swtch
+
+  - kernel/process.fork
+
+  - kernel/process.exit
+
+  - kernel/process.wait
+  - kernel/process.growproc
+  - user/programs.generate_user_ld
+  - user/programs.generate_init_c
+
+removed_or_replaced_mechanisms: []
+
+invariants:
+  - at most NPROC processes exist simultaneously
+  - a process in state RUNNABLE has a valid trapframe and pagetable
+  - only one process is RUNNING per hart
+  - parent must wait on children before being freed
+security_boundaries:
+  - user addresses are validated via walkaddr before kernel access
+  - child process memory is a copy of the parent (no shared writable
+    pages)
+concurrency_highlights:
+  - scheduler loop does not hold locks across swtch
+  - fork is not atomic; parent may be rescheduled during copy
+validation_binding:
+  must_pass:
+    - build_kernel
+    - verify_fork_exit_wait
+    - verify_scheduler_loop
+open_questions: []

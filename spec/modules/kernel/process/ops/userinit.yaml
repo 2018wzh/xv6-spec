@@ -1,0 +1,96 @@
+id: kernel/process.userinit
+
+module: kernel/process
+
+operation: userinit
+stage: process
+purpose: >
+  Create the first user process (init). Allocate a process
+  slot, create a user page table with trampoline and
+  trapframe, set up the initial user program, and mark
+  the process as RUNNABLE.
+
+related_slice: slice-04-process
+related_adr: null
+depends_on:
+  requires_modules:
+    - kernel/process
+
+    - kernel/memory
+
+  requires_ops:
+    - kernel/process.allocproc
+
+    - kernel/memory.uvmcreate
+
+    - kernel/memory.uvminit
+
+
+rely:
+  state_assumptions:
+    - proc_init has been called
+    - kvmmake has set up kernel page table
+  callable_interfaces:
+    - allocproc, uvmcreate, uvminit
+  resource_assumptions:
+    - at least one free proc slot
+    - free pages for pagetable and trapframe
+  lock_assumptions:
+    - acquires p->lock
+
+guarantee:
+  returns:
+    - void
+  state_updates: []
+  side_effects:
+    - first user process created (pid 1)
+    - process state set to RUNNABLE
+    - initial user code loaded into process memory
+  emitted_events:
+    - none
+
+preconditions:
+  - called once during kernel init, after trap_init
+postconditions:
+  - at least one RUNNABLE process exists
+invariants_preserved:
+  - process 1 (init) is never killed
+failure_semantics:
+  - panics if allocproc fails or memory is exhausted
+
+concurrency:
+  atomicity: init only
+  lock_order: []
+  interrupt_state: interrupts disabled during init
+  wait_wakeup_rules: []
+
+security:
+  authority_check: none (init-only)
+  isolation_boundary: init has independent user page table
+  user_pointer_policy: user code loaded via copyout
+
+observability:
+  traces: []
+  counters: []
+  expected_logs: []
+
+test_obligations:
+  public:
+    - userinit_creates_proc
+    - userinit_pid_one
+  generated: []
+  hidden_tags: []
+
+codegen:
+  targets:
+    - kind: symbol
+      path: kernel/process.c
+      symbols: [userinit]
+      owner: kernel/process
+      mode: create
+  forbidden_changes:
+    - do not modify code outside the marked region
+    - do not create helper files
+    - do not modify build scripts
+  required_followup_checks:
+    - make build

@@ -1,0 +1,91 @@
+id: kernel/process.sleep
+
+module: kernel/process
+
+operation: sleep
+stage: process
+purpose: >
+  Atomically release a spinlock and put the current process
+  to sleep on a wait channel. The process will block until
+  wakeup is called on the same channel.
+
+related_slice: slice-04-process
+related_adr: null
+depends_on:
+  requires_modules:
+    - kernel/process
+
+  requires_ops:
+    - kernel/process.scheduler
+
+
+rely:
+  state_assumptions:
+    - current process is RUNNING
+  callable_interfaces:
+    - sched
+  resource_assumptions:
+    - none
+  lock_assumptions:
+    - p->lock is held
+    - lk is held and will be released atomically
+
+guarantee:
+  returns:
+    - void (returns after wakeup)
+  state_updates: []
+  side_effects:
+    - current process state set to SLEEPING
+    - lk released atomically
+    - process blocked until wakeup
+  emitted_events:
+    - none
+
+preconditions:
+  - lk is a valid spinlock
+  - chan is a non-NULL wait channel identifier
+postconditions:
+  - process is eventually rescheduled after wakeup
+invariants_preserved:
+  - sleep+wakeup pairing integrity
+failure_semantics:
+  - panics if lk is not held
+
+concurrency:
+  atomicity: lock release + state change is atomic
+  lock_order:
+    - p->lock acquired, then lk released
+  interrupt_state: push_off/pop_off
+  wait_wakeup_rules:
+    - sleep(chan, lk) blocks current process on chan
+
+security:
+  authority_check: any process can sleep
+  isolation_boundary: none
+  user_pointer_policy: none
+
+observability:
+  traces: []
+  counters: []
+  expected_logs: []
+
+test_obligations:
+  public:
+    - sleep_blocks_process
+    - sleep_releases_lock
+  generated: []
+  hidden_tags: []
+
+codegen:
+  targets:
+    - kind: symbol
+      path: kernel/process.c
+      symbols: [sleep]
+      owner: kernel/process
+      mode: create
+  forbidden_changes:
+    - do not modify code outside the marked region
+    - do not create helper files
+    - do not modify build scripts
+  required_followup_checks:
+    - make build

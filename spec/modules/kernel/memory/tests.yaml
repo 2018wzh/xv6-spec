@@ -1,0 +1,41 @@
+module: kernel/memory
+
+test_surfaces:
+  - kalloc_exhaustion
+  - kalloc_alignment
+  - kalloc_zeroed
+  - kfree_valid
+  - kalloc_kfree_cycle
+  - kfree_double_free_detection
+  - kvmmake_identity_mapping
+  - kvmmake_trampoline_mapped
+  - kvmmake_page_table_depth
+  - walk_valid_mapping
+  - walk_invalid_virtual_address
+  - walkaddr_u_bit_check
+  - uvmcopy_isolation
+  - copyin_valid_address
+  - copyin_invalid_address
+  - copyin_boundary_crossing
+  - copyout_valid_address
+  - copyout_readonly_page
+
+required_tests:
+  - test: kalloc_exhaustion
+    description: kalloc returns NULL when freelist is exhausted
+  - test: kalloc_alignment
+    description: every page returned by kalloc is 4096-byte aligned
+  - test: kalloc_zeroed
+    description: kalloc returns zero-filled pages
+  - test: kalloc_kfree_cycle
+    description: alloc-free-alloc cycle returns the same page
+  - test: kvmmake_identity_mapping
+    description: kernel page table maps 0x80000000..PHYSTOP as identity
+  - test: kvmmake_trampoline_mapped
+    description: trampoline page is mapped at TRAMPOLINE virtual address
+  - test: walkaddr_u_bit_check
+    description: walkaddr returns 0 for kernel-only pages when checked from user context
+  - test: copyin_invalid_address
+    description: copyin returns -1 for unmapped user virtual address
+  - test: copyout_readonly_page
+    description: copyout returns -1 for read-only user page

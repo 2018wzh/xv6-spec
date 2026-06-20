@@ -1,0 +1,103 @@
+id: kernel/headers.link_ld
+
+module: kernel/headers
+
+operation: generate_link_ld
+stage: boot
+purpose: >
+  Generate kernel/link.ld, the GNU ld linker script for
+  the xv6 RISC-V kernel. Places .text at 0x80000000
+  (physical RAM start on QEMU virt), followed by .rodata,
+  .data, and .bss. Exports the `end` symbol at the end
+  of BSS (used by kinit for the page freelist) and
+  allocates per-hart kernel stacks via stack0. Entry
+  symbol is _start. Discards .eh_frame and .note sections.
+
+related_slice: slice-01-boot
+related_adr: null
+depends_on:
+  requires_modules:
+    - kernel/headers
+
+  requires_ops: []
+
+rely:
+  state_assumptions:
+    - _start is defined in kernel/entry.S
+    - stack0 size = 4096 * NCPU (NCPU=1 for single-hart)
+  callable_interfaces: []
+  resource_assumptions: []
+  lock_assumptions: []
+
+guarantee:
+  linker_sections:
+    - name: .text
+      vma: "0x80000000"
+      flags: "RX"
+      inputs: ["*(.text .text.*)", "kernel/entry.o(.text)"]
+    - name: .rodata
+      vma: "ALIGN(16)"
+      flags: "R"
+      inputs: ["*(.srodata .srodata.*)", "*(.rodata .rodata.*)"]
+    - name: .data
+      vma: "ALIGN(16)"
+      flags: "RW"
+      inputs: ["*(.sdata .sdata.*)", "*(.data .data.*)"]
+    - name: .bss
+      vma: "ALIGN(16)"
+      flags: "RW"
+      inputs: ["*(.sbss .sbss.*)", "*(.bss .bss.*)", "*(COMMON)"]
+  exported_symbols:
+    - name: end
+      value: "current location after .bss"
+    - name: stack0
+      value: "end + 4096"
+  discarded_sections: ["*(.eh_frame)", "*(.note .note.*)"]
+  returns: []
+  state_updates: []
+  side_effects:
+    - kernel/link.ld created
+  emitted_events: []
+
+preconditions:
+  - none
+postconditions:
+  - kernel/link.ld exists and is valid GNU ld syntax
+invariants_preserved: []
+failure_semantics:
+  - invalid linker script causes link failure
+
+concurrency:
+  atomicity: build-time only
+  lock_order: []
+  interrupt_state: n/a
+  wait_wakeup_rules: []
+
+security:
+  authority_check: n/a
+  isolation_boundary: n/a
+  user_pointer_policy: n/a
+
+observability:
+  traces: []
+  counters: []
+  expected_logs: []
+
+test_obligations:
+  public:
+    - link_ld_valid_syntax
+    - link_ld_end_exported
+  generated: []
+  hidden_tags: []
+
+codegen:
+  targets:
+    - kind: file
+      path: kernel/link.ld
+      symbols: [generate_link_ld]
+      owner: kernel/headers
+      mode: create
+  forbidden_changes:
+    - do not modify files outside kernel/
+  required_followup_checks:
+    - make build

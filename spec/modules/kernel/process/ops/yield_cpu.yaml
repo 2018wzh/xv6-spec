@@ -1,0 +1,86 @@
+id: kernel/process.yield_cpu
+
+module: kernel/process
+
+operation: yield_cpu
+stage: process
+purpose: >
+  Voluntarily yield the CPU. Set the current process
+  state to RUNNABLE and call sched() to switch to the
+  next process.
+
+related_slice: slice-04-process
+related_adr: null
+depends_on:
+  requires_modules:
+    - kernel/process
+
+  requires_ops:
+    - kernel/process.scheduler
+
+
+rely:
+  state_assumptions:
+    - current process is RUNNING
+  callable_interfaces:
+    - sched
+  resource_assumptions:
+    - none
+  lock_assumptions:
+    - acquires p->lock
+
+guarantee:
+  returns:
+    - void (but may return in the future when rescheduled)
+  state_updates: []
+  side_effects:
+    - current process becomes RUNNABLE
+    - next process becomes RUNNING
+  emitted_events:
+    - none
+
+preconditions:
+  - current process is valid
+postconditions:
+  - process is eventually rescheduled
+invariants_preserved:
+  - yield is non-preemptive (voluntary)
+failure_semantics:
+  - panics if not holding p->lock
+
+concurrency:
+  atomicity: sched does the context switch
+  lock_order:
+    - p->lock
+  interrupt_state: acquires lock with push_off
+  wait_wakeup_rules: []
+
+security:
+  authority_check: any process can yield
+  isolation_boundary: yields CPU, not privilege
+  user_pointer_policy: none
+
+observability:
+  traces: []
+  counters: []
+  expected_logs: []
+
+test_obligations:
+  public:
+    - yield_switches_to_runnable
+  generated: []
+  hidden_tags: []
+
+codegen:
+  targets:
+    - kind: symbol
+      path: kernel/process.c
+      symbols: [yield_cpu]
+      owner: kernel/process
+      mode: create
+  forbidden_changes:
+    - do not modify code outside the marked region
+    - do not create helper files
+    - do not modify build scripts
+  required_followup_checks:
+    - make build

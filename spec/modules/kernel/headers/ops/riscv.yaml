@@ -1,0 +1,165 @@
+id: kernel/headers.riscv
+
+module: kernel/headers
+
+operation: generate_riscv_h
+stage: boot
+purpose: >
+  Generate include/riscv.h containing RISC-V CSR access
+  macros, PTE flag constants, Sv39 address manipulation
+  helpers, privilege mode constants, and interrupt
+  enable/disable wrappers. Includes types.h. Must provide
+  r_scause, w_stvec, r_sstatus, w_sstatus, r_sepc, w_sepc,
+  r_stval, r_satp, w_satp, sfence_vma, w_sie, r_sie, r_tp,
+  w_tp, intr_on, intr_off, intr_get and all PTE_* flags.
+
+related_slice: slice-02-memory
+related_adr: "ADR-001 (Sv39 paging model)"
+depends_on:
+  requires_modules:
+    - kernel/headers
+
+  requires_ops:
+    - kernel/headers.types
+
+
+rely:
+  state_assumptions: []
+  callable_interfaces: []
+  resource_assumptions: []
+  lock_assumptions: []
+
+guarantee:
+  declarations:
+    typedefs: []
+    constants: []
+    structs: []
+    macros:
+      - name: PTE_V
+        value: "(1L << 0)"
+      - name: PTE_R
+        value: "(1L << 1)"
+      - name: PTE_W
+        value: "(1L << 2)"
+      - name: PTE_X
+        value: "(1L << 3)"
+      - name: PTE_U
+        value: "(1L << 4)"
+      - name: PTE_G
+        value: "(1L << 5)"
+      - name: PTE_A
+        value: "(1L << 6)"
+      - name: PTE_D
+        value: "(1L << 7)"
+      - name: PTE_FLAGS
+        value: "(PTE_V|PTE_R|PTE_W|PTE_X)"
+      - name: PA2PTE
+        value: "(pa) (((uint64)(pa)>>12)<<10)"
+      - name: PTE2PA
+        value: "(pte) (((pte)>>10)<<12)"
+      - name: PXMASK
+        value: "0x1FF"
+      - name: PXSHIFT
+        value: "(level) (PGSHIFT+(9*(level)))"
+      - name: PX
+        value: "(level,va) (((uint64)(va)>>PXSHIFT(level))&PXMASK)"
+      - name: MAXVA
+        value: "(1L<<(9+9+9+12-1))"
+      - name: r_scause
+        value: read csrr scause (inline asm)
+      - name: w_stvec
+        value: write csrw stvec (inline asm)
+      - name: r_sstatus
+        value: read csrr sstatus (inline asm)
+      - name: w_sstatus
+        value: write csrw sstatus (inline asm)
+      - name: r_sepc
+        value: read csrr sepc (inline asm)
+      - name: w_sepc
+        value: write csrw sepc (inline asm)
+      - name: r_stval
+        value: read csrr stval (inline asm)
+      - name: r_satp
+        value: read csrr satp (inline asm)
+      - name: w_satp
+        value: write csrw satp (inline asm)
+      - name: sfence_vma
+        value: sfence.vma zero,zero
+      - name: w_sie
+        value: write csrw sie (inline asm)
+      - name: r_sie
+        value: read csrr sie (inline asm)
+      - name: r_tp
+        value: read mv tp (inline asm)
+      - name: w_tp
+        value: write mv tp (inline asm)
+      - name: SSTATUS_SIE
+        value: "(1L<<1)"
+      - name: SSTATUS_SPP
+        value: "(1L<<8)"
+      - name: SSTATUS_SPIE
+        value: "(1L<<5)"
+      - name: SIE_SEIE
+        value: "(1L<<9)"
+      - name: SIE_STIE
+        value: "(1L<<5)"
+      - name: SIE_SSIE
+        value: "(1L<<1)"
+      - name: SATP_SV39
+        value: "(8L<<60)"
+      - name: MAKE_SATP
+        value: "(pgtbl) (SATP_SV39|((uint64)(pgtbl)>>12))"
+      - name: intr_on
+        value: enable supervisor interrupts
+      - name: intr_off
+        value: disable supervisor interrupts
+      - name: intr_get
+        value: check if supervisor interrupts enabled
+    function_declarations: []
+  returns: []
+  state_updates: []
+  side_effects:
+    - include/riscv.h created
+  emitted_events: []
+
+preconditions:
+  - include/types.h exists
+postconditions:
+  - include/riscv.h exists with all CSR access macros
+invariants_preserved: []
+failure_semantics: []
+
+concurrency:
+  atomicity: build-time only
+  lock_order: []
+  interrupt_state: n/a
+  wait_wakeup_rules: []
+
+security:
+  authority_check: n/a
+  isolation_boundary: n/a
+  user_pointer_policy: n/a
+
+observability:
+  traces: []
+  counters: []
+  expected_logs: []
+
+test_obligations:
+  public:
+    - riscv_h_self_consistent
+    - riscv_h_includes_types
+  generated: []
+  hidden_tags: []
+
+codegen:
+  targets:
+    - kind: file
+      path: include/riscv.h
+      symbols: [generate_riscv_h]
+      owner: kernel/headers
+      mode: create
+  forbidden_changes:
+    - do not modify files outside include/
+  required_followup_checks:
+    - make build

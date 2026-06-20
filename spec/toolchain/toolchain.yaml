@@ -1,0 +1,24 @@
+# xv6 RISC-V Toolchain Spec Index
+# This is the entry point consumed by vos-runtime.
+# Detailed specs are split into separate files per the
+# spec/toolchain/ standard layout.
+
+includes:
+  - profile.yaml
+
+  - build.yaml
+
+  - link.yaml
+
+  - image.yaml
+
+  - run.yaml
+
+  - debug.yaml
+
+
+validation:
+  must_pass:
+    - link_kernel
+    - generate_image
+    - generate_asm
