@@ -121,3 +121,158 @@ public_requirements:
       - sys_sbrk_shrink
     required_artifacts:
       - kernel.elf
+
+  - id: verify-buffer-cache
+    description: Buffer cache returns valid cached blocks
+    related_specs:
+      - module: kernel/bio
+        operation: bread
+      - module: kernel/bio
+        operation: bwrite
+    required_tests:
+      - bread_cache_hit
+      - bread_cache_miss
+      - bwrite_verify
+    required_artifacts:
+      - kernel.elf
+
+  - id: verify-log-recovery
+    description: Log recovery restores file system consistency
+    related_specs:
+      - module: kernel/log
+        operation: commit
+      - module: kernel/log
+        operation: recover_from_log
+    required_tests:
+      - log_recovery_committed
+      - log_recovery_empty
+    required_artifacts:
+      - kernel.elf
+
+  - id: verify-inode-ops
+    description: Inode allocation and deallocation is correct
+    related_specs:
+      - module: kernel/fs
+        operation: ialloc
+      - module: kernel/fs
+        operation: iput
+    required_tests:
+      - inode_alloc_free_cycle
+      - inode_ref_count
+    required_artifacts:
+      - kernel.elf
+
+  - id: verify-file-ops
+    description: File descriptor operations are correct
+    related_specs:
+      - module: kernel/file
+        operation: filealloc
+      - module: kernel/file
+        operation: fileclose
+    required_tests:
+      - fd_alloc_close_cycle
+      - fd_ref_count
+    required_artifacts:
+      - kernel.elf
+
+  - id: verify-exec
+    description: exec loads ELF and replaces address space
+    related_specs:
+      - module: kernel/exec
+        operation: kexec
+    required_tests:
+      - exec_valid_elf
+      - exec_invalid_elf
+      - exec_argv_passing
+    required_artifacts:
+      - kernel.elf
+
+  - id: verify-pipe
+    description: Pipe read/write and blocking are correct
+    related_specs:
+      - module: kernel/pipe
+        operation: pipealloc
+      - module: kernel/pipe
+        operation: pipewrite
+      - module: kernel/pipe
+        operation: piperead
+    required_tests:
+      - pipe_read_write_cycle
+      - pipe_blocking_full
+      - pipe_close_wakeup
+    required_artifacts:
+      - kernel.elf
+
+  - id: verify-uart
+    description: UART transmits and receives characters
+    related_specs:
+      - module: kernel/uart
+        operation: uartinit
+      - module: kernel/uart
+        operation: uartwrite
+    required_tests:
+      - uart_boot_output
+      - uart_echo
+    required_artifacts:
+      - qemu_boot.log
+
+  - id: verify-disk
+    description: Virtio disk reads and writes correctly
+    related_specs:
+      - module: kernel/virtio
+        operation: virtio_disk_rw
+    required_tests:
+      - disk_read_write
+      - disk_init
+    required_artifacts:
+      - kernel.elf
+
+  - id: verify-file-syscalls
+    description: File system syscalls work end-to-end
+    related_specs:
+      - module: kernel/sysfile
+        operation: sys_open
+      - module: kernel/sysfile
+        operation: sys_read
+      - module: kernel/sysfile
+        operation: sys_write
+      - module: kernel/sysfile
+        operation: sys_close
+    required_tests:
+      - open_read_write_close
+      - dup_functional
+      - link_unlink
+    required_artifacts:
+      - kernel.elf
+
+  - id: verify-pipe-syscall
+    description: Pipe syscall creates usable pipe
+    related_specs:
+      - module: kernel/sysfile
+        operation: sys_pipe
+    required_tests:
+      - sys_pipe_create
+      - sys_pipe_read_write
+    required_artifacts:
+      - kernel.elf
+
+  - id: verify-shell
+    description: Shell boots and executes commands
+    related_specs:
+      - module: user/programs
+        operation: generate_sh_c
+    required_tests:
+      - shell_boots
+      - shell_executes_echo
+    required_artifacts:
+      - qemu_boot.log
+
+  - id: verify-usertests
+    description: usertests regression suite passes
+    related_specs:
+      - module: user/tests
+        operation: generate_usertests_c
+    required_tests:
+      - usertests_all_pass
+    required_artifacts:
+      - kernel.elf

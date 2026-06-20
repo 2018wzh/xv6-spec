@@ -1,0 +1,26 @@
+module: kernel/log
+shared_state:
+  - log.lh (log header: block numbers of logged blocks)
+  - log.outstanding (count of in-progress FS syscalls)
+  - log.committing (flag: commit in progress)
+lock_types:
+  - log.lock: spinlock (protects log state)
+atomic_sections:
+  - begin_op: acquires log.lock, increments outstanding, may sleep if log near full
+  - end_op: acquires log.lock, decrements outstanding, triggers commit when outstanding==0
+  - commit: holds log.lock while writing log header and blocks to disk
+interrupt_rules:
+  - log.lock is never held across disk I/O (commit releases log.lock during writes)
+wait_wakeup_rules:
+  - begin_op sleeps on &log if outstanding + committing would overflow log
+  - commit wakes up processes sleeping on &log after completion
+rely:
+  - bread/bwrite operate correctly under bcache.lock + buffer sleeplock
+  - caller of begin_op must not hold any buffer locks
+guarantee:
+  - after commit, all logged blocks are on disk
+  - log_write only marks a buffer for logging; actual write is at commit
+  - recovery replays committed transactions and discards uncommitted ones
+forbidden_patterns:
+  - calling begin_op while holding log.lock (recursive lock panic)
+  - modifying a disk block without calling log_write first

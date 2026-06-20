@@ -1,0 +1,85 @@
+id: kernel/bio.brelse
+
+module: kernel/bio
+
+operation: brelse
+stage: filesystem
+purpose: >
+  Release a locked buffer. Move it to the head of the MRU list if no one is waiting for it (refcnt==0). The buffer's sleeplock must be held on entry.
+
+related_slice: slice-06-filesystem
+related_adr: null
+depends_on:
+  requires_modules:
+    - kernel/bio
+  requires_ops:
+    - kernel/bio.bread
+
+rely:
+  state_assumptions:
+    - buffer is locked by caller
+  callable_interfaces:
+    - releasesleep (from kernel/lock)
+  resource_assumptions:
+    - sufficient resources available
+  lock_assumptions:
+    - caller must hold b->lock (sleeplock)
+    - releases sleep lock before acquiring bcache.lock
+
+guarantee:
+  returns:
+    - void
+  state_updates: []
+  side_effects:
+    - buffer unlocked
+    - buffer moved to head of LRU list if refcnt==0
+  emitted_events: []
+
+preconditions:
+  - caller holds b->lock
+postconditions:
+  - buffer is unlocked and available for reuse
+invariants_preserved:
+  - refcnt >= 0 at all times
+failure_semantics:
+  - none
+
+concurrency:
+  atomicity: releasesleep then bcache.lock for LRU reorder
+  lock_order:
+    - release b->lock first
+    - then bcache.lock
+  interrupt_state: enabled
+  wait_wakeup_rules:
+    []
+
+security:
+  authority_check: none
+  isolation_boundary: kernel-space only
+  user_pointer_policy: none
+
+observability:
+  traces: []
+  counters: []
+  expected_logs: []
+
+test_obligations:
+  public:
+    - brelse_mru_order
+  generated: []
+  hidden_tags:
+    []
+
+codegen:
+  targets:
+    - kind: symbol
+      path: kernel/bio.c
+      symbols: [brelse]
+      owner: kernel/bio
+      mode: create
+  forbidden_changes:
+    - do not modify code outside the marked region
+    - do not create helper files
+    - do not modify build scripts
+  required_followup_checks:
+    - make build

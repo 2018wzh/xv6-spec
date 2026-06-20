@@ -1,0 +1,109 @@
+id: slice-06-filesystem
+
+stage: filesystem
+title: File System — Buffer Cache, Logging, Inodes, Directories
+summary: >
+  Introduce the xv6 file system stack: buffer cache for block I/O,
+  logging layer for crash-safe multi-step updates, inode allocation
+  and management, directory entries and path resolution, file
+  descriptor table with ref-counted file objects, and ELF executable
+  loading via exec().
+
+depends_on_slices:
+  - slice-05-syscall
+depends_on_adrs: []
+
+mechanisms:
+  - buffer cache with LRU eviction (binit, bread, bwrite, brelse, bpin, bunpin)
+  - logging layer (initlog, begin_op, end_op, log_write, commit, recover_from_log)
+  - superblock reading and filesystem initialization (readsb, fsinit)
+  - block allocator and deallocator (balloc, bfree)
+  - inode layer (ialloc, iupdate, iget, iput, ilock, iunlock, iunlockput)
+  - inode read/write (readi, writei)
+  - directory layer (dirlookup, dirlink, skipelem)
+  - path resolution (namei, nameiparent)
+  - file descriptor table (fileinit, filealloc, filedup, fileclose, filestat, fileread, filewrite)
+  - ELF loading (kexec, loadseg, flags2perm)
+  - sleeping locks for long-term locks (initsleeplock, acquiresleep, releasesleep, holdingsleep)
+  - formatted kernel printing (printk, printkinit, panic)
+affected_modules:
+  - kernel/bio
+  - kernel/log
+  - kernel/fs
+  - kernel/file
+  - kernel/exec
+  - kernel/sleeplock
+  - kernel/printk
+new_operations:
+  - kernel/bio.binit
+  - kernel/bio.bread
+  - kernel/bio.bwrite
+  - kernel/bio.brelse
+  - kernel/bio.bpin
+  - kernel/bio.bunpin
+  - kernel/log.initlog
+  - kernel/log.begin_op
+  - kernel/log.end_op
+  - kernel/log.log_write
+  - kernel/log.commit
+  - kernel/fs.fsinit
+  - kernel/fs.balloc
+  - kernel/fs.bfree
+  - kernel/fs.ialloc
+  - kernel/fs.iupdate
+  - kernel/fs.iget
+  - kernel/fs.iput
+  - kernel/fs.ilock
+  - kernel/fs.iunlock
+  - kernel/fs.iunlockput
+  - kernel/fs.readi
+  - kernel/fs.writei
+  - kernel/fs.dirlookup
+  - kernel/fs.dirlink
+  - kernel/fs.namei
+  - kernel/fs.nameiparent
+  - kernel/file.fileinit
+  - kernel/file.filealloc
+  - kernel/file.filedup
+  - kernel/file.fileclose
+  - kernel/file.filestat
+  - kernel/file.fileread
+  - kernel/file.filewrite
+  - kernel/exec.kexec
+  - kernel/sleeplock.initsleeplock
+  - kernel/sleeplock.acquiresleep
+  - kernel/sleeplock.releasesleep
+  - kernel/sleeplock.holdingsleep
+  - kernel/printk.printk
+  - kernel/printk.printkinit
+  - kernel/printk.panic
+removed_or_replaced_mechanisms: []
+
+invariants:
+  - buffer cache uses LRU eviction: most-recently-used at head
+  - every disk block is either in the buffer cache or on disk, never both stale
+  - log commits are atomic: all or no blocks are written
+  - inode reference count is always non-negative
+  - directory entries never span block boundaries
+  - file descriptor 0..NOFILE-1 either has a valid file* or is NULL
+  - exec replaces the entire process address space atomically
+security_boundaries:
+  - file access is gated by readable/writable flags on struct file
+  - path resolution validates every component before following
+  - exec validates ELF headers before loading segments
+  - user pointers in fileread/filewrite are validated by copyin/copyout
+concurrency_highlights:
+  - buffer cache uses bcache.lock (spinlock) for list management + sleeplock per buffer
+  - log uses log.lock and begin_op/end_op reference counting
+  - inode layer uses per-inode sleeplock
+  - file table uses ftable.lock spinlock
+  - exec does not hold locks during ELF loading (may be rescheduled)
+validation_binding:
+  must_pass:
+    - build_kernel
+    - verify_buffer_cache
+    - verify_log_recovery
+    - verify_inode_ops
+    - verify_file_ops
+    - verify_exec_basic
+open_questions: []

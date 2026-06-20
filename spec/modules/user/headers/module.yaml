@@ -1,0 +1,26 @@
+id: user/headers
+module: user/headers
+stage: full-syscall
+purpose: >
+  User-space header files: user.h providing system call declarations,
+  type definitions (struct stat), and library function prototypes
+  for all user programs.
+related_slices:
+  - slice-09-full-syscall
+related_adrs: []
+owned_state:
+  - none (header definitions only)
+exported_interfaces:
+  - generate_user_h
+imported_interfaces: []
+module_invariants:
+  - all syscall numbers match kernel/syscall.h
+  - struct stat layout matches kernel/stat.h
+error_model:
+  - none (build-time artifact)
+resource_lifetime_rules:
+  - none
+security_boundary:
+  - header is used by user programs; contains no kernel addresses
+test_surfaces:
+  - user_h_compiles

@@ -1,0 +1,80 @@
+id: user/lib.fprintf
+
+module: user/lib
+
+operation: fprintf
+stage: full-syscall
+purpose: >
+  Formatted print to the given file descriptor. Parse format string, convert arguments, and call write() for output.
+
+related_slice: slice-09-full-syscall
+related_adr: null
+depends_on:
+  requires_modules:
+    - user/lib
+  requires_ops:
+    []
+
+rely:
+  state_assumptions:
+  callable_interfaces:
+    - write (syscall)
+  resource_assumptions:
+    - sufficient resources available
+  lock_assumptions:
+    - none
+
+guarantee:
+  returns:
+    - void
+  state_updates: []
+  side_effects:
+    - formatted output written to fd
+  emitted_events: []
+preconditions:
+  - fd is open for writing
+postconditions:
+  - output written
+invariants_preserved:
+  []
+failure_semantics:
+  - none
+
+concurrency:
+  atomicity: user-space only
+  lock_order:
+    []
+  interrupt_state: enabled (user mode)
+  wait_wakeup_rules:
+    []
+
+security:
+  authority_check: none
+  isolation_boundary: user-space only
+  user_pointer_policy: none
+
+observability:
+  traces: []
+  counters: []
+  expected_logs: []
+
+test_obligations:
+  public:
+    - fprintf_basic
+  generated: []
+  hidden_tags:
+    []
+
+codegen:
+  targets:
+    - kind: symbol
+      path: user/printf.c
+      symbols: [fprintf]
+      owner: user/lib
+      mode: create
+  forbidden_changes:
+    - do not modify code outside the marked region
+    - do not create helper files
+    - do not modify build scripts
+  required_followup_checks:
+    - make build

@@ -1,0 +1,89 @@
+id: kernel/sysfile.sys_open
+
+module: kernel/sysfile
+
+operation: sys_open
+stage: full-syscall
+purpose: >
+  Open a file at the given path with the specified flags (O_RDONLY, O_WRONLY, O_RDWR, O_CREATE, O_TRUNC). Returns a file descriptor.
+
+related_slice: slice-09-full-syscall
+related_adr: null
+depends_on:
+  requires_modules:
+    - kernel/sysfile
+  requires_ops:
+    - kernel/sysfile.fdalloc
+    - kernel/file.filealloc
+    - kernel/fs.namei
+    - kernel/fs.ialloc
+
+rely:
+  state_assumptions:
+  callable_interfaces:
+    - fdalloc/filealloc (internal)
+    - namei/nameiparent/ialloc/ilock/iunlock (from kernel/fs)
+    - begin_op/end_op (from kernel/log)
+  resource_assumptions:
+    - sufficient resources available
+  lock_assumptions:
+    - none
+
+guarantee:
+  returns:
+    - int: fd on success
+    - -1 on failure
+  state_updates: []
+  side_effects:
+    - file opened
+    - fd allocated
+    - inode created if O_CREATE
+    - file truncated if O_TRUNC
+  emitted_events: []
+preconditions:
+  []
+postconditions:
+  - fd can be used for read/write according to flags
+invariants_preserved:
+  []
+failure_semantics:
+  - returns -1 if path invalid, permission denied, or table full
+
+concurrency:
+  atomicity: single operation
+  lock_order:
+    []
+  interrupt_state: enabled
+  wait_wakeup_rules:
+    []
+
+security:
+  authority_check: none
+  isolation_boundary: kernel-space only
+  user_pointer_policy: none
+
+observability:
+  traces: []
+  counters: []
+  expected_logs: []
+
+test_obligations:
+  public:
+    - sys_open_basic
+  generated: []
+  hidden_tags:
+    []
+
+codegen:
+  targets:
+    - kind: symbol
+      path: kernel/sysfile.c
+      symbols: [sys_open]
+      owner: kernel/sysfile
+      mode: create
+  forbidden_changes:
+    - do not modify code outside the marked region
+    - do not create helper files
+    - do not modify build scripts
+  required_followup_checks:
+    - make build

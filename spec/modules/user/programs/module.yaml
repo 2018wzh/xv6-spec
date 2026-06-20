@@ -1,19 +1,33 @@
 id: user/programs
 module: user/programs
-stage: process
+stage: full-syscall
 purpose: >
-  User-space programs and their build infrastructure for the
-  early xv6 kernel. Generates init (pid 1) and the linker
-  script user/user.ld needed for the first process stage.
+  User-space programs and their build infrastructure for
+  the xv6 kernel. Generates init (pid 1), the shell (sh),
+  core utilities (cat, echo, grep, kill, ln, ls, mkdir, rm,
+  wc), and their linker script user/user.ld. User programs are
+  compiled separately as freestanding binaries and linked
+  into the kernel image.
 related_slices:
   - slice-04-process
-  - slice-05-syscall
+  - slice-09-full-syscall
 related_adrs: []
 owned_state:
   - init program binary (embedded in kernel image)
 exported_interfaces:
   - generate_init_c
   - generate_user_ld
+  - generate_cat_c
+  - generate_echo_c
+  - generate_grep_c
+  - generate_kill_c
+  - generate_ln_c
+  - generate_ls_c
+  - generate_mkdir_c
+  - generate_rm_c
+  - generate_sh_c
+  - generate_wc_c
+  - generate_zombie_c
 imported_interfaces:
   - kernel/syscall.sys_write
   - kernel/syscall.sys_exit

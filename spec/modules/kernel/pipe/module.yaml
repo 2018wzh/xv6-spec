@@ -1,0 +1,39 @@
+id: kernel/pipe
+module: kernel/pipe
+stage: ipc
+purpose: >
+  Pipe-based inter-process communication: paired file descriptors with a bounded kernel buffer (PIPESIZE=512), blocking read/write with sleep/wakeup.
+related_slices:
+  - slice-07-ipc
+related_adrs:
+  []
+owned_state:
+  - struct pipe (lock, data[PIPESIZE], nread, nwrite, readopen, writeopen)
+exported_interfaces:
+  - pipealloc
+  - pipeclose
+  - pipewrite
+  - piperead
+imported_interfaces:
+  - filealloc/fileclose (from kernel/file)
+  - kalloc/kfree (from kernel/memory)
+  - copyin/copyout (from kernel/memory)
+  - sleep/wakeup (from kernel/process)
+module_invariants:
+  - nwrite - nread <= PIPESIZE
+  - nread <= nwrite
+  - at most one reader and one writer
+  - pipe is freed when both readopen and writeopen are 0
+error_model:
+  - pipewrite returns -1 if read end is closed
+  - piperead returns -1 if write end is closed and buffer is empty
+  - returns -1 if process is killed while sleeping
+resource_lifetime_rules:
+  - pipe is allocated via kalloc and freed via kfree
+  - readopen/writeopen track open ends
+  - fileclose triggers pipeclose
+security_boundary:
+  - pipe data copied through kernel via copyin/copyout; no shared memory between processes
+test_surfaces:
+  - unit tests for all exported functions
+  - integration tests with dependent modules

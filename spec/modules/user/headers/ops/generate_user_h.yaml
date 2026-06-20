@@ -1,0 +1,77 @@
+id: user/headers.generate_user_h
+
+module: user/headers
+
+operation: generate_user_h
+stage: full-syscall
+purpose: >
+  Generate user/user.h: system call declarations, struct stat definition from kernel/stat.h, library function prototypes (ulib.c, printf.c, umalloc.c), and SBRK_ERROR sentinel.
+
+related_slice: slice-09-full-syscall
+related_adr: null
+depends_on:
+  requires_modules:
+    - user/headers
+  requires_ops:
+    []
+
+rely:
+  state_assumptions:
+  callable_interfaces:
+  resource_assumptions:
+    - sufficient resources available
+  lock_assumptions:
+    - none
+
+guarantee:
+  returns:
+    - void
+  state_updates: []
+  side_effects:
+    - user/user.h generated
+  emitted_events: []
+preconditions:
+  []
+postconditions:
+  - user/user.h is self-consistent and compiles
+invariants_preserved:
+  []
+failure_semantics:
+  - none (build-time)
+
+concurrency:
+  atomicity: build-time only
+  lock_order:
+    []
+  interrupt_state: n/a
+  wait_wakeup_rules: []
+
+security:
+  authority_check: n/a
+  isolation_boundary: n/a
+  user_pointer_policy: n/a
+
+observability:
+  traces: []
+  counters: []
+  expected_logs: []
+
+test_obligations:
+  public:
+    - user_h_compiles
+  generated: []
+  hidden_tags: []
+
+codegen:
+  targets:
+    - kind: file
+      path: user/user.h
+      symbols: [generate_user_h]
+      owner: user/headers
+      mode: create
+  forbidden_changes:
+    - do not modify code outside the marked region
+    - do not create helper files
+    - do not modify build scripts
+  required_followup_checks:
+    - make build

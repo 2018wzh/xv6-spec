@@ -1,0 +1,85 @@
+id: user/programs.generate_ln_c
+
+module: user/programs
+
+operation: generate_ln_c
+stage: full-syscall
+purpose: >
+  Create a hard link from an existing file to a new name. Usage: ln <old> <new>.
+
+related_slice: slice-09-full-syscall
+related_adr: null
+depends_on:
+  requires_modules:
+    - user/programs
+    - user/lib
+    - user/headers
+    - user/stubs
+  requires_ops:
+    - user/lib.printf
+    - user/lib.malloc
+    - user/lib.free
+
+rely:
+  state_assumptions:
+    - user library is available
+  callable_interfaces:
+    - printf/malloc/free (from user/lib)
+    - syscall stubs (from user/stubs)
+  resource_assumptions:
+    - sufficient resources available
+  lock_assumptions:
+    - none
+
+guarantee:
+  returns:
+    - void
+  state_updates: []
+  side_effects:
+    - user/ln.c generated
+  emitted_events: []
+preconditions:
+  []
+postconditions:
+  - program compiles and links
+invariants_preserved:
+  []
+failure_semantics:
+  - none (build-time)
+
+concurrency:
+  atomicity: build-time only
+  lock_order:
+    []
+  interrupt_state: n/a
+  wait_wakeup_rules: []
+
+security:
+  authority_check: n/a
+  isolation_boundary: n/a
+  user_pointer_policy: n/a
+
+observability:
+  traces: []
+  counters: []
+  expected_logs: []
+
+test_obligations:
+  public:
+    - ln_compiles
+  generated: []
+  hidden_tags: []
+
+codegen:
+  targets:
+    - kind: symbol
+      path: user/ln.c
+      symbols: [generate_ln_c]
+      owner: user/programs
+      mode: create
+  forbidden_changes:
+    - do not modify code outside the marked region
+    - do not create helper files
+    - do not modify build scripts
+  required_followup_checks:
+    - make build

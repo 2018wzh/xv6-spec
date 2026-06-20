@@ -59,3 +59,48 @@ timeline:
       - sys_write / sys_exit / sys_fork / sys_wait / sys_sbrk
     affected_modules: [kernel/syscall, kernel/process, kernel/memory]
     validation_gate: [build_kernel, verify_syscall_dispatch, verify_sys_write, verify_fork_syscall]
+
+  - stage: filesystem
+    slice: slice-06-filesystem
+    title: File System — Buffer Cache, Logging, Inodes, Directories
+    introduced_mechanisms:
+      - buffer cache with LRU eviction (bread/bwrite/brelse)
+      - logging layer for crash-safe multi-step updates (begin_op/end_op)
+      - inode allocation and deallocation
+      - directory entries and path resolution (namei)
+      - file descriptor table with ref-counted file objects
+      - ELF executable loading (exec)
+    affected_modules: [kernel/bio, kernel/log, kernel/fs, kernel/file, kernel/exec]
+    validation_gate: [build_kernel, verify_buffer_cache, verify_inode_ops, verify_exec]
+
+  - stage: ipc
+    slice: slice-07-ipc
+    title: Inter-Process Communication — Pipes
+    introduced_mechanisms:
+      - pipe allocation with paired file descriptors
+      - bounded-buffer pipe read/write with sleep/wakeup
+      - pipe close semantics
+    affected_modules: [kernel/pipe, kernel/file]
+    validation_gate: [build_kernel, verify_pipe_read_write, verify_pipe_close]
+
+  - stage: device
+    slice: slice-08-device
+    title: Device Drivers — UART, PLIC, Virtio Disk
+    introduced_mechanisms:
+      - 16550a UART driver with interrupt-driven transmit
+      - platform-level interrupt controller (PLIC) configuration
+      - virtio block device driver
+      - console input line discipline
+      - formatted kernel printk
+    affected_modules: [kernel/uart, kernel/plic, kernel/virtio, kernel/console, kernel/printk]
+    validation_gate: [build_kernel, verify_uart_output, verify_disk_read, verify_console_echo]
+
+  - stage: full-syscall
+    slice: slice-09-full-syscall
+    title: Full System Call Interface — Files, Pipes, Process Control
+    introduced_mechanisms:
+      - file-system syscalls: open/close/read/write/dup/link/unlink/mkdir/chdir/mknod/fstat
+      - pipe syscall
+      - process-control syscalls: getpid/kill/pause/uptime
+    affected_modules: [kernel/sysfile, kernel/sysproc]
+    validation_gate: [build_kernel, verify_file_syscalls, verify_pipe_syscall, verify_proc_syscalls]

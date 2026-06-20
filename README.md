@@ -2,7 +2,7 @@
 
 `examples/xv6-spec` 是一个“只有规格、没有内核源码”的示例工程。它的目标不是在仓库里直接附带一份手写的 xv6，而是把 `spec/` 作为真相源，通过 `vos` 的 skeleton projection + module generation 流程，从零生成整个 xv6-riscv MVP，然后再构建、启动和验证。
 
-当前规格的最终阶段是 `syscall`。对这个阶段执行一次完整生成，会按依赖顺序覆盖：
+当前规格的最终阶段是 `full-syscall`。对这个阶段执行一次完整生成，会按依赖顺序覆盖：
 
 - `kernel/headers`
 - `kernel/boot`
@@ -11,8 +11,25 @@
 - `kernel/process`
 - `user/programs`
 - `kernel/syscall`
+- `kernel/bio`
+- `kernel/log`
+- `kernel/fs`
+- `kernel/file`
+- `kernel/exec`
+- `kernel/pipe`
+- `kernel/uart`
+- `kernel/plic`
+- `kernel/console`
+- `kernel/printk`
+- `kernel/virtio`
+- `kernel/sysfile`
+- `kernel/sysproc`
+- `user/headers`
+- `user/stubs`
+- `user/lib`
+- `user/tests`
 
-也就是说，`vos agent generate --apply` 是“从零生成整个当前 xv6 MVP”的入口。在这个示例里，省略 target 会默认回落到当前 stage，也就是 `syscall`。
+也就是说，`vos agent generate --apply` 是“从零生成整个当前 xv6 MVP”的入口。在这个示例里，省略 target 会默认回落到当前 stage，也就是 `full-syscall`。
 
 ## 工程现状
 

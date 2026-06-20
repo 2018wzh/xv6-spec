@@ -1,0 +1,80 @@
+id: kernel/sysfile.fdalloc
+
+module: kernel/sysfile
+
+operation: fdalloc
+stage: full-syscall
+purpose: >
+  Allocate a free file descriptor slot in the current process's ofile array for the given file. Returns the fd number or -1 if no slots are free.
+
+related_slice: slice-09-full-syscall
+related_adr: null
+depends_on:
+  requires_modules:
+    - kernel/sysfile
+  requires_ops:
+    - kernel/file.filealloc
+
+rely:
+  state_assumptions:
+  callable_interfaces:
+  resource_assumptions:
+    - sufficient resources available
+  lock_assumptions:
+    - none
+
+guarantee:
+  returns:
+    - int: fd number on success
+    - -1 if no free slot
+  state_updates: []
+  side_effects:
+    - p->ofile[fd] set to f
+  emitted_events: []
+preconditions:
+  []
+postconditions:
+  - the file can be accessed via the returned fd
+invariants_preserved:
+  []
+failure_semantics:
+  - returns -1 if all NOFILE slots are in use
+
+concurrency:
+  atomicity: single operation
+  lock_order:
+    []
+  interrupt_state: enabled
+  wait_wakeup_rules:
+    []
+
+security:
+  authority_check: none
+  isolation_boundary: kernel-space only
+  user_pointer_policy: none
+
+observability:
+  traces: []
+  counters: []
+  expected_logs: []
+
+test_obligations:
+  public:
+    - fdalloc_basic
+  generated: []
+  hidden_tags:
+    []
+
+codegen:
+  targets:
+    - kind: symbol
+      path: kernel/sysfile.c
+      symbols: [fdalloc]
+      owner: kernel/sysfile
+      mode: create
+  forbidden_changes:
+    - do not modify code outside the marked region
+    - do not create helper files
+    - do not modify build scripts
+  required_followup_checks:
+    - make build

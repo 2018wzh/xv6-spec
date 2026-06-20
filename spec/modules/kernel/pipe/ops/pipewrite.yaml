@@ -1,0 +1,85 @@
+id: kernel/pipe.pipewrite
+
+module: kernel/pipe
+
+operation: pipewrite
+stage: ipc
+purpose: >
+  Write up to n bytes from a user buffer to a pipe. Block if the pipe is full (nwrite == nread + PIPESIZE). Wake readers when data is available.
+
+related_slice: slice-07-ipc
+related_adr: null
+depends_on:
+  requires_modules:
+    - kernel/pipe
+  requires_ops:
+    - kernel/pipe.pipealloc
+    - kernel/memory.copyin
+
+rely:
+  state_assumptions:
+  callable_interfaces:
+    - copyin (from kernel/memory)
+    - sleep/wakeup (from kernel/process)
+  resource_assumptions:
+    - sufficient resources available
+  lock_assumptions:
+    - acquires pi->lock
+
+guarantee:
+  returns:
+    - int: number of bytes written, or -1 on error
+  state_updates: []
+  side_effects:
+    - data copied to pipe buffer
+    - nwrite advanced
+    - readers woken
+  emitted_events: []
+preconditions:
+  - pipe read end is open
+postconditions:
+  - bytes are in the pipe buffer
+invariants_preserved:
+  []
+failure_semantics:
+  - returns -1 if read end is closed or process is killed
+
+concurrency:
+  atomicity: pi->lock held throughout, released during sleep
+  lock_order:
+    - pi->lock
+  interrupt_state: enabled (may sleep)
+  wait_wakeup_rules:
+    - sleeps on &pi->nwrite when full
+    - wakes &pi->nread after writing
+
+security:
+  authority_check: none
+  isolation_boundary: kernel-space only
+  user_pointer_policy: user addresses validated by copyin/copyout
+
+observability:
+  traces: []
+  counters: []
+  expected_logs: []
+
+test_obligations:
+  public:
+    - pipewrite_basic
+  generated: []
+  hidden_tags:
+    []
+
+codegen:
+  targets:
+    - kind: symbol
+      path: kernel/pipe.c
+      symbols: [pipewrite]
+      owner: kernel/pipe
+      mode: create
+  forbidden_changes:
+    - do not modify code outside the marked region
+    - do not create helper files
+    - do not modify build scripts
+  required_followup_checks:
+    - make build

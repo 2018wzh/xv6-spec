@@ -1,0 +1,83 @@
+id: kernel/exec.flags2perm
+
+module: kernel/exec
+
+operation: flags2perm
+stage: filesystem
+purpose: >
+  Map ELF program header flags (PF_X, PF_W, PF_R) to RISC-V PTE permission bits (PTE_X, PTE_W). Read permission is always implied.
+
+related_slice: slice-06-filesystem
+related_adr: null
+depends_on:
+  requires_modules:
+    - kernel/exec
+  requires_ops:
+    []
+
+rely:
+  state_assumptions:
+  callable_interfaces:
+  resource_assumptions:
+    - sufficient resources available
+  lock_assumptions:
+    - none (pure function)
+
+guarantee:
+  returns:
+    - int: PTE permission bits
+  state_updates: []
+  side_effects:
+    - none (pure)
+  emitted_events: []
+preconditions:
+  - flags is a valid ELF p_flags value
+postconditions:
+  []
+invariants_preserved:
+  - PTE_R is always set
+  - PTE_X set if PF_X (0x1)
+  - PTE_W set if PF_W (0x2)
+failure_semantics:
+  - none
+
+concurrency:
+  atomicity: pure function, no concurrency concerns
+  lock_order:
+    []
+  interrupt_state: enabled
+  wait_wakeup_rules:
+    []
+
+security:
+  authority_check: none
+  isolation_boundary: kernel-space only
+  user_pointer_policy: none
+
+observability:
+  traces: []
+  counters: []
+  expected_logs: []
+
+test_obligations:
+  public:
+    - flags2perm_x
+    - flags2perm_w
+    - flags2perm_rw
+  generated: []
+  hidden_tags:
+    []
+
+codegen:
+  targets:
+    - kind: symbol
+      path: kernel/exec.c
+      symbols: [flags2perm]
+      owner: kernel/exec
+      mode: create
+  forbidden_changes:
+    - do not modify code outside the marked region
+    - do not create helper files
+    - do not modify build scripts
+  required_followup_checks:
+    - make build

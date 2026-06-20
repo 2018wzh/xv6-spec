@@ -1,0 +1,32 @@
+id: kernel/printk
+module: kernel/printk
+stage: device
+purpose: >
+  Formatted kernel printing: printk() for printf-style output, panic() for fatal errors. Uses consputc for character output and a spinlock (pr.lock) to serialize concurrent printk calls.
+related_slices:
+  - slice-08-device
+related_adrs:
+  []
+owned_state:
+  - pr.lock spinlock
+  - panicking/panicked flags
+exported_interfaces:
+  - printk
+  - printkinit
+  - panic
+imported_interfaces:
+  - consputc (from kernel/console)
+module_invariants:
+  - printk output is serialized by pr.lock (unless panicking)
+  - panic disables interrupts and spins forever after printing message
+  - panicked flag prevents further UART output
+error_model:
+  - panic never returns
+resource_lifetime_rules:
+  - printkinit runs once at boot
+  - pr.lock persists for kernel lifetime
+security_boundary:
+  - printk is kernel-only; format string attacks are not applicable (no user-controlled format strings)
+test_surfaces:
+  - unit tests for all exported functions
+  - integration tests with dependent modules

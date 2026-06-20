@@ -18,21 +18,21 @@ reference_systems:
       - trap frame for user/kernel context switch
       - round-robin scheduler
       - syscall dispatch table
-    modified_concepts:
-      - simplified boot path (single-hart, no S-mode init)
-      - spec-driven code generation instead of hand-written C
-    rejected_concepts:
       - buffer-cache block I/O layer with LRU eviction
       - logging/journaling for file-system crash safety
       - inode-based file system with directories and path resolution
       - pipe-based IPC
       - 16550a UART and virtio disk device drivers
+    modified_concepts:
+      - simplified boot path (single-hart, no S-mode init)
+      - spec-driven code generation instead of hand-written C
+    rejected_concepts:
       - COW fork (left to later stages)
       - multi-core support (left to later stages)
       - networking stack
     reason: >
-      Early-stage xv6-riscv specification covering the boot,
-      memory, trap, process, and syscall core.
+      Full xv6-riscv specification covering all core subsystems.
+      COW fork and multi-core are deferred as advanced topics.
 
 goals:
   - boot to supervisor mode and print a banner
@@ -41,13 +41,18 @@ goals:
   - handle traps (interrupts, exceptions, syscalls)
   - create and schedule user processes
   - expose a minimal syscall interface (write, exit, fork, sbrk)
+  - provide a buffer-cache layer for block I/O
+  - implement a logging layer for file-system crash safety
+  - provide an inode-based file system with directories and paths
+  - support pipe-based inter-process communication
+  - expose full file-system and process syscall interface
+  - provide UART and virtio disk device drivers
+  - support user-level shell and core utilities
 non_goals:
-  - COW fork
   - multi-core support (single-hart only)
   - networking stack
   - full POSIX compliance
-  - buffer-cache and file-system expansion
-  - device-driver expansion
+  - COW fork
 constraints:
   - riscv64-unknown-elf-gcc toolchain
   - qemu-system-riscv64 virt machine
@@ -59,4 +64,6 @@ initial_validation_binding:
   - verify_page_allocator
   - verify_kernel_page_table
   - verify_syscall_dispatch
-  - verify_fork_exit_wait
+  - verify_buffer_cache
+  - verify_inode_ops
+  - verify_file_ops

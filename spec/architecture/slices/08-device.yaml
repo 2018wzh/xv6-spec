@@ -1,0 +1,79 @@
+id: slice-08-device
+
+stage: device
+title: Device Drivers — UART, PLIC, Virtio Disk, Console, Printk
+summary: >
+  Introduce low-level device drivers: 16550a UART with interrupt-driven
+  transmit and polling receive, PLIC for interrupt routing, virtio
+  block device for disk I/O, console input with line discipline, and
+  formatted kernel printf (printk).
+
+depends_on_slices:
+  - slice-06-filesystem
+depends_on_adrs: []
+
+mechanisms:
+  - 16550a UART MMIO registers (THR, RHR, LSR, IER, FCR, LCR)
+  - UART interrupt-driven transmit with sleep/wakeup on tx_chan
+  - UART polling receive (uartgetc)
+  - UART synchronous putchar (uartputc_sync) for kernel printing
+  - PLIC initialization: set UART/VIRTIO IRQ priorities and enables
+  - PLIC claim/complete for interrupt handling
+  - virtio MMIO interface: descriptor rings, virtq_desc/virtq_avail/virtq_used
+  - virtio disk read/write via virtio_disk_rw
+  - console input circular buffer with line editing (backspace, ctrl-u, ctrl-d)
+  - console output via consputc (with backspace handling)
+  - formatted printk with %d/%x/%s/%p/%c support
+  - printk locking (pr.lock) to serialize concurrent output
+  - panic() with infinite loop after printing message
+affected_modules:
+  - kernel/uart
+  - kernel/plic
+  - kernel/virtio
+  - kernel/console
+  - kernel/printk
+new_operations:
+  - kernel/uart.uartinit
+  - kernel/uart.uartwrite
+  - kernel/uart.uartputc_sync
+  - kernel/uart.uartintr
+  - kernel/plic.plicinit
+  - kernel/plic.plicinithart
+  - kernel/plic.plic_claim
+  - kernel/plic.plic_complete
+  - kernel/virtio.virtio_disk_init
+  - kernel/virtio.virtio_disk_rw
+  - kernel/virtio.virtio_disk_intr
+  - kernel/console.consputc
+  - kernel/console.consoleinit
+  - kernel/console.consoleintr
+  - kernel/console.consoleread
+  - kernel/console.consolewrite
+  - kernel/printk.printk
+  - kernel/printk.printkinit
+  - kernel/printk.panic
+removed_or_replaced_mechanisms: []
+
+invariants:
+  - UART transmit is serialized by tx_lock; only one writer at a time
+  - PLIC must be initialized before any device interrupts are enabled
+  - virtio descriptors are allocated from a fixed-size pool (NUM)
+  - console input buffer is protected by cons.lock
+  - printk output is serialized by pr.lock
+  - panicked flag prevents further UART output after a panic
+security_boundaries:
+  - device MMIO addresses are hard-coded and never exposed to userspace
+  - UART input is only consumed by consoleintr (called from interrupt context)
+concurrency_highlights:
+  - UART tx_lock spinlock serializes uartwrite
+  - sleep/wakeup on tx_chan for UART transmit completion
+  - PLIC is per-hart; claim/complete are hart-local
+  - virtio_disk_intr wakes waiting processes via disk.virtio_disk_lock
+validation_binding:
+  must_pass:
+    - build_kernel
+    - verify_uart_output
+    - verify_disk_read
+    - verify_console_echo
+    - verify_printk_format
+open_questions: []

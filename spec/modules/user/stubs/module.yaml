@@ -1,0 +1,26 @@
+id: user/stubs
+module: user/stubs
+stage: full-syscall
+purpose: >
+  Assembly syscall stub generator (usys.S). Each stub loads
+  the syscall number into register a7 and executes the RISC-V
+  ecall instruction to trap into the kernel.
+related_slices:
+  - slice-09-full-syscall
+related_adrs: []
+owned_state:
+  - none (generates build artifact)
+exported_interfaces:
+  - generate_usys_S
+imported_interfaces: []
+module_invariants:
+  - every syscall stub uses the correct syscall number
+  - stubs follow the RISC-V calling convention (arguments in a0-a5)
+error_model:
+  - none (build-time artifact)
+resource_lifetime_rules:
+  - none
+security_boundary:
+  - stubs are user-space code; ecall is the only kernel entry point
+test_surfaces:
+  - usys stubs compile and link

@@ -1,0 +1,94 @@
+id: patch-002-full-spec
+
+stage: full-syscall
+title: Full System Expansion
+reason: >
+  Expands the core syscall baseline into the full xv6-riscv
+  teaching system: filesystem, IPC, device drivers, full file
+  and process syscalls, and the supporting user-space libraries
+  and programs.
+kind: architecture_change
+
+commit_sha: 9cc6437de3fc765373ea80348d8b2665f4366721
+parent_sha: 522fc7de5906f768416af4d12d0fcb37787d08dc
+
+affected_specs:
+  - spec/architecture/decisions/ADR-002-filesystem-model.yaml
+  - spec/architecture/decisions/ADR-003-device-driver-model.yaml
+  - spec/architecture/slices/06-filesystem.yaml
+  - spec/architecture/slices/07-ipc.yaml
+  - spec/architecture/slices/08-device.yaml
+  - spec/architecture/slices/09-full-syscall.yaml
+  - spec/architecture/composition.yaml
+  - spec/modules/kernel/bio/module.yaml
+  - spec/modules/kernel/console/module.yaml
+  - spec/modules/kernel/exec/module.yaml
+  - spec/modules/kernel/file/module.yaml
+  - spec/modules/kernel/fs/module.yaml
+  - spec/modules/kernel/lock/module.yaml
+  - spec/modules/kernel/log/module.yaml
+  - spec/modules/kernel/pipe/module.yaml
+  - spec/modules/kernel/plic/module.yaml
+  - spec/modules/kernel/printk/module.yaml
+  - spec/modules/kernel/start/module.yaml
+  - spec/modules/kernel/string/module.yaml
+  - spec/modules/kernel/sysfile/module.yaml
+  - spec/modules/kernel/sysproc/module.yaml
+  - spec/modules/kernel/uart/module.yaml
+  - spec/modules/kernel/virtio/module.yaml
+  - spec/modules/kernel/vm/module.yaml
+  - spec/modules/user/lib/module.yaml
+  - spec/modules/user/programs/module.yaml
+  - spec/modules/user/tests/module.yaml
+  - spec/verification/public-matrix.yaml
+  - spec/verification/evidence-schema.yaml
+
+affected_modules:
+  - kernel
+  - user
+
+affected_operations:
+  - kernel/bio.bread
+  - kernel/bio.bwrite
+  - kernel/console.consolewrite
+  - kernel/exec.kexec
+  - kernel/file.filealloc
+  - kernel/file.fileclose
+  - kernel/fs.ialloc
+  - kernel/fs.iput
+  - kernel/pipe.pipealloc
+  - kernel/pipe.pipewrite
+  - kernel/pipe.piperead
+  - kernel/plic.plicinit
+  - kernel/printk.printk
+  - kernel/sysfile.sys_open
+  - kernel/sysfile.sys_pipe
+  - kernel/sysproc.sys_getpid
+  - kernel/uart.uartinit
+  - kernel/virtio.virtio_disk_rw
+  - user/lib.printf
+  - user/programs.generate_sh_c
+  - user/tests.generate_usertests_c
+
+before:
+  description: Core syscall-stage baseline with boot, memory, trap, process, and minimal syscall support.
+after:
+  description: >
+    Full xv6-riscv system specification covering filesystem,
+    pipes, device drivers, shell utilities, and the extended
+    file/process syscall surface.
+
+risks:
+  - The expanded spec is significantly larger and may require
+    follow-on verification tuning for filesystem and device
+    interactions.
+  - Some stage-two operations are sensitive to concurrency and
+    resource lifetime edge cases.
+required_regressions:
+  - All early-stage public requirements must remain valid.
+  - All later-stage public_requirements in spec/verification/public-matrix.yaml
+    must pass after the expansion is applied.
+approval_notes: >
+  This patch is the second course-stage expansion. It must be
+  paired with the commit that introduces the late-stage modules
+  and verification coverage.
