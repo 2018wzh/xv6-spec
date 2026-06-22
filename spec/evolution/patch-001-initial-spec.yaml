@@ -1,59 +1,258 @@
 id: patch-001-initial-spec
-
 stage: syscall
 title: Initial Core Spec Snapshot
-reason: >
-  Captures the baseline specification state for the xv6-riscv
-  kernel after the core boot/memory/trap/process/syscall
-  stages have been defined. All subsequent evolutions must be
-  recorded as follow-on SpecPatches.
+reason: |
+  Captures the baseline specification state for the xv6-riscv kernel after the core boot/memory/trap/process/syscall stages have been defined. All subsequent evolutions must be recorded as follow-on SpecPatches.
 kind: architecture_change
-
-commit_sha: 522fc7de5906f768416af4d12d0fcb37787d08dc
-parent_sha: c3d69fa1e471a7ec4a923e85373b007cecf2ce53
-
+commit_sha: 0fcf0981f6efe4175e5cdac62d77ecb7541b6d96
+parent_sha: null
 affected_specs:
-  - spec/architecture/seed.yaml
-
-  - spec/architecture/timeline.yaml
-
   - spec/architecture/composition.yaml
-
   - spec/architecture/decisions/ADR-001-paging-model.yaml
-
+  - spec/architecture/seed.yaml
   - spec/architecture/slices/01-boot.yaml
-
   - spec/architecture/slices/02-memory.yaml
-
   - spec/architecture/slices/03-trap.yaml
-
   - spec/architecture/slices/04-process.yaml
-
   - spec/architecture/slices/05-syscall.yaml
-
+  - spec/architecture/timeline.yaml
+  - spec/composition/process-memory-isolation.yaml
+  - spec/composition/syscall-mm-trap.yaml
+  - spec/composition/trap-syscall-process.yaml
+  - spec/goals/xv6-core.yaml
+  - spec/modules/kernel/boot/concurrency.yaml
+  - spec/modules/kernel/boot/module.yaml
+  - spec/modules/kernel/boot/ops/boot_banner.yaml
+  - spec/modules/kernel/boot/ops/console_putchar.yaml
+  - spec/modules/kernel/boot/ops/console_write.yaml
+  - spec/modules/kernel/boot/ops/entry.yaml
+  - spec/modules/kernel/boot/ops/kernel_main.yaml
+  - spec/modules/kernel/boot/ops/shutdown.yaml
+  - spec/modules/kernel/boot/tests.yaml
+  - spec/modules/kernel/headers/module.yaml
+  - spec/modules/kernel/headers/ops/defs.yaml
+  - spec/modules/kernel/headers/ops/elf.yaml
+  - spec/modules/kernel/headers/ops/link_ld.yaml
+  - spec/modules/kernel/headers/ops/memlayout.yaml
+  - spec/modules/kernel/headers/ops/param.yaml
+  - spec/modules/kernel/headers/ops/proc.yaml
+  - spec/modules/kernel/headers/ops/riscv.yaml
+  - spec/modules/kernel/headers/ops/spinlock.yaml
+  - spec/modules/kernel/headers/ops/types.yaml
+  - spec/modules/kernel/memory/concurrency.yaml
+  - spec/modules/kernel/memory/module.yaml
+  - spec/modules/kernel/memory/ops/copyin.yaml
+  - spec/modules/kernel/memory/ops/copyinstr.yaml
+  - spec/modules/kernel/memory/ops/copyout.yaml
+  - spec/modules/kernel/memory/ops/kalloc.yaml
+  - spec/modules/kernel/memory/ops/kfree.yaml
+  - spec/modules/kernel/memory/ops/kinit.yaml
+  - spec/modules/kernel/memory/ops/kvmmake.yaml
+  - spec/modules/kernel/memory/ops/kvmmap.yaml
+  - spec/modules/kernel/memory/ops/uvmalloc.yaml
+  - spec/modules/kernel/memory/ops/uvmcopy.yaml
+  - spec/modules/kernel/memory/ops/uvmcreate.yaml
+  - spec/modules/kernel/memory/ops/uvmdealloc.yaml
+  - spec/modules/kernel/memory/ops/uvmfree.yaml
+  - spec/modules/kernel/memory/ops/uvminit.yaml
+  - spec/modules/kernel/memory/ops/uvmunmap.yaml
+  - spec/modules/kernel/memory/ops/walk.yaml
+  - spec/modules/kernel/memory/ops/walkaddr.yaml
+  - spec/modules/kernel/memory/tests.yaml
+  - spec/modules/kernel/module.yaml
+  - spec/modules/kernel/process/concurrency.yaml
+  - spec/modules/kernel/process/module.yaml
+  - spec/modules/kernel/process/ops/allocproc.yaml
+  - spec/modules/kernel/process/ops/exit.yaml
+  - spec/modules/kernel/process/ops/fork.yaml
+  - spec/modules/kernel/process/ops/freeproc.yaml
+  - spec/modules/kernel/process/ops/growproc.yaml
+  - spec/modules/kernel/process/ops/proc_init.yaml
+  - spec/modules/kernel/process/ops/scheduler.yaml
+  - spec/modules/kernel/process/ops/sleep.yaml
+  - spec/modules/kernel/process/ops/swtch.yaml
+  - spec/modules/kernel/process/ops/userinit.yaml
+  - spec/modules/kernel/process/ops/wait.yaml
+  - spec/modules/kernel/process/ops/wakeup.yaml
+  - spec/modules/kernel/process/ops/yield_cpu.yaml
+  - spec/modules/kernel/process/tests.yaml
+  - spec/modules/kernel/start/module.yaml
+  - spec/modules/kernel/start/ops/start.yaml
+  - spec/modules/kernel/start/ops/timerinit.yaml
+  - spec/modules/kernel/string/module.yaml
+  - spec/modules/kernel/string/ops/memcmp.yaml
+  - spec/modules/kernel/string/ops/memcpy.yaml
+  - spec/modules/kernel/string/ops/memmove.yaml
+  - spec/modules/kernel/string/ops/memset.yaml
+  - spec/modules/kernel/string/ops/safestrcpy.yaml
+  - spec/modules/kernel/string/ops/strlen.yaml
+  - spec/modules/kernel/string/ops/strncmp.yaml
+  - spec/modules/kernel/string/ops/strncpy.yaml
+  - spec/modules/kernel/syscall/concurrency.yaml
+  - spec/modules/kernel/syscall/module.yaml
+  - spec/modules/kernel/syscall/ops/argaddr.yaml
+  - spec/modules/kernel/syscall/ops/argint.yaml
+  - spec/modules/kernel/syscall/ops/fetchaddr.yaml
+  - spec/modules/kernel/syscall/ops/fetchstr.yaml
+  - spec/modules/kernel/syscall/ops/sys_exit.yaml
+  - spec/modules/kernel/syscall/ops/sys_fork.yaml
+  - spec/modules/kernel/syscall/ops/sys_sbrk.yaml
+  - spec/modules/kernel/syscall/ops/sys_wait.yaml
+  - spec/modules/kernel/syscall/ops/sys_write.yaml
+  - spec/modules/kernel/syscall/ops/syscall.yaml
+  - spec/modules/kernel/syscall/tests.yaml
+  - spec/modules/kernel/trap/concurrency.yaml
+  - spec/modules/kernel/trap/module.yaml
+  - spec/modules/kernel/trap/ops/devintr.yaml
+  - spec/modules/kernel/trap/ops/kerneltrap.yaml
+  - spec/modules/kernel/trap/ops/kernelvec.yaml
+  - spec/modules/kernel/trap/ops/trampoline.yaml
+  - spec/modules/kernel/trap/ops/trap_init.yaml
+  - spec/modules/kernel/trap/ops/usertrap.yaml
+  - spec/modules/kernel/trap/ops/usertrapret.yaml
+  - spec/modules/kernel/trap/tests.yaml
+  - spec/modules/kernel/vm/module.yaml
+  - spec/modules/kernel/vm/ops/proc_freepagetable.yaml
+  - spec/modules/kernel/vm/ops/proc_pagetable.yaml
+  - spec/modules/kernel/vm/ops/uvmclear.yaml
+  - spec/modules/kernel/vm/ops/vmfault.yaml
+  - spec/modules/user/module.yaml
+  - spec/modules/user/programs/module.yaml
+  - spec/modules/user/programs/ops/init.yaml
+  - spec/modules/user/programs/ops/user_ld.yaml
+  - spec/toolchain/build.yaml
+  - spec/toolchain/debug.yaml
+  - spec/toolchain/image.yaml
+  - spec/toolchain/link.yaml
+  - spec/toolchain/profile.yaml
+  - spec/toolchain/run.yaml
+  - spec/toolchain/toolchain.yaml
+  - spec/verification/evidence-schema.yaml
+  - spec/verification/public-matrix.yaml
+  - spec/verification/report-contract.yaml
 affected_modules:
   - kernel
+  - kernel/bio
+  - kernel/boot
+  - kernel/console
+  - kernel/exec
+  - kernel/file
+  - kernel/fs
+  - kernel/headers
+  - kernel/log
+  - kernel/memory
+  - kernel/pipe
+  - kernel/plic
+  - kernel/printk
+  - kernel/process
+  - kernel/start
+  - kernel/string
+  - kernel/syscall
+  - kernel/sysfile
+  - kernel/sysproc
+  - kernel/trap
+  - kernel/uart
+  - kernel/virtio
+  - kernel/vm
   - user
-
-affected_operations: []
-
+  - user/programs
+affected_operations:
+  - kernel/boot.boot_banner
+  - kernel/boot.console_putchar
+  - kernel/boot.console_write
+  - kernel/boot.entry
+  - kernel/boot.kernel_main
+  - kernel/boot.shutdown
+  - kernel/headers.defs
+  - kernel/headers.elf
+  - kernel/headers.link_ld
+  - kernel/headers.memlayout
+  - kernel/headers.param
+  - kernel/headers.proc
+  - kernel/headers.riscv
+  - kernel/headers.spinlock
+  - kernel/headers.types
+  - kernel/memory.copyin
+  - kernel/memory.copyinstr
+  - kernel/memory.copyout
+  - kernel/memory.kalloc
+  - kernel/memory.kfree
+  - kernel/memory.kinit
+  - kernel/memory.kvmmake
+  - kernel/memory.kvmmap
+  - kernel/memory.uvmalloc
+  - kernel/memory.uvmcopy
+  - kernel/memory.uvmcreate
+  - kernel/memory.uvmdealloc
+  - kernel/memory.uvmfree
+  - kernel/memory.uvminit
+  - kernel/memory.uvmunmap
+  - kernel/memory.walk
+  - kernel/memory.walkaddr
+  - kernel/process.allocproc
+  - kernel/process.exit
+  - kernel/process.fork
+  - kernel/process.freeproc
+  - kernel/process.growproc
+  - kernel/process.proc_init
+  - kernel/process.scheduler
+  - kernel/process.sleep
+  - kernel/process.swtch
+  - kernel/process.userinit
+  - kernel/process.wait
+  - kernel/process.wakeup
+  - kernel/process.yield_cpu
+  - kernel/start.start
+  - kernel/start.timerinit
+  - kernel/string.memcmp
+  - kernel/string.memcpy
+  - kernel/string.memmove
+  - kernel/string.memset
+  - kernel/string.safestrcpy
+  - kernel/string.strlen
+  - kernel/string.strncmp
+  - kernel/string.strncpy
+  - kernel/syscall.argaddr
+  - kernel/syscall.argint
+  - kernel/syscall.fetchaddr
+  - kernel/syscall.fetchstr
+  - kernel/syscall.sys_exit
+  - kernel/syscall.sys_fork
+  - kernel/syscall.sys_sbrk
+  - kernel/syscall.sys_wait
+  - kernel/syscall.sys_write
+  - kernel/syscall.syscall
+  - kernel/trap.devintr
+  - kernel/trap.kerneltrap
+  - kernel/trap.kernelvec
+  - kernel/trap.trampoline
+  - kernel/trap.trap_init
+  - kernel/trap.usertrap
+  - kernel/trap.usertrapret
+  - kernel/vm.proc_freepagetable
+  - kernel/vm.proc_pagetable
+  - kernel/vm.uvmclear
+  - kernel/vm.vmfault
+  - user/programs.init
+  - user/programs.user_ld
 before:
   description: No specification existed.
 after:
-  description: >
-    Core five-stage architecture specification with ArchitectureSeed,
-    ArchitectureSlices, ADR-001, CompositionSpec, module specs, and
-    operation contracts for the boot, memory, trap, process, and
-    syscall stages.
-
+  description: |
+    Core five-stage architecture specification with ArchitectureSeed, ArchitectureSlices, ADR-001, CompositionSpec, module specs, and operation contracts for the boot, memory, trap, process, and syscall stages.
 risks:
-  - Spec may be incomplete for stage-two filesystem, IPC, device,
-    and full-syscall expansion; these will be refined via follow-on
-    patches.
+  - Spec may be incomplete for stage-two filesystem, IPC, device, and full-syscall expansion; these will be refined via follow-on patches.
 required_regressions:
-  - All public_requirements in spec/verification/public-matrix.yaml
-    for the early stages must remain valid after this patch is applied.
-approval_notes: >
-  This patch serves as the immutable baseline. Any structural change
-  to the architecture, module interfaces, or operation contracts must
-  be accompanied by a new SpecPatch.
+  - build_kernel
+  - qemu_boot_smoke
+  - verify_boot_banner
+  - verify_fork_exit_wait
+  - verify_fork_syscall
+  - verify_kernel_page_table
+  - verify_page_allocator
+  - verify_sys_write
+  - verify_syscall_dispatch
+  - verify_timer_interrupt
+  - verify_trap_vector
+approval_notes: |
+  This patch serves as the immutable baseline. Any structural change to the architecture, module interfaces, or operation contracts must be accompanied by a new SpecPatch.

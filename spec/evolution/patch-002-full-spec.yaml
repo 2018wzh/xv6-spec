@@ -1,94 +1,346 @@
 id: patch-002-full-spec
-
 stage: full-syscall
 title: Full System Expansion
-reason: >
-  Expands the core syscall baseline into the full xv6-riscv
-  teaching system: filesystem, IPC, device drivers, full file
-  and process syscalls, and the supporting user-space libraries
-  and programs.
+reason: |
+  Expands the core syscall baseline into the full xv6-riscv teaching system: filesystem, IPC, device drivers, full file and process syscalls, and the supporting user-space libraries and programs.
 kind: architecture_change
-
-commit_sha: 9cc6437de3fc765373ea80348d8b2665f4366721
-parent_sha: 522fc7de5906f768416af4d12d0fcb37787d08dc
-
+commit_sha: 8811f624eb571eeee4e490442ba8d9d5673b8c86
+parent_sha: 0fcf0981f6efe4175e5cdac62d77ecb7541b6d96
 affected_specs:
+  - spec/architecture/composition.yaml
   - spec/architecture/decisions/ADR-002-filesystem-model.yaml
   - spec/architecture/decisions/ADR-003-device-driver-model.yaml
+  - spec/architecture/seed.yaml
   - spec/architecture/slices/06-filesystem.yaml
   - spec/architecture/slices/07-ipc.yaml
   - spec/architecture/slices/08-device.yaml
   - spec/architecture/slices/09-full-syscall.yaml
-  - spec/architecture/composition.yaml
+  - spec/architecture/timeline.yaml
+  - spec/evolution/patch-001-initial-spec.yaml
+  - spec/evolution/patch-002-full-spec.yaml
+  - spec/goals/xv6-core.yaml
+  - spec/modules/kernel/bio/concurrency.yaml
   - spec/modules/kernel/bio/module.yaml
+  - spec/modules/kernel/bio/ops/binit.yaml
+  - spec/modules/kernel/bio/ops/bpin.yaml
+  - spec/modules/kernel/bio/ops/bread.yaml
+  - spec/modules/kernel/bio/ops/brelse.yaml
+  - spec/modules/kernel/bio/ops/bunpin.yaml
+  - spec/modules/kernel/bio/ops/bwrite.yaml
   - spec/modules/kernel/console/module.yaml
+  - spec/modules/kernel/console/ops/consoleinit.yaml
+  - spec/modules/kernel/console/ops/consoleintr.yaml
+  - spec/modules/kernel/console/ops/consoleread.yaml
+  - spec/modules/kernel/console/ops/consolewrite.yaml
+  - spec/modules/kernel/console/ops/consputc.yaml
   - spec/modules/kernel/exec/module.yaml
+  - spec/modules/kernel/exec/ops/flags2perm.yaml
+  - spec/modules/kernel/exec/ops/kexec.yaml
+  - spec/modules/kernel/exec/ops/loadseg.yaml
   - spec/modules/kernel/file/module.yaml
+  - spec/modules/kernel/file/ops/filealloc.yaml
+  - spec/modules/kernel/file/ops/fileclose.yaml
+  - spec/modules/kernel/file/ops/filedup.yaml
+  - spec/modules/kernel/file/ops/fileinit.yaml
+  - spec/modules/kernel/file/ops/fileread.yaml
+  - spec/modules/kernel/file/ops/filestat.yaml
+  - spec/modules/kernel/file/ops/filewrite.yaml
   - spec/modules/kernel/fs/module.yaml
+  - spec/modules/kernel/fs/ops/balloc.yaml
+  - spec/modules/kernel/fs/ops/bfree.yaml
+  - spec/modules/kernel/fs/ops/dirlink.yaml
+  - spec/modules/kernel/fs/ops/dirlookup.yaml
+  - spec/modules/kernel/fs/ops/fsinit.yaml
+  - spec/modules/kernel/fs/ops/ialloc.yaml
+  - spec/modules/kernel/fs/ops/iget.yaml
+  - spec/modules/kernel/fs/ops/ilock.yaml
+  - spec/modules/kernel/fs/ops/iput.yaml
+  - spec/modules/kernel/fs/ops/iunlock.yaml
+  - spec/modules/kernel/fs/ops/iunlockput.yaml
+  - spec/modules/kernel/fs/ops/iupdate.yaml
+  - spec/modules/kernel/fs/ops/namei.yaml
+  - spec/modules/kernel/fs/ops/nameiparent.yaml
+  - spec/modules/kernel/fs/ops/readi.yaml
+  - spec/modules/kernel/fs/ops/readsb.yaml
+  - spec/modules/kernel/fs/ops/skipelem.yaml
+  - spec/modules/kernel/fs/ops/writei.yaml
   - spec/modules/kernel/lock/module.yaml
+  - spec/modules/kernel/lock/ops/acquire.yaml
+  - spec/modules/kernel/lock/ops/acquiresleep.yaml
+  - spec/modules/kernel/lock/ops/holding.yaml
+  - spec/modules/kernel/lock/ops/holdingsleep.yaml
+  - spec/modules/kernel/lock/ops/initlock.yaml
+  - spec/modules/kernel/lock/ops/initsleeplock.yaml
+  - spec/modules/kernel/lock/ops/pop_off.yaml
+  - spec/modules/kernel/lock/ops/push_off.yaml
+  - spec/modules/kernel/lock/ops/release.yaml
+  - spec/modules/kernel/lock/ops/releasesleep.yaml
+  - spec/modules/kernel/log/concurrency.yaml
   - spec/modules/kernel/log/module.yaml
+  - spec/modules/kernel/log/ops/begin_op.yaml
+  - spec/modules/kernel/log/ops/commit.yaml
+  - spec/modules/kernel/log/ops/end_op.yaml
+  - spec/modules/kernel/log/ops/initlog.yaml
+  - spec/modules/kernel/log/ops/log_write.yaml
+  - spec/modules/kernel/log/ops/recover_from_log.yaml
+  - spec/modules/kernel/module.yaml
+  - spec/modules/kernel/pipe/concurrency.yaml
   - spec/modules/kernel/pipe/module.yaml
+  - spec/modules/kernel/pipe/ops/pipealloc.yaml
+  - spec/modules/kernel/pipe/ops/pipeclose.yaml
+  - spec/modules/kernel/pipe/ops/piperead.yaml
+  - spec/modules/kernel/pipe/ops/pipewrite.yaml
   - spec/modules/kernel/plic/module.yaml
+  - spec/modules/kernel/plic/ops/plic_claim.yaml
+  - spec/modules/kernel/plic/ops/plic_complete.yaml
+  - spec/modules/kernel/plic/ops/plicinit.yaml
+  - spec/modules/kernel/plic/ops/plicinithart.yaml
   - spec/modules/kernel/printk/module.yaml
-  - spec/modules/kernel/start/module.yaml
-  - spec/modules/kernel/string/module.yaml
+  - spec/modules/kernel/printk/ops/panic.yaml
+  - spec/modules/kernel/printk/ops/printk.yaml
+  - spec/modules/kernel/printk/ops/printkinit.yaml
   - spec/modules/kernel/sysfile/module.yaml
+  - spec/modules/kernel/sysfile/ops/argfd.yaml
+  - spec/modules/kernel/sysfile/ops/fdalloc.yaml
+  - spec/modules/kernel/sysfile/ops/sys_chdir.yaml
+  - spec/modules/kernel/sysfile/ops/sys_close.yaml
+  - spec/modules/kernel/sysfile/ops/sys_dup.yaml
+  - spec/modules/kernel/sysfile/ops/sys_fstat.yaml
+  - spec/modules/kernel/sysfile/ops/sys_link.yaml
+  - spec/modules/kernel/sysfile/ops/sys_mkdir.yaml
+  - spec/modules/kernel/sysfile/ops/sys_mknod.yaml
+  - spec/modules/kernel/sysfile/ops/sys_open.yaml
+  - spec/modules/kernel/sysfile/ops/sys_pipe.yaml
+  - spec/modules/kernel/sysfile/ops/sys_read.yaml
+  - spec/modules/kernel/sysfile/ops/sys_unlink.yaml
+  - spec/modules/kernel/sysfile/ops/sys_write.yaml
   - spec/modules/kernel/sysproc/module.yaml
+  - spec/modules/kernel/sysproc/ops/sys_exit.yaml
+  - spec/modules/kernel/sysproc/ops/sys_fork.yaml
+  - spec/modules/kernel/sysproc/ops/sys_getpid.yaml
+  - spec/modules/kernel/sysproc/ops/sys_kill.yaml
+  - spec/modules/kernel/sysproc/ops/sys_pause.yaml
+  - spec/modules/kernel/sysproc/ops/sys_sbrk.yaml
+  - spec/modules/kernel/sysproc/ops/sys_uptime.yaml
+  - spec/modules/kernel/sysproc/ops/sys_wait.yaml
   - spec/modules/kernel/uart/module.yaml
+  - spec/modules/kernel/uart/ops/uartinit.yaml
+  - spec/modules/kernel/uart/ops/uartintr.yaml
+  - spec/modules/kernel/uart/ops/uartputc_sync.yaml
+  - spec/modules/kernel/uart/ops/uartwrite.yaml
   - spec/modules/kernel/virtio/module.yaml
-  - spec/modules/kernel/vm/module.yaml
+  - spec/modules/kernel/virtio/ops/virtio_disk_init.yaml
+  - spec/modules/kernel/virtio/ops/virtio_disk_intr.yaml
+  - spec/modules/kernel/virtio/ops/virtio_disk_rw.yaml
+  - spec/modules/user/headers/module.yaml
+  - spec/modules/user/headers/ops/generate_user_h.yaml
   - spec/modules/user/lib/module.yaml
+  - spec/modules/user/lib/ops/atoi.yaml
+  - spec/modules/user/lib/ops/fprintf.yaml
+  - spec/modules/user/lib/ops/free.yaml
+  - spec/modules/user/lib/ops/gets.yaml
+  - spec/modules/user/lib/ops/malloc.yaml
+  - spec/modules/user/lib/ops/printf.yaml
+  - spec/modules/user/lib/ops/sbrk.yaml
+  - spec/modules/user/lib/ops/stat.yaml
+  - spec/modules/user/lib/ops/strchr.yaml
+  - spec/modules/user/lib/ops/strcmp.yaml
+  - spec/modules/user/lib/ops/strcpy.yaml
+  - spec/modules/user/module.yaml
   - spec/modules/user/programs/module.yaml
+  - spec/modules/user/programs/ops/generate_cat_c.yaml
+  - spec/modules/user/programs/ops/generate_echo_c.yaml
+  - spec/modules/user/programs/ops/generate_grep_c.yaml
+  - spec/modules/user/programs/ops/generate_kill_c.yaml
+  - spec/modules/user/programs/ops/generate_ln_c.yaml
+  - spec/modules/user/programs/ops/generate_ls_c.yaml
+  - spec/modules/user/programs/ops/generate_mkdir_c.yaml
+  - spec/modules/user/programs/ops/generate_rm_c.yaml
+  - spec/modules/user/programs/ops/generate_sh_c.yaml
+  - spec/modules/user/programs/ops/generate_wc_c.yaml
+  - spec/modules/user/programs/ops/generate_zombie_c.yaml
+  - spec/modules/user/stubs/module.yaml
+  - spec/modules/user/stubs/ops/generate_usys_S.yaml
   - spec/modules/user/tests/module.yaml
+  - spec/modules/user/tests/ops/generate_forktest_c.yaml
+  - spec/modules/user/tests/ops/generate_grind_c.yaml
+  - spec/modules/user/tests/ops/generate_usertests_c.yaml
   - spec/verification/public-matrix.yaml
-  - spec/verification/evidence-schema.yaml
-
 affected_modules:
   - kernel
+  - kernel/bio
+  - kernel/boot
+  - kernel/console
+  - kernel/exec
+  - kernel/file
+  - kernel/fs
+  - kernel/headers
+  - kernel/lock
+  - kernel/log
+  - kernel/memory
+  - kernel/pipe
+  - kernel/plic
+  - kernel/printk
+  - kernel/process
+  - kernel/sleeplock
+  - kernel/start
+  - kernel/string
+  - kernel/syscall
+  - kernel/sysfile
+  - kernel/sysproc
+  - kernel/trap
+  - kernel/uart
+  - kernel/virtio
+  - kernel/vm
   - user
-
+  - user/headers
+  - user/lib
+  - user/programs
+  - user/stubs
+  - user/tests
 affected_operations:
+  - kernel/bio.binit
+  - kernel/bio.bpin
   - kernel/bio.bread
+  - kernel/bio.brelse
+  - kernel/bio.bunpin
   - kernel/bio.bwrite
+  - kernel/console.consoleinit
+  - kernel/console.consoleintr
+  - kernel/console.consoleread
   - kernel/console.consolewrite
+  - kernel/console.consputc
+  - kernel/exec.flags2perm
   - kernel/exec.kexec
+  - kernel/exec.loadseg
   - kernel/file.filealloc
   - kernel/file.fileclose
+  - kernel/file.filedup
+  - kernel/file.fileinit
+  - kernel/file.fileread
+  - kernel/file.filestat
+  - kernel/file.filewrite
+  - kernel/fs.balloc
+  - kernel/fs.bfree
+  - kernel/fs.dirlink
+  - kernel/fs.dirlookup
+  - kernel/fs.fsinit
   - kernel/fs.ialloc
+  - kernel/fs.iget
+  - kernel/fs.ilock
   - kernel/fs.iput
+  - kernel/fs.iunlock
+  - kernel/fs.iunlockput
+  - kernel/fs.iupdate
+  - kernel/fs.namei
+  - kernel/fs.nameiparent
+  - kernel/fs.readi
+  - kernel/fs.readsb
+  - kernel/fs.skipelem
+  - kernel/fs.writei
+  - kernel/lock.acquire
+  - kernel/lock.acquiresleep
+  - kernel/lock.holding
+  - kernel/lock.holdingsleep
+  - kernel/lock.initlock
+  - kernel/lock.initsleeplock
+  - kernel/lock.pop_off
+  - kernel/lock.push_off
+  - kernel/lock.release
+  - kernel/lock.releasesleep
+  - kernel/log.begin_op
+  - kernel/log.commit
+  - kernel/log.end_op
+  - kernel/log.initlog
+  - kernel/log.log_write
+  - kernel/log.recover_from_log
   - kernel/pipe.pipealloc
-  - kernel/pipe.pipewrite
+  - kernel/pipe.pipeclose
   - kernel/pipe.piperead
+  - kernel/pipe.pipewrite
+  - kernel/plic.plic_claim
+  - kernel/plic.plic_complete
   - kernel/plic.plicinit
+  - kernel/plic.plicinithart
+  - kernel/printk.panic
   - kernel/printk.printk
+  - kernel/printk.printkinit
+  - kernel/sysfile.argfd
+  - kernel/sysfile.fdalloc
+  - kernel/sysfile.sys_chdir
+  - kernel/sysfile.sys_close
+  - kernel/sysfile.sys_dup
+  - kernel/sysfile.sys_fstat
+  - kernel/sysfile.sys_link
+  - kernel/sysfile.sys_mkdir
+  - kernel/sysfile.sys_mknod
   - kernel/sysfile.sys_open
   - kernel/sysfile.sys_pipe
+  - kernel/sysfile.sys_read
+  - kernel/sysfile.sys_unlink
+  - kernel/sysfile.sys_write
+  - kernel/sysproc.sys_exit
+  - kernel/sysproc.sys_fork
   - kernel/sysproc.sys_getpid
+  - kernel/sysproc.sys_kill
+  - kernel/sysproc.sys_pause
+  - kernel/sysproc.sys_sbrk
+  - kernel/sysproc.sys_uptime
+  - kernel/sysproc.sys_wait
   - kernel/uart.uartinit
+  - kernel/uart.uartintr
+  - kernel/uart.uartputc_sync
+  - kernel/uart.uartwrite
+  - kernel/virtio.virtio_disk_init
+  - kernel/virtio.virtio_disk_intr
   - kernel/virtio.virtio_disk_rw
+  - user/headers.generate_user_h
+  - user/lib.atoi
+  - user/lib.fprintf
+  - user/lib.free
+  - user/lib.gets
+  - user/lib.malloc
   - user/lib.printf
+  - user/lib.sbrk
+  - user/lib.stat
+  - user/lib.strchr
+  - user/lib.strcmp
+  - user/lib.strcpy
+  - user/programs.generate_cat_c
+  - user/programs.generate_echo_c
+  - user/programs.generate_grep_c
+  - user/programs.generate_kill_c
+  - user/programs.generate_ln_c
+  - user/programs.generate_ls_c
+  - user/programs.generate_mkdir_c
+  - user/programs.generate_rm_c
   - user/programs.generate_sh_c
+  - user/programs.generate_wc_c
+  - user/programs.generate_zombie_c
+  - user/stubs.generate_usys_S
+  - user/tests.generate_forktest_c
+  - user/tests.generate_grind_c
   - user/tests.generate_usertests_c
-
 before:
   description: Core syscall-stage baseline with boot, memory, trap, process, and minimal syscall support.
 after:
-  description: >
-    Full xv6-riscv system specification covering filesystem,
-    pipes, device drivers, shell utilities, and the extended
-    file/process syscall surface.
-
+  description: |
+    Full xv6-riscv system specification covering filesystem, pipes, device drivers, shell utilities, and the extended file/process syscall surface.
 risks:
-  - The expanded spec is significantly larger and may require
-    follow-on verification tuning for filesystem and device
-    interactions.
-  - Some stage-two operations are sensitive to concurrency and
-    resource lifetime edge cases.
+  - The expanded spec is significantly larger and may require follow-on verification tuning for filesystem and device interactions.
+  - Some stage-two operations are sensitive to concurrency and resource lifetime edge cases.
 required_regressions:
-  - All early-stage public requirements must remain valid.
-  - All later-stage public_requirements in spec/verification/public-matrix.yaml
-    must pass after the expansion is applied.
-approval_notes: >
-  This patch is the second course-stage expansion. It must be
-  paired with the commit that introduces the late-stage modules
-  and verification coverage.
+  - build_kernel
+  - verify_buffer_cache
+  - verify_console_echo
+  - verify_disk_read
+  - verify_exec
+  - verify_file_syscalls
+  - verify_inode_ops
+  - verify_pipe_close
+  - verify_pipe_read_write
+  - verify_pipe_syscall
+  - verify_proc_syscalls
+  - verify_uart_output
+approval_notes: |
+  This patch is the second course-stage expansion. It must be paired with the commit that introduces the late-stage modules and verification coverage.
