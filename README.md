@@ -339,9 +339,13 @@ examples/xv6-spec/
 - `vos trace syscall`
 - `vos report generate`
 - `vos submit pack`
-- `vos verify full`
-- `vos verify fuzz`
-- `vos verify invariant`
+
+`vos verify full`、`vos verify fuzz` 和 `vos verify invariant` 属于完整验证闭环：
+它们复用 `.vos/toolchain.json` 中的 `test.suites` 与 `verify` 映射执行本地 suite；
+staff-only full 验证通过 repo 外部 `--staff-policy` 输入受控启用。
+generated/fuzz 阶段可产生 `verify-behavior` evidence：TestPlan、临时 patch、
+自动化输入和 stdout/exit/timeout oracle。trace 解释归 DebugAgent 消费
+evidence 后生成，不进入 `verify.*` 映射。
 
 ## 最短复现路径
 
