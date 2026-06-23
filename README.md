@@ -272,6 +272,8 @@ QEMU 输出会保存到：
 公开验证会串起构建和运行：
 
 ```powershell
+vos --project-root examples/xv6-spec test usertests_all_pass
+vos --project-root examples/xv6-spec run qemu --case boot-smoke
 vos --project-root examples/xv6-spec verify public
 ```
 
@@ -341,7 +343,7 @@ examples/xv6-spec/
 - `vos submit pack`
 
 `vos verify full`、`vos verify fuzz` 和 `vos verify invariant` 属于完整验证闭环：
-它们复用 `.vos/toolchain.json` 中的 `test.suites` 与 `verify` 映射执行本地 suite；
+它们复用 `.vos/toolchain.json` v2 中的 object-form `test.suites` 与 `verify` 映射执行本地 suite；
 staff-only full 验证通过 repo 外部 `--staff-policy` 输入受控启用。
 generated/fuzz 阶段可产生 `verify-behavior` evidence：TestPlan、临时 patch、
 自动化输入和 stdout/exit/timeout oracle。trace 解释归 DebugAgent 消费
