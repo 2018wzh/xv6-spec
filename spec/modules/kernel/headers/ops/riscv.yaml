@@ -5,7 +5,7 @@ module: kernel/headers
 operation: generate_riscv_h
 stage: boot
 purpose: >
-  Generate include/riscv.h containing RISC-V CSR access
+  Generate kernel/riscv.h containing RISC-V CSR access
   macros, PTE flag constants, Sv39 address manipulation
   helpers, privilege mode constants, and interrupt
   enable/disable wrappers. Includes types.h. Must provide
@@ -119,13 +119,13 @@ guarantee:
   returns: []
   state_updates: []
   side_effects:
-    - include/riscv.h created
+    - kernel/riscv.h created
   emitted_events: []
 
 preconditions:
-  - include/types.h exists
+  - kernel/types.h exists
 postconditions:
-  - include/riscv.h exists with all CSR access macros
+  - kernel/riscv.h exists with all CSR access macros
 invariants_preserved: []
 failure_semantics: []
 
@@ -155,11 +155,11 @@ test_obligations:
 codegen:
   targets:
     - kind: file
-      path: include/riscv.h
+      path: kernel/riscv.h
       symbols: [generate_riscv_h]
       owner: kernel/headers
       mode: create
   forbidden_changes:
-    - do not modify files outside include/
+    - do not modify files outside kernel/
   required_followup_checks:
     - make build

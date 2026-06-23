@@ -5,7 +5,7 @@ module: kernel/headers
 operation: generate_elf_h
 stage: process
 purpose: >
-  Generate include/elf.h with ELF64 header and program
+  Generate kernel/elf.h with ELF64 header and program
   header struct definitions plus ELF_MAGIC, ELF_PROG_LOAD,
   and ELF_PROG_FLAG_* constants. Used by the kernel to
   load user executables.
@@ -65,13 +65,13 @@ guarantee:
   returns: []
   state_updates: []
   side_effects:
-    - include/elf.h created
+    - kernel/elf.h created
   emitted_events: []
 
 preconditions:
-  - include/types.h exists
+  - kernel/types.h exists
 postconditions:
-  - include/elf.h exists
+  - kernel/elf.h exists
 invariants_preserved: []
 failure_semantics: []
 
@@ -100,11 +100,11 @@ test_obligations:
 codegen:
   targets:
     - kind: file
-      path: include/elf.h
+      path: kernel/elf.h
       symbols: [generate_elf_h]
       owner: kernel/headers
       mode: create
   forbidden_changes:
-    - do not modify files outside include/
+    - do not modify files outside kernel/
   required_followup_checks:
     - make build

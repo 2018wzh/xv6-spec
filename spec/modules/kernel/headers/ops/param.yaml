@@ -5,7 +5,7 @@ module: kernel/headers
 operation: generate_param_h
 stage: boot
 purpose: >
-  Generate include/param.h with system-wide configuration
+  Generate kernel/param.h with system-wide configuration
   parameters: NPROC=64, STACK_SIZE=4096, NOFILE=16,
   MAXARG=32.
 
@@ -43,13 +43,13 @@ guarantee:
   returns: []
   state_updates: []
   side_effects:
-    - include/param.h created
+    - kernel/param.h created
   emitted_events: []
 
 preconditions:
-  - include/types.h exists
+  - kernel/types.h exists
 postconditions:
-  - include/param.h exists
+  - kernel/param.h exists
 invariants_preserved: []
 failure_semantics: []
 
@@ -78,11 +78,11 @@ test_obligations:
 codegen:
   targets:
     - kind: file
-      path: include/param.h
+      path: kernel/param.h
       symbols: [generate_param_h]
       owner: kernel/headers
       mode: create
   forbidden_changes:
-    - do not modify files outside include/
+    - do not modify files outside kernel/
   required_followup_checks:
     - make build

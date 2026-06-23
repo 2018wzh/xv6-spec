@@ -5,7 +5,7 @@ module: kernel/headers
 operation: generate_proc_h
 stage: process
 purpose: >
-  Generate include/proc.h with struct context (13 callee-
+  Generate kernel/proc.h with struct context (13 callee-
   saved registers for swtch), enum procstate (UNUSED, USED,
   SLEEPING, RUNNABLE, RUNNING, ZOMBIE), struct trapframe
   (32 user registers + kernel metadata), and struct proc
@@ -76,13 +76,13 @@ guarantee:
   returns: []
   state_updates: []
   side_effects:
-    - include/proc.h created
+    - kernel/proc.h created
   emitted_events: []
 
 preconditions:
-  - include/types.h, param.h, riscv.h, spinlock.h exist
+  - kernel/types.h, param.h, riscv.h, spinlock.h exist
 postconditions:
-  - include/proc.h exists
+  - kernel/proc.h exists
 invariants_preserved: []
 failure_semantics: []
 
@@ -112,11 +112,11 @@ test_obligations:
 codegen:
   targets:
     - kind: file
-      path: include/proc.h
+      path: kernel/proc.h
       symbols: [generate_proc_h]
       owner: kernel/headers
       mode: create
   forbidden_changes:
-    - do not modify files outside include/
+    - do not modify files outside kernel/
   required_followup_checks:
     - make build

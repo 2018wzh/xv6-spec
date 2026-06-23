@@ -5,7 +5,7 @@ module: kernel/headers
 operation: generate_types_h
 stage: boot
 purpose: >
-  Generate include/types.h with fundamental integer type
+  Generate kernel/types.h with fundamental integer type
   definitions for the xv6 RISC-V kernel. Must provide
   uint64, int64, uint32, int32, uint16, int16, uint8, int8,
   uint, usize, pte_t, pagetable_t, and spinlock_t typedefs,
@@ -50,12 +50,12 @@ guarantee:
   returns: []
   state_updates: []
   side_effects:
-    - include/types.h created with type definitions
+    - kernel/types.h created with type definitions
   emitted_events: []
 
 preconditions: []
 postconditions:
-  - include/types.h exists and is self-consistent
+  - kernel/types.h exists and is self-consistent
 invariants_preserved: []
 failure_semantics: []
 
@@ -84,12 +84,12 @@ test_obligations:
 codegen:
   targets:
     - kind: file
-      path: include/types.h
+      path: kernel/types.h
       symbols: [generate_types_h]
       owner: kernel/headers
       mode: create
   forbidden_changes:
-    - do not modify files outside include/
-    - do not create helper files outside include/
+    - do not modify files outside kernel/
+    - do not create helper files outside kernel/
   required_followup_checks:
     - make build

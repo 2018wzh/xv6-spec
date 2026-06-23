@@ -5,7 +5,7 @@ module: kernel/headers
 stage: boot
 purpose: >
   Infrastructure header files and linker scripts for the
-  xv6 kernel. Generates all include/*.h headers defining
+  xv6 kernel. Generates all kernel/*.h headers defining
   types, constants, macros, structs, and function
   declarations, plus the kernel linker script kernel/kernel.ld.
 related_slices:

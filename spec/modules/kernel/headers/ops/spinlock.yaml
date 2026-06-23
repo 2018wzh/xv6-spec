@@ -5,7 +5,7 @@ module: kernel/headers
 operation: generate_spinlock_h
 stage: trap
 purpose: >
-  Generate include/spinlock.h with struct spinlock
+  Generate kernel/spinlock.h with struct spinlock
   definition (locked, name, cpu fields) and function
   declarations for initlock, acquire, release, holding,
   push_off, pop_off.
@@ -47,13 +47,13 @@ guarantee:
   returns: []
   state_updates: []
   side_effects:
-    - include/spinlock.h created
+    - kernel/spinlock.h created
   emitted_events: []
 
 preconditions:
-  - include/types.h exists
+  - kernel/types.h exists
 postconditions:
-  - include/spinlock.h exists
+  - kernel/spinlock.h exists
 invariants_preserved: []
 failure_semantics: []
 
@@ -82,11 +82,11 @@ test_obligations:
 codegen:
   targets:
     - kind: file
-      path: include/spinlock.h
+      path: kernel/spinlock.h
       symbols: [generate_spinlock_h]
       owner: kernel/headers
       mode: create
   forbidden_changes:
-    - do not modify files outside include/
+    - do not modify files outside kernel/
   required_followup_checks:
     - make build

@@ -120,7 +120,7 @@ guarantee:
   emitted_events: []
 
 preconditions:
-  - all other include/*.h headers exist
+  - all other kernel/*.h headers exist
 postconditions:
   - kernel/defs.h exists with all kernel API declarations
 invariants_preserved: []

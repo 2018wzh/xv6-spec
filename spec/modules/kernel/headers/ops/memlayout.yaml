@@ -5,7 +5,7 @@ module: kernel/headers
 operation: generate_memlayout_h
 stage: boot
 purpose: >
-  Generate include/memlayout.h with physical and virtual
+  Generate kernel/memlayout.h with physical and virtual
   memory layout constants for the xv6 RISC-V kernel on
   QEMU virt. Defines KERNBASE (0x80000000), PHYSTOP
   (0x88000000), UART0 (0x10000000), CLINT (0x02000000),
@@ -66,13 +66,13 @@ guarantee:
   returns: []
   state_updates: []
   side_effects:
-    - include/memlayout.h created
+    - kernel/memlayout.h created
   emitted_events: []
 
 preconditions:
-  - include/types.h and include/riscv.h exist
+  - kernel/types.h and kernel/riscv.h exist
 postconditions:
-  - include/memlayout.h exists with all layout constants
+  - kernel/memlayout.h exists with all layout constants
 invariants_preserved: []
 failure_semantics: []
 
@@ -101,11 +101,11 @@ test_obligations:
 codegen:
   targets:
     - kind: file
-      path: include/memlayout.h
+      path: kernel/memlayout.h
       symbols: [generate_memlayout_h]
       owner: kernel/headers
       mode: create
   forbidden_changes:
-    - do not modify files outside include/
+    - do not modify files outside kernel/
   required_followup_checks:
     - make build
