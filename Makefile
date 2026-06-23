@@ -148,7 +148,7 @@ UPROGS=\
 	$U/_dorphan\
 
 fs.img: mkfs/mkfs XV6-README $(UPROGS)
-	mkfs/mkfs fs.img XV6-README $(UPROGS)
+	tmp=README; trap 'rm -f $$tmp' EXIT; cp XV6-README $$tmp; mkfs/mkfs fs.img $$tmp $(UPROGS)
 
 all: build/kernel.elf build/kernel.bin build/kernel.asm fs.img
 

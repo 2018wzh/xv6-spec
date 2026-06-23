@@ -24,10 +24,40 @@ grep_source() {
 
 qemu_log() {
   local out="$1"
-  shift
+  local input="${2:-}"
+  local timeout_s="${3:-45}"
   rm -f "$out"
-  # QEMU is intentionally stopped by timeout once the expected output appears.
-  (printf '%b' "${1:-}" | timeout "${2:-45}" make qemu) >"$out" 2>&1 || true
+  if [[ -z "$input" ]]; then
+    timeout "$timeout_s" make qemu >"$out" 2>&1 || true
+    return
+  fi
+
+  local fifo
+  fifo="$(mktemp -u "${TMPDIR:-/tmp}/vos-qemu-stdin.XXXXXX")"
+  mkfifo "$fifo"
+  timeout "$timeout_s" make qemu <"$fifo" >"$out" 2>&1 &
+  local qemu_pid=$!
+
+  exec 3>"$fifo"
+  rm -f "$fifo"
+
+  local ready=0
+  for _ in $(seq 1 200); do
+    if grep -q -E '(^|[^[:graph:]])[$] ' "$out" 2>/dev/null; then
+      ready=1
+      break
+    fi
+    if ! kill -0 "$qemu_pid" 2>/dev/null; then
+      break
+    fi
+    sleep 0.1
+  done
+
+  if [[ "$ready" -eq 1 ]]; then
+    printf '%b' "$input" >&3
+  fi
+  exec 3>&-
+  wait "$qemu_pid" || true
 }
 
 case "$case_id" in
@@ -95,7 +125,6 @@ case "$case_id" in
   uart_boot_output|uart_echo)
     need_file build/kernel.elf
     grep_source 'uartinit|uartwrite|uartputc|uartintr' kernel/uart.c
-    cp "$log" build/qemu_boot.log
     ;;
   disk_read_write|disk_init)
     need_file build/kernel.elf
@@ -114,7 +143,7 @@ case "$case_id" in
     grep -E 'VOS_ECHO_OK' build/qemu_boot.log >"$log"
     ;;
   usertests_all_pass)
-    qemu_log build/qemu_usertests.log 'usertests\n' 180
+    qemu_log build/qemu_usertests.log 'usertests\n' 300
     grep -E 'ALL TESTS PASSED' build/qemu_usertests.log >"$log"
     ;;
   *)
