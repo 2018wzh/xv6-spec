@@ -5,7 +5,7 @@ module: kernel/headers
 operation: generate_link_ld
 stage: boot
 purpose: >
-  Generate kernel/link.ld, the GNU ld linker script for
+  Generate kernel/kernel.ld, the GNU ld linker script for
   the xv6 RISC-V kernel. Places .text at 0x80000000
   (physical RAM start on QEMU virt), followed by .rodata,
   .data, and .bss. Exports the `end` symbol at the end
@@ -56,13 +56,13 @@ guarantee:
   returns: []
   state_updates: []
   side_effects:
-    - kernel/link.ld created
+    - kernel/kernel.ld created
   emitted_events: []
 
 preconditions:
   - none
 postconditions:
-  - kernel/link.ld exists and is valid GNU ld syntax
+  - kernel/kernel.ld exists and is valid GNU ld syntax
 invariants_preserved: []
 failure_semantics:
   - invalid linker script causes link failure
@@ -93,7 +93,7 @@ test_obligations:
 codegen:
   targets:
     - kind: file
-      path: kernel/link.ld
+      path: kernel/kernel.ld
       symbols: [generate_link_ld]
       owner: kernel/headers
       mode: create

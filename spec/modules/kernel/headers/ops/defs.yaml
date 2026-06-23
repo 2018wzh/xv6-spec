@@ -5,7 +5,7 @@ module: kernel/headers
 operation: generate_defs_h
 stage: boot
 purpose: >
-  Generate include/defs.h with forward declarations of all
+  Generate kernel/defs.h with forward declarations of all
   globally-visible functions exported by all kernel modules
   (boot, memory, trap, process, syscall). Includes all
   other headers. This is the single include that kernel
@@ -116,13 +116,13 @@ guarantee:
   returns: []
   state_updates: []
   side_effects:
-    - include/defs.h created
+    - kernel/defs.h created
   emitted_events: []
 
 preconditions:
   - all other include/*.h headers exist
 postconditions:
-  - include/defs.h exists with all kernel API declarations
+  - kernel/defs.h exists with all kernel API declarations
 invariants_preserved: []
 failure_semantics: []
 
@@ -152,11 +152,11 @@ test_obligations:
 codegen:
   targets:
     - kind: file
-      path: include/defs.h
+      path: kernel/defs.h
       symbols: [generate_defs_h]
       owner: kernel/headers
       mode: create
   forbidden_changes:
-    - do not modify files outside include/
+    - do not modify files outside kernel/
   required_followup_checks:
     - make build

@@ -1,7 +1,7 @@
 # xv6 RISC-V link specification
 
 link:
-  linker_script: kernel/link.ld
+  linker_script: kernel/kernel.ld
   entry_symbol: _start
   section_rules:
     - text at 0x80000000

@@ -7,7 +7,7 @@ purpose: >
   Infrastructure header files and linker scripts for the
   xv6 kernel. Generates all include/*.h headers defining
   types, constants, macros, structs, and function
-  declarations, plus the kernel linker script kernel/link.ld.
+  declarations, plus the kernel linker script kernel/kernel.ld.
 related_slices:
   - slice-01-boot
 related_adrs: []
