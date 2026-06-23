@@ -1,6 +1,7 @@
 *.env
 *.env
-.vos/
+.vos/*
+!.vos/toolchain.json
 build/
 fs.img
 kernel/*.o

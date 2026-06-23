@@ -10,7 +10,7 @@ public_requirements:
       - bootstrap_banner_length_positive
       - boot_banner_printable
     required_artifacts:
-      - qemu_boot.log
+      - build/qemu_boot.log
 
   - id: verify-page-allocator
     description: Physical page allocator passes alloc-free cycle
@@ -24,7 +24,7 @@ public_requirements:
       - kalloc_alignment
       - kalloc_kfree_cycle
     required_artifacts:
-      - kernel.elf
+      - build/kernel.elf
 
   - id: verify-kernel-page-table
     description: Kernel page table maps identity and trampoline
@@ -35,7 +35,7 @@ public_requirements:
       - kvmmake_identity_mapping
       - kvmmake_trampoline_mapped
     required_artifacts:
-      - kernel.elf
+      - build/kernel.elf
 
   - id: verify-trap-vector
     description: stvec is correctly set after trap_init
@@ -45,7 +45,7 @@ public_requirements:
     required_tests:
       - trap_init_stvec_set
     required_artifacts:
-      - kernel.elf
+      - build/kernel.elf
 
   - id: verify-timer-interrupt
     description: Timer interrupts are handled and re-scheduled
@@ -58,7 +58,7 @@ public_requirements:
       - devintr_timer
       - usertrap_timer
     required_artifacts:
-      - qemu_timer.log
+      - build/qemu_timer.log
 
   - id: verify-fork-exit-wait
     description: Fork, exit, wait lifecycle is correct
@@ -75,7 +75,7 @@ public_requirements:
       - exit_zombie
       - wait_reap_child
     required_artifacts:
-      - kernel.elf
+      - build/kernel.elf
 
   - id: verify-syscall-dispatch
     description: Syscall numbers are validated and dispatched
@@ -86,7 +86,7 @@ public_requirements:
       - syscall_valid_number
       - syscall_invalid_number
     required_artifacts:
-      - kernel.elf
+      - build/kernel.elf
 
   - id: verify-sys-write
     description: sys_write validates buffer and writes bytes
@@ -98,7 +98,7 @@ public_requirements:
       - sys_write_basic
       - sys_write_large_buffer
     required_artifacts:
-      - kernel.elf
+      - build/kernel.elf
 
   - id: verify-fork-syscall
     description: sys_fork creates child and returns PIDs
@@ -109,7 +109,7 @@ public_requirements:
       - sys_fork_parent_pid
       - sys_fork_child_zero
     required_artifacts:
-      - kernel.elf
+      - build/kernel.elf
 
   - id: verify-sbrk
     description: sys_sbrk grows and shrinks address space
@@ -120,7 +120,7 @@ public_requirements:
       - sys_sbrk_grow
       - sys_sbrk_shrink
     required_artifacts:
-      - kernel.elf
+      - build/kernel.elf
 
   - id: verify-buffer-cache
     description: Buffer cache returns valid cached blocks
@@ -134,7 +134,7 @@ public_requirements:
       - bread_cache_miss
       - bwrite_verify
     required_artifacts:
-      - kernel.elf
+      - build/kernel.elf
 
   - id: verify-log-recovery
     description: Log recovery restores file system consistency
@@ -147,7 +147,7 @@ public_requirements:
       - log_recovery_committed
       - log_recovery_empty
     required_artifacts:
-      - kernel.elf
+      - build/kernel.elf
 
   - id: verify-inode-ops
     description: Inode allocation and deallocation is correct
@@ -160,7 +160,7 @@ public_requirements:
       - inode_alloc_free_cycle
       - inode_ref_count
     required_artifacts:
-      - kernel.elf
+      - build/kernel.elf
 
   - id: verify-file-ops
     description: File descriptor operations are correct
@@ -173,7 +173,7 @@ public_requirements:
       - fd_alloc_close_cycle
       - fd_ref_count
     required_artifacts:
-      - kernel.elf
+      - build/kernel.elf
 
   - id: verify-exec
     description: exec loads ELF and replaces address space
@@ -185,7 +185,7 @@ public_requirements:
       - exec_invalid_elf
       - exec_argv_passing
     required_artifacts:
-      - kernel.elf
+      - build/kernel.elf
 
   - id: verify-pipe
     description: Pipe read/write and blocking are correct
@@ -201,7 +201,7 @@ public_requirements:
       - pipe_blocking_full
       - pipe_close_wakeup
     required_artifacts:
-      - kernel.elf
+      - build/kernel.elf
 
   - id: verify-uart
     description: UART transmits and receives characters
@@ -214,7 +214,7 @@ public_requirements:
       - uart_boot_output
       - uart_echo
     required_artifacts:
-      - qemu_boot.log
+      - build/qemu_boot.log
 
   - id: verify-disk
     description: Virtio disk reads and writes correctly
@@ -225,7 +225,7 @@ public_requirements:
       - disk_read_write
       - disk_init
     required_artifacts:
-      - kernel.elf
+      - build/kernel.elf
 
   - id: verify-file-syscalls
     description: File system syscalls work end-to-end
@@ -243,7 +243,7 @@ public_requirements:
       - dup_functional
       - link_unlink
     required_artifacts:
-      - kernel.elf
+      - build/kernel.elf
 
   - id: verify-pipe-syscall
     description: Pipe syscall creates usable pipe
@@ -254,7 +254,7 @@ public_requirements:
       - sys_pipe_create
       - sys_pipe_read_write
     required_artifacts:
-      - kernel.elf
+      - build/kernel.elf
 
   - id: verify-shell
     description: Shell boots and executes commands
@@ -265,7 +265,7 @@ public_requirements:
       - shell_boots
       - shell_executes_echo
     required_artifacts:
-      - qemu_boot.log
+      - build/qemu_boot.log
 
   - id: verify-usertests
     description: usertests regression suite passes
@@ -275,4 +275,4 @@ public_requirements:
     required_tests:
       - usertests_all_pass
     required_artifacts:
-      - kernel.elf
+      - build/kernel.elf

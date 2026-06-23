@@ -1,0 +1,100 @@
+{
+  "files": [
+    "Makefile"
+  ],
+  "build": {
+    "commands": [
+      {
+        "name": "make-all",
+        "command": ["make", "all"],
+        "timeout_ms": 180000
+      }
+    ],
+    "artifacts": [
+      "build/kernel.elf",
+      "build/kernel.bin",
+      "build/kernel.asm",
+      "fs.img"
+    ]
+  },
+  "test": {
+    "suites": [
+      { "name": "bootstrap_banner_not_null", "command": ["bash", "tests/public/verify.sh", "bootstrap_banner_not_null"] },
+      { "name": "bootstrap_banner_length_positive", "command": ["bash", "tests/public/verify.sh", "bootstrap_banner_length_positive"] },
+      { "name": "boot_banner_printable", "command": ["bash", "tests/public/verify.sh", "boot_banner_printable"] },
+      { "name": "kalloc_exhaustion", "command": ["bash", "tests/public/verify.sh", "kalloc_exhaustion"] },
+      { "name": "kalloc_alignment", "command": ["bash", "tests/public/verify.sh", "kalloc_alignment"] },
+      { "name": "kalloc_kfree_cycle", "command": ["bash", "tests/public/verify.sh", "kalloc_kfree_cycle"] },
+      { "name": "kvmmake_identity_mapping", "command": ["bash", "tests/public/verify.sh", "kvmmake_identity_mapping"] },
+      { "name": "kvmmake_trampoline_mapped", "command": ["bash", "tests/public/verify.sh", "kvmmake_trampoline_mapped"] },
+      { "name": "trap_init_stvec_set", "command": ["bash", "tests/public/verify.sh", "trap_init_stvec_set"] },
+      { "name": "devintr_timer", "command": ["bash", "tests/public/verify.sh", "devintr_timer"] },
+      { "name": "usertrap_timer", "command": ["bash", "tests/public/verify.sh", "usertrap_timer"] },
+      { "name": "fork_returns_different_pid", "command": ["bash", "tests/public/verify.sh", "fork_returns_different_pid"] },
+      { "name": "fork_memory_isolation", "command": ["bash", "tests/public/verify.sh", "fork_memory_isolation"] },
+      { "name": "exit_zombie", "command": ["bash", "tests/public/verify.sh", "exit_zombie"] },
+      { "name": "wait_reap_child", "command": ["bash", "tests/public/verify.sh", "wait_reap_child"] },
+      { "name": "syscall_valid_number", "command": ["bash", "tests/public/verify.sh", "syscall_valid_number"] },
+      { "name": "syscall_invalid_number", "command": ["bash", "tests/public/verify.sh", "syscall_invalid_number"] },
+      { "name": "invalid_user_pointer_write", "command": ["bash", "tests/public/verify.sh", "invalid_user_pointer_write"] },
+      { "name": "sys_write_basic", "command": ["bash", "tests/public/verify.sh", "sys_write_basic"] },
+      { "name": "sys_write_large_buffer", "command": ["bash", "tests/public/verify.sh", "sys_write_large_buffer"] },
+      { "name": "sys_fork_parent_pid", "command": ["bash", "tests/public/verify.sh", "sys_fork_parent_pid"] },
+      { "name": "sys_fork_child_zero", "command": ["bash", "tests/public/verify.sh", "sys_fork_child_zero"] },
+      { "name": "sys_sbrk_grow", "command": ["bash", "tests/public/verify.sh", "sys_sbrk_grow"] },
+      { "name": "sys_sbrk_shrink", "command": ["bash", "tests/public/verify.sh", "sys_sbrk_shrink"] },
+      { "name": "bread_cache_hit", "command": ["bash", "tests/public/verify.sh", "bread_cache_hit"] },
+      { "name": "bread_cache_miss", "command": ["bash", "tests/public/verify.sh", "bread_cache_miss"] },
+      { "name": "bwrite_verify", "command": ["bash", "tests/public/verify.sh", "bwrite_verify"] },
+      { "name": "log_recovery_committed", "command": ["bash", "tests/public/verify.sh", "log_recovery_committed"] },
+      { "name": "log_recovery_empty", "command": ["bash", "tests/public/verify.sh", "log_recovery_empty"] },
+      { "name": "inode_alloc_free_cycle", "command": ["bash", "tests/public/verify.sh", "inode_alloc_free_cycle"] },
+      { "name": "inode_ref_count", "command": ["bash", "tests/public/verify.sh", "inode_ref_count"] },
+      { "name": "fd_alloc_close_cycle", "command": ["bash", "tests/public/verify.sh", "fd_alloc_close_cycle"] },
+      { "name": "fd_ref_count", "command": ["bash", "tests/public/verify.sh", "fd_ref_count"] },
+      { "name": "exec_valid_elf", "command": ["bash", "tests/public/verify.sh", "exec_valid_elf"] },
+      { "name": "exec_invalid_elf", "command": ["bash", "tests/public/verify.sh", "exec_invalid_elf"] },
+      { "name": "exec_argv_passing", "command": ["bash", "tests/public/verify.sh", "exec_argv_passing"] },
+      { "name": "pipe_read_write_cycle", "command": ["bash", "tests/public/verify.sh", "pipe_read_write_cycle"] },
+      { "name": "pipe_blocking_full", "command": ["bash", "tests/public/verify.sh", "pipe_blocking_full"] },
+      { "name": "pipe_close_wakeup", "command": ["bash", "tests/public/verify.sh", "pipe_close_wakeup"] },
+      { "name": "uart_boot_output", "command": ["bash", "tests/public/verify.sh", "uart_boot_output"] },
+      { "name": "uart_echo", "command": ["bash", "tests/public/verify.sh", "uart_echo"] },
+      { "name": "disk_read_write", "command": ["bash", "tests/public/verify.sh", "disk_read_write"] },
+      { "name": "disk_init", "command": ["bash", "tests/public/verify.sh", "disk_init"] },
+      { "name": "open_read_write_close", "command": ["bash", "tests/public/verify.sh", "open_read_write_close"] },
+      { "name": "dup_functional", "command": ["bash", "tests/public/verify.sh", "dup_functional"] },
+      { "name": "link_unlink", "command": ["bash", "tests/public/verify.sh", "link_unlink"] },
+      { "name": "sys_pipe_create", "command": ["bash", "tests/public/verify.sh", "sys_pipe_create"] },
+      { "name": "sys_pipe_read_write", "command": ["bash", "tests/public/verify.sh", "sys_pipe_read_write"] },
+      { "name": "shell_boots", "command": ["bash", "tests/public/verify.sh", "shell_boots"] },
+      { "name": "shell_executes_echo", "command": ["bash", "tests/public/verify.sh", "shell_executes_echo"] },
+      { "name": "usertests_all_pass", "command": ["bash", "tests/public/verify.sh", "usertests_all_pass"] }
+    ]
+  },
+  "run": {
+    "command": "qemu-system-riscv64",
+    "args": [
+      "-machine",
+      "virt",
+      "-bios",
+      "none",
+      "-kernel",
+      "kernel/kernel",
+      "-m",
+      "128M",
+      "-smp",
+      "3",
+      "-nographic",
+      "-global",
+      "virtio-mmio.force-legacy=false",
+      "-drive",
+      "file=fs.img,if=none,format=raw,id=x0",
+      "-device",
+      "virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0"
+    ],
+    "successSignal": "init: starting sh",
+    "artifact": "kernel/kernel",
+    "timeout_ms": 45000
+  }
+}
