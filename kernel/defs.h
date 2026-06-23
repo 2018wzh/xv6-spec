@@ -10,6 +10,13 @@ struct sleeplock;
 struct stat;
 struct superblock;
 
+// boot.c
+const char*     boot_banner(void);
+void            console_putchar(int);
+void            console_write(const char*, int);
+void            shutdown(void);
+void            kernel_main(void);
+
 // bio.c
 void            binit(void);
 struct buf*     bread(uint, uint);

@@ -3,6 +3,7 @@ U=user
 
 OBJS = \
   $K/entry.o \
+  $K/boot.o \
   $K/start.o \
   $K/console.o \
   $K/printk.o \
