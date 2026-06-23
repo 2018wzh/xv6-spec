@@ -37,3 +37,9 @@ report_contract:
       description: >
         List any external references consulted (e.g., xv6 book,
         RISC-V privileged spec, SBI spec).
+
+    - section: agent_narrative_summary
+      description: >
+        Include the reporter.v2 Agent narrative generated from the
+        deterministic report summary. The Agent narrative must not alter
+        verification facts.
