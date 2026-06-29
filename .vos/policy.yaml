@@ -1,0 +1,59 @@
+allowed_commands:
+  - init
+  - doctor
+  - stage show
+  - stage save
+  - toolchain init
+  - toolchain lint
+  - spec lint
+  - spec normalize
+  - spec check-consistency
+  - spec patch lint
+  - spec patch apply
+  - arch lint
+  - arch compose
+  - arch derive-tests
+  - build
+  - build generate
+  - run qemu
+  - test
+  - verify public
+  - verify patch
+  - verify full
+  - verify invariant
+  - verify fuzz
+  - verify base
+  - verify architecture
+  - verify composition
+  - verify goal
+  - trace syscall
+  - debug explain-log
+  - report generate
+  - submit pack
+  - ledger record
+  - agent context
+  - agent plan
+  - agent ask
+  - agent generate
+  - agent apply-patch
+  - agent validate-generated
+  - agent debug
+  - agent log
+  - agent review-spec
+  - kb add
+  - kb list
+  - kb search
+  - kb remove
+  - kb clear
+  - kb export-manifest
+  - kb import-manifest
+allowed_paths:
+  - spec
+  - kernel
+  - user
+  - mkfs
+  - tests
+  - .vos
+  - Makefile
+  - AGENTS.md
+visibility_scope: public

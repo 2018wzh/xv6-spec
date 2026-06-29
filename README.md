@@ -30,7 +30,7 @@ bun run vos -- --help
 - `riscv64-unknown-elf-objdump`
 - `qemu-system-riscv64`
 
-如果要从 spec 生成源码，还需要配置 `.vos/config.toml` 中声明的 LLM provider。当前示例默认读取 `DEEPSEEK_API_KEY`。
+如果要从 spec 生成源码或使用 `vos agent ask`，还需要配置 `.vos/config.toml` 中声明的 provider。当前示例默认用 `DEEPSEEK_API_KEY` 运行 Agent，用 `ECNU_API_KEY` 做 KB embedding。
 
 ## 最短路径
 
@@ -95,6 +95,26 @@ bun run vos -- --project-root ../examples/xv6-spec agent generate --apply --buil
 ```
 
 注意：`--build` 依赖 `--apply`，`--run` 依赖 `--build`。
+
+## Agent 问答和 KB
+
+先把项目 spec 加入本地 KB：
+
+```bash
+bun run vos -- --project-root ../examples/xv6-spec kb add spec --source-kind project --recursive
+```
+
+搜索 KB：
+
+```bash
+bun run vos -- --project-root ../examples/xv6-spec kb search kalloc
+```
+
+向 Agent 提问：
+
+```bash
+bun run vos -- --project-root ../examples/xv6-spec agent ask --stage memory "How should I design kalloc?"
+```
 
 ## QEMU case 和测试 suite
 
@@ -169,7 +189,7 @@ examples/xv6-spec/
 
 ### `agent generate` 调 provider 失败
 
-检查 `.vos/config.toml` 和对应环境变量。当前示例默认使用 `DEEPSEEK_API_KEY`。
+检查 `.vos/config.toml` 和对应环境变量。当前示例默认使用 `DEEPSEEK_API_KEY` 运行 Agent，使用 `ECNU_API_KEY` 做 KB embedding。
 
 ### `verify public` 没有跑到预期测试
 

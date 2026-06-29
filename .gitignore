@@ -1,7 +1,3 @@
-*.env
-*.env
-.vos/*
-!.vos/toolchain.json
 build/
 fs.img
 kernel/*.o
@@ -16,3 +12,10 @@ user/*.asm
 user/*.sym
 user/_*
 user/usys.S
+*.env
+.tmp/
+.vos/*
+!.vos/project.yaml
+!.vos/policy.yaml
+!.vos/config.toml
+!.vos/toolchain.json
