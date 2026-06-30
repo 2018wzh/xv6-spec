@@ -2,7 +2,7 @@ spec_root = "spec"
 
 [agent]
 provider = "openai-compatible"
-model = "ecnu-max"
+model = "compat:ecnu-max"
 base_url = "https://chat.ecnu.edu.cn/open/api/v1"
 timeout_secs = 600
 [agent.auth]
