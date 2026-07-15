@@ -1,0 +1,80 @@
+id: kernel/start.timerinit
+
+module: kernel/start
+
+operation: timerinit
+stage: boot
+purpose: >
+  Configure timer interrupts using the sstc extension: enable stimecmp in menvcfg, allow S-mode to access time and stimecmp via mcounteren, and set the first timer interrupt to fire after a delay.
+
+related_slice: slice-01-boot
+related_adr: null
+depends_on:
+  requires_modules:
+    - kernel/start
+  requires_ops:
+    []
+
+rely:
+  state_assumptions:
+  callable_interfaces:
+  resource_assumptions:
+    - sufficient resources available
+  lock_assumptions:
+    - none
+
+guarantee:
+  returns:
+    - void
+  state_updates: []
+  side_effects:
+    - timer interrupts enabled
+    - first timer interrupt scheduled
+  emitted_events: []
+preconditions:
+  - called once per hart during boot
+postconditions:
+  - hart receives timer interrupts
+invariants_preserved:
+  []
+failure_semantics:
+  - none
+
+concurrency:
+  atomicity: single operation
+  lock_order:
+    []
+  interrupt_state: enabled
+  wait_wakeup_rules:
+    []
+
+security:
+  authority_check: none
+  isolation_boundary: kernel-space only
+  user_pointer_policy: none
+
+observability:
+  traces: []
+  counters: []
+  expected_logs: []
+
+test_obligations:
+  public:
+    - timerinit_basic
+  generated: []
+  hidden_tags:
+    []
+
+codegen:
+  targets:
+    - kind: symbol
+      path: kernel/start.c
+      symbols: [timerinit]
+      owner: kernel/start
+      mode: create
+  forbidden_changes:
+    - do not modify code outside the marked region
+    - do not create helper files
+    - do not modify build scripts
+  required_followup_checks:
+    - make build

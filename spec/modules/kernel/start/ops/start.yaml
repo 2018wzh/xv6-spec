@@ -1,0 +1,85 @@
+id: kernel/start.start
+
+module: kernel/start
+
+operation: start
+stage: boot
+purpose: >
+  Machine-mode entry point. Configure mstatus for S-mode mret, set mepc to main, disable paging, delegate all interrupts/exceptions to S-mode, configure PMP to give S-mode access to all physical memory, configure timer interrupts, store hartid in tp, and switch to supervisor mode via mret.
+
+related_slice: slice-01-boot
+related_adr: null
+depends_on:
+  requires_modules:
+    - kernel/start
+  requires_ops:
+    []
+
+rely:
+  state_assumptions:
+  callable_interfaces:
+    - timerinit (internal)
+    - main (from kernel/boot)
+  resource_assumptions:
+    - sufficient resources available
+  lock_assumptions:
+    - none
+
+guarantee:
+  returns:
+    - void (never returns)
+  state_updates: []
+  side_effects:
+    - hart switched to S-mode
+    - mepc points to main
+    - all interrupts delegated to S-mode
+    - PMP configured
+    - tp holds hartid
+  emitted_events: []
+preconditions:
+  - hart enters in M-mode via OpenSBI
+postconditions:
+  - execution continues at main() in S-mode
+invariants_preserved:
+  []
+failure_semantics:
+  - none (never returns; mret jumps to main)
+
+concurrency:
+  atomicity: single operation
+  lock_order:
+    []
+  interrupt_state: enabled
+  wait_wakeup_rules:
+    []
+
+security:
+  authority_check: none
+  isolation_boundary: kernel-space only
+  user_pointer_policy: none
+
+observability:
+  traces: []
+  counters: []
+  expected_logs: []
+
+test_obligations:
+  public:
+    - start_basic
+  generated: []
+  hidden_tags:
+    []
+
+codegen:
+  targets:
+    - kind: symbol
+      path: kernel/start.c
+      symbols: [start]
+      owner: kernel/start
+      mode: create
+  forbidden_changes:
+    - do not modify code outside the marked region
+    - do not create helper files
+    - do not modify build scripts
+  required_followup_checks:
+    - make build

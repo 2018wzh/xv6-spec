@@ -1,0 +1,50 @@
+id: kernel/boot.kernel_main
+module: kernel/boot
+operation: kernel_main
+stage: boot
+purpose: Print the boot banner after the early entry sequence.
+related_slice: slice-01-boot
+related_adr: null
+depends_on:
+  requires_modules: [kernel/boot]
+  requires_ops: [kernel/boot.boot_banner, kernel/boot.console_write]
+rely:
+  state_assumptions: [entered from _start with valid stack and zeroed BSS]
+  callable_interfaces: [boot_banner, console_write]
+  resource_assumptions: []
+  lock_assumptions: []
+guarantee:
+  returns: [void]
+  state_updates: []
+  side_effects: [boot banner printed to console]
+  emitted_events: [boot banner printed]
+preconditions: [called once during boot]
+postconditions: [boot banner has been emitted]
+invariants_preserved: [boot output does not require heap allocation]
+failure_semantics: [console output is delegated to SBI]
+concurrency:
+  atomicity: single-hart boot sequence
+  lock_order: []
+  interrupt_state: disabled
+  wait_wakeup_rules: []
+security:
+  authority_check: none
+  isolation_boundary: kernel-space only
+  user_pointer_policy: none
+observability:
+  traces: []
+  counters: []
+  expected_logs: [boot banner printed]
+test_obligations:
+  public: [kernel_main_banner_printed]
+  generated: []
+  hidden_tags: []
+codegen:
+  targets:
+    - kind: symbol
+      path: kernel/boot.c
+      symbols: [kernel_main]
+      owner: kernel/boot
+      mode: create
+  forbidden_changes: []
+  required_followup_checks: [make build]

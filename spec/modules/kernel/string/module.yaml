@@ -1,0 +1,35 @@
+id: kernel/string
+module: kernel/string
+stage: boot
+purpose: >
+  Kernel string and memory utility functions: memset, memmove, memcpy, memcmp, strncmp, strncpy, safestrcpy, strlen. Freestanding implementations with no libc dependency.
+related_slices:
+  - slice-01-boot
+related_adrs:
+  []
+owned_state:
+  - none (pure functions, no global state)
+exported_interfaces:
+  - memset
+  - memmove
+  - memcpy
+  - memcmp
+  - strncmp
+  - strncpy
+  - safestrcpy
+  - strlen
+imported_interfaces:
+module_invariants:
+  - memmove handles overlapping regions correctly
+  - safestrcpy always NUL-terminates
+  - strlen does not read past the NUL terminator
+  - memcpy is an alias for memmove
+error_model:
+  - none (these functions are infallible)
+resource_lifetime_rules:
+  - no resources owned; pure functions
+security_boundary:
+  - caller is responsible for buffer sizes; safestrcpy takes explicit size parameter
+test_surfaces:
+  - unit tests for all exported functions
+  - integration tests with dependent modules

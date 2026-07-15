@@ -1,0 +1,23 @@
+module: kernel/boot
+
+test_surfaces:
+  - boot_banner_not_null
+  - boot_banner_length_positive
+  - boot_banner_printable
+  - console_putchar_ecall
+  - console_write_newline
+  - shutdown_success_signal
+
+required_tests:
+  - test: boot_banner_not_null
+    description: boot_banner() returns a non-null pointer
+  - test: boot_banner_length_positive
+    description: boot_banner() string has positive length
+  - test: boot_banner_printable
+    description: boot_banner() returns only printable ASCII characters
+  - test: console_putchar_ecall
+    description: console_putchar triggers SBI ecall without error
+  - test: console_write_newline
+    description: console_write emits a trailing newline
+  - test: shutdown_success_signal
+    description: shutdown terminates QEMU with success

@@ -1,0 +1,82 @@
+id: kernel/boot.shutdown
+
+module: kernel/boot
+
+operation: shutdown
+stage: boot
+purpose: >
+  Halt the machine via the SBI System Reset extension (EID
+  #0x53525354) with type SHUTDOWN (0x0).
+
+related_slice: slice-01-boot
+related_adr: null
+depends_on:
+  requires_modules:
+    - kernel/boot
+
+  requires_ops: []
+
+rely:
+  state_assumptions:
+    - SBI firmware is initialized
+  callable_interfaces:
+    - sbi_system_reset (inline asm ecall)
+  resource_assumptions:
+    - none
+  lock_assumptions:
+    - none
+
+guarantee:
+  returns:
+    - does not return (noreturn)
+  state_updates: []
+  side_effects:
+    - system halt via SBI SRST
+  emitted_events:
+    - none
+
+preconditions:
+  - system is in a valid state for power-off
+postconditions:
+  - execution terminates; QEMU exits
+invariants_preserved:
+  - no further instructions execute
+failure_semantics:
+  - if SBI SRST fails, fallback infinite loop with wfi
+
+concurrency:
+  atomicity: not applicable
+  lock_order: []
+  interrupt_state: irrelevant (does not return)
+  wait_wakeup_rules: []
+
+security:
+  authority_check: none
+  isolation_boundary: none
+  user_pointer_policy: none
+
+observability:
+  traces: []
+  counters: []
+  expected_logs: []
+
+test_obligations:
+  public:
+    - shutdown_reaches_qemu_exit
+  generated:
+    - qemu_exits_on_shutdown
+  hidden_tags: []
+
+codegen:
+  targets:
+    - kind: symbol
+      path: kernel/boot.c
+      symbols: [shutdown]
+      owner: kernel/boot
+      mode: create
+  forbidden_changes:
+    - do not modify code outside the marked region
+    - do not create helper files
+    - do not modify build scripts
+  required_followup_checks:
+    - make build
