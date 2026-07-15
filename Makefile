@@ -17,7 +17,14 @@ OBJS = \
 +  $K/trap.o \
 +  $K/syscall.o \
 +  $K/sysproc.o \
-+  $K/kernelvec.o
++  $K/kernelvec.o \
++  $K/bio.o \
++  $K/fs.o \
++  $K/log.o \
++  $K/sleeplock.o \
++  $K/file.o \
++  $K/exec.o \
++  $K/virtio_disk.o
 
 all: $K/kernel
 $K/kernel: $(OBJS) $K/kernel.ld
