@@ -1,0 +1,53 @@
+id: slice-03-trap
+
+stage: trap
+title: Trap Handling and Context Switching
+summary: >
+  Install the trap vector, handle exceptions and timer interrupts,
+  save/restore trap frames, and provide the foundation for
+  user/kernel transitions.
+
+depends_on_slices:
+  - slice-01-boot
+  - slice-02-memory
+depends_on_adrs: []
+
+mechanisms:
+  - stvec-based trap vector installation
+  - trap frame per process (32 registers + satp + sepc)
+  - usertrap / kerneltrap entry points
+  - timer interrupt handling via SBI
+  - userret trampoline for returning to U-mode
+affected_modules:
+  - kernel/trap
+
+  - kernel/process
+
+new_operations:
+  - kernel/trap.trap_init
+
+  - kernel/trap.usertrap
+
+  - kernel/trap.kerneltrap
+
+  - kernel/trap.usertrapret
+
+  - kernel/trap.devintr
+
+removed_or_replaced_mechanisms: []
+
+invariants:
+  - trap vector never changes after trap_init
+  - sepc, stval, scause are saved before any C handler
+  - timer interrupts do not nest (sie.TIE clear in handler)
+security_boundaries:
+  - user registers are sanitized before kernel access
+  - sstatus.SPP tracks previous privilege mode correctly
+concurrency_highlights:
+  - single-hart; timer interrupts are the only async events
+validation_binding:
+  must_pass:
+    - build_kernel
+    - verify_trap_vector
+    - verify_timer_interrupt
+open_questions: []

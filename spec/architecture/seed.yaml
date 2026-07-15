@@ -3,5 +3,13 @@ project: xv6-riscv-kernel
 domain: teaching-operating-system
 target_platform: riscv64-qemu-virt
 architecture_name: xv6-riscv-layered
-architecture_summary: A teaching RISC-V kernel whose design is developed one lab at a time.
-constraints: [riscv64-unknown-elf-gcc toolchain, qemu-system-riscv64 virt machine]
+architecture_summary: A single-hart teaching kernel with isolated user processes and a small syscall boundary.
+reference_systems:
+  - system: xv6-riscv
+    borrowed_concepts: [Sv39 page tables, trap frame, round-robin scheduler, syscall dispatch]
+    modified_concepts: [spec-driven code generation]
+    rejected_concepts: [multi-core support, COW fork]
+    reason: xv6 provides a compact teaching reference.
+goals: [boot to supervisor mode, manage physical memory, isolate user processes, expose a minimal syscall interface]
+non_goals: [multi-core support, networking stack, full POSIX compliance]
+constraints: [riscv64-unknown-elf-gcc toolchain, qemu-system-riscv64 virt machine, single-hart execution]

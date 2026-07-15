@@ -1,0 +1,90 @@
+id: kernel/process.scheduler
+
+module: kernel/process
+
+operation: scheduler
+stage: process
+purpose: >
+  The per-hart scheduler loop. Scans the process table
+  for a RUNNABLE process, acquires its lock, sets state
+  to RUNNING, and calls swtch to transfer control.
+
+related_slice: slice-04-process
+related_adr: null
+depends_on:
+  requires_modules:
+    - kernel/process
+
+  requires_ops:
+    - kernel/process.proc_init
+
+    - kernel/process.swtch
+
+
+rely:
+  state_assumptions:
+    - at least one RUNNABLE process exists (or idle loops)
+  callable_interfaces:
+    - swtch
+  resource_assumptions:
+    - none
+  lock_assumptions:
+    - acquires p->lock
+
+guarantee:
+  returns:
+    - never returns (infinite loop)
+  state_updates: []
+  side_effects:
+    - selects next RUNNABLE process
+    - transfers control via swtch
+  emitted_events:
+    - none
+
+preconditions:
+  - called from process 0 (scheduler context)
+postconditions:
+  - never terminates
+invariants_preserved:
+  - exactly one process is RUNNING at a time
+failure_semantics:
+  - panics if swtch misbehaves
+
+concurrency:
+  atomicity: per-slot lock + swtch
+  lock_order:
+    - p->lock
+  interrupt_state: push_off before acquire
+  wait_wakeup_rules: []
+
+security:
+  authority_check: none
+  isolation_boundary: none (kernel context switch)
+  user_pointer_policy: none
+
+observability:
+  traces: []
+  counters:
+    - context switches
+  expected_logs: []
+
+test_obligations:
+  public:
+    - scheduler_runs
+    - scheduler_round_robin
+  generated: []
+  hidden_tags: []
+
+codegen:
+  targets:
+    - kind: symbol
+      path: kernel/process.c
+      symbols: [scheduler]
+      owner: kernel/process
+      mode: create
+  forbidden_changes:
+    - do not modify code outside the marked region
+    - do not create helper files
+    - do not modify build scripts
+  required_followup_checks:
+    - make build

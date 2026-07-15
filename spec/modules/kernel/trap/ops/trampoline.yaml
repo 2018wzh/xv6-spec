@@ -1,0 +1,112 @@
+id: kernel/trap.trampoline
+
+module: kernel/trap
+
+operation: trampoline
+stage: trap
+purpose: >
+  RISC-V assembly trampoline page containing uservec
+  (user-mode trap entry) and userret (return to user-mode).
+  This code is mapped at the same virtual address
+  (TRAMPOLINE) in both kernel and user page tables,
+  enabling safe switching between page tables.
+
+  uservec: Save user registers to the process's trapframe,
+  load the kernel page table address and kernel stack
+  pointer from the trapframe, switch satp to the kernel
+  page table, and jump to usertrap().
+
+  userret: Switch satp to the user page table, restore
+  user registers from the trapframe, and execute sret to
+  return to U-mode at the saved sepc.
+
+related_slice: slice-03-trap
+related_adr: null
+depends_on:
+  requires_modules:
+    - kernel/trap
+
+    - kernel/memory
+
+  requires_ops:
+    - kernel/trap.usertrap
+
+    - kernel/trap.usertrapret
+
+
+rely:
+  state_assumptions:
+    - TRAMPOLINE page is identity-mapped in both kernel
+      and user page tables
+    - current process has a valid trapframe page mapped
+      at TRAPFRAME
+  callable_interfaces:
+    - usertrap (C handler, called by uservec)
+    - usertrapret (C function that calls userret)
+  resource_assumptions:
+    - trapframe page is writable
+  lock_assumptions:
+    - none
+
+guarantee:
+  returns:
+    - "uservec: never returns directly; jumps to usertrap"
+    - "userret: never returns directly; executes sret to U-mode"
+  state_updates: []
+  side_effects:
+    - "uservec: saves all 32 user registers to trapframe, loads kernel satp/stack/trap handler address from trapframe, switches satp to kernel page table"
+    - "userret: restores all 32 user registers from trapframe, switches satp to user page table, executes sret"
+  emitted_events:
+    - none
+
+preconditions:
+  - "uservec: stvec points to uservec address in trampoline"
+  - "uservec: satp currently holds user page table"
+  - "userret: satp currently holds kernel page table"
+  - "userret: TRAPFRAME page contains valid register state"
+postconditions:
+  - "uservec: execution is in kernel context with kernel page table active"
+  - "userret: execution returns to U-mode at sepc"
+invariants_preserved:
+  - no user registers leak to kernel (saved in trapframe)
+  - page table switch is safe (TRAMPOLINE mapped identically)
+failure_semantics:
+  - undefined behavior if trapframe is corrupted
+
+concurrency:
+  atomicity: hardware atomic trap entry/exit
+  lock_order: []
+  interrupt_state: interrupts disabled during trap handling
+  wait_wakeup_rules: []
+
+security:
+  authority_check: none (hardware-mediated)
+  isolation_boundary: satp switch enforces user/kernel isolation
+  user_pointer_policy: all user registers saved to kernel-accessible
+    trapframe before any kernel code executes
+
+observability:
+  traces: []
+  counters: []
+  expected_logs: []
+
+test_obligations:
+  public:
+    - trampoline_uservec_entry
+    - trampoline_userret_roundtrip
+  generated: []
+  hidden_tags: []
+
+codegen:
+  targets:
+    - kind: symbol
+      path: kernel/trampoline.S
+      symbols: [trampoline]
+      owner: kernel/trap
+      mode: create
+  forbidden_changes:
+    - do not modify code outside the marked region
+    - do not create helper files
+    - do not modify build scripts
+  required_followup_checks:
+    - make build

@@ -1,0 +1,94 @@
+id: kernel/syscall.sys_wait
+
+module: kernel/syscall
+
+operation: sys_wait
+stage: syscall
+purpose: >
+  Syscall wrapper for wait. Reads the user pointer for
+  the exit status, validates it, calls wait(), and
+  copies the exit status back to userspace.
+
+related_slice: slice-05-syscall
+related_adr: null
+depends_on:
+  requires_modules:
+    - kernel/syscall
+
+    - kernel/process
+
+    - kernel/memory
+
+  requires_ops:
+    - kernel/syscall.syscall
+
+    - kernel/process.wait
+
+    - kernel/memory.copyout
+
+
+rely:
+  state_assumptions:
+    - current process may have children
+  callable_interfaces:
+    - wait, copyout
+  resource_assumptions:
+    - none
+  lock_assumptions:
+    - none
+
+guarantee:
+  returns:
+    - child PID on success
+    - -1 on failure
+  state_updates: []
+  side_effects:
+    - exit status written to user buffer if provided
+  emitted_events:
+    - none
+
+preconditions:
+  - a0 contains pointer to int for exit status (or 0)
+postconditions:
+  - if a0 != 0, user buffer updated with exit status
+invariants_preserved:
+  - process lifecycle invariants
+failure_semantics:
+  - returns -1 if no children or status buffer invalid
+
+concurrency:
+  atomicity: wait holds necessary locks
+  lock_order: []
+  interrupt_state: irrelevant
+  wait_wakeup_rules: []
+
+security:
+  authority_check: only wait for children
+  isolation_boundary: copyout validates user address
+  user_pointer_policy: a0 validated via copyout
+
+observability:
+  traces: []
+  counters: []
+  expected_logs: []
+
+test_obligations:
+  public:
+    - sys_wait_reap
+    - sys_wait_no_children
+  generated: []
+  hidden_tags: []
+
+codegen:
+  targets:
+    - kind: symbol
+      path: kernel/syscall.c
+      symbols: [sys_wait]
+      owner: kernel/syscall
+      mode: create
+  forbidden_changes:
+    - do not modify code outside the marked region
+    - do not create helper files
+    - do not modify build scripts
+  required_followup_checks:
+    - make build

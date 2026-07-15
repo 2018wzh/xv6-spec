@@ -1,0 +1,27 @@
+module: kernel/trap
+
+shared_state:
+  - stvec (per-hart)
+  - sstatus (per-hart)
+  - sie (per-hart)
+lock_types:
+  - push_off / pop_off (interrupt disable)
+lock_order:
+  - push_off before kernel critical sections
+atomic_sections:
+  - trap entry/exit (hardware atomic)
+  - timer interrupt acknowledge
+interrupt_rules:
+  - sie.STIE set for timer interrupts
+  - sie.SEIE clear (no external interrupts)
+  - sstatus.SIE clear in handler
+rely:
+  - SBI provides timer extension
+  - hardware delivers timer interrupts
+guarantee:
+  - timer interrupts fire at ~1 Hz
+  - trap frame is consistent after save
+wait_wakeup_rules: []
+forbidden_patterns:
+  - holding a spinlock across usertrapret
+  - re-enabling interrupts inside usertrap before yield

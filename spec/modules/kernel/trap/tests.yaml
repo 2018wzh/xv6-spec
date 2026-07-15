@@ -1,0 +1,29 @@
+module: kernel/trap
+
+test_surfaces:
+  - trap_init_stvec_set
+  - trap_init_idempotent
+  - usertrap_timer
+  - usertrap_syscall_dispatched
+  - usertrap_illegal_instruction
+  - usertrap_nesting
+  - kerneltrap_unexpected
+  - usertrapret_roundtrip
+  - devintr_timer
+  - devintr_other
+
+required_tests:
+  - test: trap_init_stvec_set
+    description: trap_init sets stvec to a non-null value
+  - test: usertrap_timer
+    description: timer interrupts are handled and yield is called
+  - test: usertrap_syscall_dispatched
+    description: ecall from U-mode dispatches to syscall handler
+  - test: usertrap_illegal_instruction
+    description: illegal instruction in U-mode kills the process
+  - test: kerneltrap_unexpected
+    description: unexpected trap in kernel mode causes panic
+  - test: usertrapret_roundtrip
+    description: usertrapret correctly restores user context
+  - test: devintr_timer
+    description: devintr returns 2 for timer interrupts

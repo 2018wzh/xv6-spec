@@ -1,0 +1,30 @@
+module: kernel/process
+
+shared_state:
+  - process table (proc[NPROC])
+  - wait_lock
+lock_types:
+  - spinlock (struct spinlock)
+lock_order:
+  - p->lock before wait_lock
+  - never acquire p->lock while holding wait_lock
+atomic_sections:
+  - process state transitions (via p->lock)
+  - scheduler context switch (swtch)
+interrupt_rules:
+  - interrupts disabled while holding p->lock
+  - push_off/pop_off around proc state mutations
+wait_wakeup_rules:
+  - sleep(chan, lock) releases lock and blocks until wakeup(chan)
+  - wakeup(chan) wakes all sleepers on chan
+  - wakeup must be called with the same lock held that sleep was called with
+rely:
+  - timer interrupts drive scheduler
+  - swtch saves/restores callee-saved regs
+guarantee:
+  - process state transitions are atomic
+  - swtch never returns to a freed process
+forbidden_patterns:
+  - accessing p->state without holding p->lock
+  - holding p->lock across swtch
+  - sched() called without p->lock held

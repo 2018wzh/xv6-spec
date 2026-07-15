@@ -1,0 +1,83 @@
+id: kernel/syscall.argint
+
+module: kernel/syscall
+
+operation: argint
+stage: syscall
+purpose: >
+  Extract an integer argument from the nth user register
+  (a0-a5) and validate it is a valid integer.
+
+related_slice: slice-05-syscall
+related_adr: null
+depends_on:
+  requires_modules:
+    - kernel/syscall
+
+  requires_ops: []
+
+rely:
+  state_assumptions:
+    - trapframe contains valid user register state
+  callable_interfaces:
+    - none
+  resource_assumptions:
+    - none
+  lock_assumptions:
+    - none
+
+guarantee:
+  returns:
+    - "0 and sets *ip on success"
+    - "-1 if n out of range"
+  state_updates: []
+  side_effects:
+    - "*ip written with register value"
+  emitted_events:
+    - none
+
+preconditions:
+  - 0 <= n <= 5
+postconditions:
+  - "*ip contains the argument value"
+invariants_preserved:
+  - no kernel state mutation
+failure_semantics:
+  - returns -1 for invalid n
+
+concurrency:
+  atomicity: single register read
+  lock_order: []
+  interrupt_state: irrelevant
+  wait_wakeup_rules: []
+
+security:
+  authority_check: none (just register read)
+  isolation_boundary: reads from trapframe (already sanitized)
+  user_pointer_policy: none
+
+observability:
+  traces: []
+  counters: []
+  expected_logs: []
+
+test_obligations:
+  public:
+    - argint_valid
+    - argint_out_of_range
+  generated: []
+  hidden_tags: []
+
+codegen:
+  targets:
+    - kind: symbol
+      path: kernel/syscall.c
+      symbols: [argint]
+      owner: kernel/syscall
+      mode: create
+  forbidden_changes:
+    - do not modify code outside the marked region
+    - do not create helper files
+    - do not modify build scripts
+  required_followup_checks:
+    - make build

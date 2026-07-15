@@ -1,0 +1,51 @@
+id: kernel/syscall
+
+module: kernel/syscall
+
+stage: syscall
+purpose: >
+  System call dispatch: route user-mode ecall instructions
+  through a dispatch table, validate arguments, and implement
+  the POSIX-like system call set (write, exit, fork, wait,
+  sbrk).
+related_slices:
+  - slice-05-syscall
+related_adrs: []
+owned_state:
+  - syscall dispatch table (array of function pointers)
+  - per-syscall argument marshalling state
+exported_interfaces:
+  - syscall
+  - sys_write
+  - sys_exit
+  - sys_fork
+  - sys_wait
+  - sys_sbrk
+  - argint
+  - argaddr
+  - fetchaddr
+  - fetchstr
+imported_interfaces:
+  - console_write (from boot)
+  - fork, exit, wait, growproc (from process)
+rely:
+  - trap dispatch invokes syscall handler
+guarantee:
+  - all user pointers validated before dereference
+module_invariants:
+  - syscall number is bounds-checked before dispatch
+  - handlers return -1 on error
+  - successful calls return non-negative values
+error_model:
+  - unknown syscall number returns -1
+  - invalid user pointers return -1 (EFAULT equivalent)
+resource_lifetime_rules:
+  - none direct
+security_boundary:
+  - kernel never dereferences raw user pointers
+  - syscall dispatch table bounds checked
+  - copyout/copyin validate destination addresses
+test_surfaces:
+  - syscall dispatch for valid/invalid numbers
+  - sys_write boundary conditions
+  - fork/wait integration

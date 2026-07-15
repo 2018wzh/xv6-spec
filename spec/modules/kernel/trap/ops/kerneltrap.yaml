@@ -1,0 +1,88 @@
+id: kernel/trap.kerneltrap
+
+module: kernel/trap
+
+operation: kerneltrap
+stage: trap
+purpose: >
+  Handle a trap that occurred while in kernel mode.
+  Save context, handle timer interrupts via devintr,
+  and restore.
+
+related_slice: slice-03-trap
+related_adr: null
+depends_on:
+  requires_modules:
+    - kernel/trap
+
+  requires_ops:
+    - kernel/trap.trap_init
+
+    - kernel/trap.devintr
+
+
+rely:
+  state_assumptions:
+    - trap originated from S-mode
+    - kernel page table is active
+  callable_interfaces:
+    - devintr
+  resource_assumptions:
+    - kernel stack is valid
+  lock_assumptions:
+    - may hold locks (push_off/pop_off used)
+
+guarantee:
+  returns:
+    - void (returns via sret)
+  state_updates: []
+  side_effects:
+    - sepc, scause, sstatus saved/restored
+    - timer interrupt handled if applicable
+  emitted_events:
+    - none
+
+preconditions:
+  - entered from kernel mode
+postconditions:
+  - kernel state restored identically
+invariants_preserved:
+  - no kernel state corruption
+failure_semantics:
+  - panics on unexpected kernel traps
+
+concurrency:
+  atomicity: trap entry/exit by hardware
+  lock_order: []
+  interrupt_state: interrupts disabled throughout
+  wait_wakeup_rules: []
+
+security:
+  authority_check: none
+  isolation_boundary: stays in kernel page table
+  user_pointer_policy: none
+
+observability:
+  traces: []
+  counters: []
+  expected_logs: []
+
+test_obligations:
+  public:
+    - kerneltrap_timer
+  generated: []
+  hidden_tags: []
+
+codegen:
+  targets:
+    - kind: symbol
+      path: kernel/trap.c
+      symbols: [kerneltrap]
+      owner: kernel/trap
+      mode: create
+  forbidden_changes:
+    - do not modify code outside the marked region
+    - do not create helper files
+    - do not modify build scripts
+  required_followup_checks:
+    - make build
