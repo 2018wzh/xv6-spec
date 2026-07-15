@@ -1,0 +1,181 @@
+# xv6 RISC-V semantic build specification (full system)
+# Tool-agnostic; consumed by vos-runtime via generator selection.
+
+build:
+  allowed_output_path:
+    - Makefile
+    - CMakeLists.txt
+    - xtask/src/tasks.rs
+    - xtask/Cargo.toml
+
+  sources:
+    - kernel/**/*.c
+    - kernel/**/*.S
+
+  include_paths:
+    - .
+  cflags:
+    - -fno-common
+    - -fno-omit-frame-pointer
+    - -march=rv64gc
+    - -mcmodel=medany
+    - -ffreestanding
+    - -nostdlib
+  asmflags: []
+  ldflags:
+    - -nostdlib
+    - -N
+  features: []
+  forbidden_flags: []
+  generated_artifacts:
+    - build/kernel.elf
+    - build/kernel.bin
+    - build/kernel.asm
+
+  phases:
+    # Phase 1: compile all kernel C sources
+    - name: kernel_compile
+      semantic:
+        type: compile
+        compiler: gcc
+        sources:
+          - pattern: "kernel/*.c"
+            exclude: ["kernel/test/**", "kernel/bench/**"]
+        include_dirs:
+          - .
+        flags:
+          warnings: [all, error]
+          optimization: O2
+          debug: true
+          defines:
+            - KERNEL
+          extra: "-std=gnu99 -fno-builtin-strncpy -fno-builtin-strncmp -fno-builtin-strlen -fno-builtin-memset -fno-builtin-memmove -fno-builtin-memcmp -fno-builtin-memcpy"
+        standard: c11
+        output_dir: build/
+        output_pattern: "*.o"
+        timeout_secs: 180
+
+    # Phase 2: compile kernel assembly
+    - name: asm_compile
+      semantic:
+        type: compile
+        compiler: gcc
+        sources:
+          - pattern: "kernel/entry.S"
+          - pattern: "kernel/start.c"
+          - pattern: "kernel/kernelvec.S"
+          - pattern: "kernel/trampoline.S"
+          - pattern: "kernel/swtch.S"
+        include_dirs:
+          - .
+        flags:
+          warnings: []
+          debug: false
+          defines:
+            - KERNEL
+        output_dir: build/
+        output_pattern: "*.o"
+        timeout_secs: 60
+
+    # Phase 3: compile user programs
+    - name: user_compile
+      semantic:
+        type: compile
+        compiler: gcc
+        sources:
+          - pattern: "user/*.c"
+        include_dirs:
+          - .
+        flags:
+          warnings: [all]
+          optimization: O2
+          debug: false
+          defines: []
+          extra: "-std=gnu99 -ffreestanding -nostdlib -fno-builtin-strncpy -fno-builtin-strncmp -fno-builtin-strlen -fno-builtin-memset -fno-builtin-memmove -fno-builtin-memcmp -fno-builtin-memcpy"
+        standard: c11
+        output_dir: build/user/
+        output_pattern: "*.o"
+        timeout_secs: 120
+
+    # Phase 4: link the kernel image
+    - name: link_kernel
+      semantic:
+        type: link
+        linker: ld
+        input_artifacts:
+          - build/entry.o
+          - build/start.o
+          - build/console.o
+          - build/printk.o
+          - build/uart.o
+          - build/kalloc.o
+          - build/spinlock.o
+          - build/string.o
+          - build/main.o
+          - build/vm.o
+          - build/proc.o
+          - build/swtch.o
+          - build/trampoline.o
+          - build/trap.o
+          - build/syscall.o
+          - build/sysproc.o
+          - build/bio.o
+          - build/fs.o
+          - build/log.o
+          - build/sleeplock.o
+          - build/file.o
+          - build/pipe.o
+          - build/exec.o
+          - build/sysfile.o
+          - build/kernelvec.o
+          - build/plic.o
+          - build/virtio_disk.o
+          - build/user/init.o
+          - build/user/sh.o
+          - build/user/cat.o
+          - build/user/echo.o
+          - build/user/grep.o
+          - build/user/kill.o
+          - build/user/ln.o
+          - build/user/ls.o
+          - build/user/mkdir.o
+          - build/user/rm.o
+          - build/user/wc.o
+          - build/user/zombie.o
+          - build/user/ulib.o
+          - build/user/printf.o
+          - build/user/umalloc.o
+          - build/user/usys.o
+        output_file: build/kernel.elf
+        output_format: elf64
+        linker_script: kernel/kernel.ld
+        libraries:
+          - name: c
+            hint: "-lc"
+        library_dirs:
+          - /opt/riscv/lib
+        flags:
+          extra: "-nostdlib -N -Wl,--print-memory-usage"
+        dependencies: [kernel_compile, asm_compile, user_compile]
+        timeout_secs: 60
+
+    # Phase 5: generate a binary image
+    - name: generate_image
+      semantic:
+        type: custom
+        description: "使用 objcopy 从 ELF 生成二进制镜像"
+        command: "riscv64-unknown-elf-objcopy -O binary build/kernel.elf build/kernel.bin"
+        expected_outputs: [build/kernel.bin]
+        dependencies: [link_kernel]
+        timeout_secs: 30
+
+    # Phase 6: generate a disassembly artifact
+    - name: generate_asm
+      semantic:
+        type: custom
+        description: "生成内核反汇编供调试"
+        command: "riscv64-unknown-elf-objdump -D build/kernel.elf > build/kernel.asm"
+        expected_outputs: [build/kernel.asm]
+        dependencies: [link_kernel]
+        timeout_secs: 30
+        parallel: true

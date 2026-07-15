@@ -1,0 +1,75 @@
+id: process-memory-isolation-composition
+
+title: Process / Memory Address Space Isolation
+related_slices:
+  - slice-02-memory
+  - slice-04-process
+affected_modules:
+  - kernel/process
+
+  - kernel/memory
+
+
+cross_component_rules:
+  - name: fork-copies-memory
+    description: >
+      After fork, every user-accessible page in the child
+      must be a distinct physical copy of the parent's page.
+      No PTE_W page may be shared between parent and child.
+    invariant: >
+      Child address space is write-isolated from parent.
+    authority_boundary: >
+      Both parent and child run in U-mode with independent
+      satp values; no cross-process memory access is possible
+      without explicit shared-memory mechanisms (out of scope).
+    concurrency_boundary: >
+      Fork may be preempted by timer interrupts during
+      uvmcopy. The parent process may be rescheduled before
+      the copy completes.
+    failure_boundary: >
+      If uvmcopy fails due to OOM, fork returns -1, the
+      child process slot is freed, and any partially copied
+      pages are released via uvmfree.
+    tests:
+      - fork_memory_isolation
+      - fork_oom_cleanup
+
+  - name: growproc-boundary-enforcement
+    description: >
+      growproc (and sys_sbrk) may expand or shrink the
+      process address space. Expansion must never exceed
+      the user virtual address maximum; shrinkage must
+      unmap freed pages.
+    invariant: >
+      process->sz never exceeds PLIC or user address limit.
+    authority_boundary: >
+      growproc only affects the calling process; no other
+      process's address space is modified.
+    concurrency_boundary: >
+      growproc is non-atomic; the process may be rescheduled
+      during uvmalloc/uvmunmap.
+    failure_boundary: >
+      growproc returns -1 on OOM; user must handle the error.
+    tests:
+      - sys_sbrk_grow
+      - sys_sbrk_shrink
+      - sys_sbrk_out_of_memory
+
+  - name: exit-frees-all-user-pages
+    description: >
+      When a process exits, all pages in its user page table
+      are freed via uvmfree. No user page leaks past exit.
+    invariant: >
+      Zombie processes hold no user memory; all pages are
+      returned to the freelist or freed.
+    authority_boundary: >
+      Only the exiting process and its reaper (parent/init)
+      may free the process's pages.
+    concurrency_boundary: >
+      Exit acquires p->lock and wait_lock; page freeing
+      occurs before the process is marked ZOMBIE.
+    failure_boundary: >
+      If init exits, the system panics.
+    tests:
+      - exit_zombie
+      - exit_orphan_reparent

@@ -1,0 +1,81 @@
+id: syscall-mm-trap-composition
+
+title: Syscall / Memory / Trap Cross-Module Composition
+related_slices:
+  - slice-03-trap
+  - slice-05-syscall
+affected_modules:
+  - kernel/syscall
+
+  - kernel/memory
+
+  - kernel/trap
+
+
+cross_component_rules:
+  - name: user-pointer-validation-chain
+    description: >
+      Every syscall that accepts a user pointer (argaddr)
+      must validate it through walkaddr (in copyin, copyout,
+      fetchaddr, fetchstr) before any kernel dereference.
+      This chain guarantees that no raw user virtual address
+      is used as a kernel pointer.
+    invariant: >
+      Kernel never segfaults or accesses unmapped memory
+      due to a raw user pointer dereference.
+    authority_boundary: >
+      walkaddr checks the U-bit on the PTE; kernel-only
+      pages return 0 and cause the operation to fail.
+    concurrency_boundary: >
+      On a single hart, the user page table cannot change
+      between validation and use, making the window safe.
+    failure_boundary: >
+      Invalid user pointers cause copyin/copyout/fetchaddr/
+      fetchstr to return -1, which propagates to the syscall
+      return value.
+    tests:
+      - copyin_invalid_address
+      - copyout_readonly_page
+      - fetchaddr_invalid
+      - fetchstr_invalid
+
+  - name: syscall-trap-dispatch-guarantee
+    description: >
+      The trap handler (usertrap) is the sole entry point
+      for ecall from U-mode. No other code path may invoke
+      syscall handlers or bypass scause validation.
+    invariant: >
+      scause == 8 always reaches syscall() with sepc += 4.
+    authority_boundary: >
+      usertrap switches to kernel page table before calling
+      any syscall handler.
+    concurrency_boundary: >
+      Timer interrupts are disabled during trap handling;
+      syscall execution is non-preemptible.
+    failure_boundary: >
+      If usertrap encounters an unexpected scause value,
+      it kills the process via exit(-1).
+    tests:
+      - usertrap_syscall_dispatched
+      - syscall_valid_number
+      - syscall_invalid_number
+
+  - name: copyin-copyout-symmetry
+    description: >
+      copyin and copyout use the same walkaddr validation
+      logic. No operation may bypass validation by using
+      raw memmove/memcpy on user addresses.
+    invariant: >
+      All user↔kernel data transfers go through copyin
+      or copyout.
+    authority_boundary: >
+      copyout validates the destination user address;
+      copyin validates the source user address.
+    concurrency_boundary: >
+      Per-page copy; no locks held across pages.
+    failure_boundary: >
+      Partial copies are not committed; errors return -1.
+    tests:
+      - copyin_valid_address
+      - copyout_valid_address
+      - copyin_boundary_crossing

@@ -1,0 +1,83 @@
+id: kernel/sysproc.sys_exit
+
+module: kernel/sysproc
+
+operation: sys_exit
+stage: full-syscall
+purpose: >
+  Exit the current process with the given status. Calls kexit which never returns.
+
+related_slice: slice-09-full-syscall
+related_adr: null
+depends_on:
+  requires_modules:
+    - kernel/sysproc
+  requires_ops:
+    - kernel/process.exit
+
+rely:
+  state_assumptions:
+  callable_interfaces:
+    - argint (from kernel/syscall)
+    - kexit (from kernel/process)
+  resource_assumptions:
+    - sufficient resources available
+  lock_assumptions:
+    - none
+
+guarantee:
+  returns:
+    - int: does not return
+  state_updates: []
+  side_effects:
+    - process state set to ZOMBIE
+    - children reparented to init
+    - parent woken
+  emitted_events: []
+preconditions:
+  - called from user context
+postconditions:
+  - process is ZOMBIE, resources will be reaped by parent
+invariants_preserved:
+  []
+failure_semantics:
+  - never returns
+
+concurrency:
+  atomicity: single operation
+  lock_order:
+    []
+  interrupt_state: enabled
+  wait_wakeup_rules:
+    []
+
+security:
+  authority_check: none
+  isolation_boundary: kernel-space only
+  user_pointer_policy: none
+
+observability:
+  traces: []
+  counters: []
+  expected_logs: []
+
+test_obligations:
+  public:
+    - sys_exit_basic
+  generated: []
+  hidden_tags:
+    []
+
+codegen:
+  targets:
+    - kind: symbol
+      path: kernel/sysproc.c
+      symbols: [sys_exit]
+      owner: kernel/sysproc
+      mode: create
+  forbidden_changes:
+    - do not modify code outside the marked region
+    - do not create helper files
+    - do not modify build scripts
+  required_followup_checks:
+    - make build

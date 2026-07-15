@@ -1,0 +1,83 @@
+id: kernel/sysproc.sys_kill
+
+module: kernel/sysproc
+
+operation: sys_kill
+stage: full-syscall
+purpose: >
+  Send a kill signal to the process with the given PID. Sets the killed flag in the target process's struct proc. If the target is sleeping, wakes it up.
+
+related_slice: slice-09-full-syscall
+related_adr: null
+depends_on:
+  requires_modules:
+    - kernel/sysproc
+  requires_ops:
+    []
+
+rely:
+  state_assumptions:
+  callable_interfaces:
+    - argint (from kernel/syscall)
+    - kkill (from kernel/process)
+  resource_assumptions:
+    - sufficient resources available
+  lock_assumptions:
+    - none
+
+guarantee:
+  returns:
+    - int: 0 on success
+    - -1 if pid invalid
+  state_updates: []
+  side_effects:
+    - target process's killed flag set
+    - target woken if sleeping
+  emitted_events: []
+preconditions:
+  []
+postconditions:
+  - target process will exit on next trap or syscall
+invariants_preserved:
+  []
+failure_semantics:
+  - returns -1 if pid is invalid or no such process
+
+concurrency:
+  atomicity: single operation
+  lock_order:
+    []
+  interrupt_state: enabled
+  wait_wakeup_rules:
+    []
+
+security:
+  authority_check: none
+  isolation_boundary: kernel-space only
+  user_pointer_policy: none
+
+observability:
+  traces: []
+  counters: []
+  expected_logs: []
+
+test_obligations:
+  public:
+    - sys_kill_basic
+  generated: []
+  hidden_tags:
+    []
+
+codegen:
+  targets:
+    - kind: symbol
+      path: kernel/sysproc.c
+      symbols: [sys_kill]
+      owner: kernel/sysproc
+      mode: create
+  forbidden_changes:
+    - do not modify code outside the marked region
+    - do not create helper files
+    - do not modify build scripts
+  required_followup_checks:
+    - make build

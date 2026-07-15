@@ -1,0 +1,78 @@
+# xv6 RISC-V evidence schema
+# Maps each verification item to standardized evidence.
+
+evidence_items:
+  - id: qemu-boot-log
+    kind: qemu_log
+    producer: qemu-system-riscv64
+    related_specs:
+      - kernel/boot.module
+
+      - kernel/boot.boot_banner
+
+    pass_condition: XV6_BOOT_OK appears in output
+    artifact_paths:
+      - build/qemu_boot.log
+
+
+  - id: kernel-elf-build
+    kind: build_log
+    producer: make
+    related_specs:
+      - toolchain.build
+
+    pass_condition: kernel.elf produced with zero exit code
+    artifact_paths:
+      - build/kernel.elf
+
+
+  - id: page-alloc-test
+    kind: test_log
+    producer: vos verify
+    related_specs:
+      - kernel/memory.kalloc
+
+      - kernel/memory.kfree
+
+    pass_condition: alloc-free cycle tests pass
+    artifact_paths:
+      - build/test_page_alloc.log
+
+
+  - id: fork-wait-test
+    kind: test_log
+    producer: vos verify
+    related_specs:
+      - kernel/process.fork
+
+      - kernel/process.exit
+
+      - kernel/process.wait
+
+    pass_condition: fork-exit-wait lifecycle tests pass
+    artifact_paths:
+      - build/test_fork_wait.log
+
+
+  - id: trap-timer-test
+    kind: test_log
+    producer: vos verify
+    related_specs:
+      - kernel/trap.usertrap
+
+      - kernel/trap.devintr
+
+    pass_condition: timer interrupt fires and is handled
+    artifact_paths:
+      - build/qemu_timer.log
+
+
+  - id: syscall-dispatch-test
+    kind: test_log
+    producer: vos verify
+    related_specs:
+      - kernel/syscall.syscall
+
+    pass_condition: valid and invalid syscall numbers handled
+    artifact_paths:
+      - build/test_syscall.log

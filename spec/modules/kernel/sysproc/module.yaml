@@ -1,0 +1,50 @@
+id: kernel/sysproc
+
+module: kernel/sysproc
+
+stage: full-syscall
+purpose: >
+  Process-oriented syscall handlers for xv6 user programs,
+  including fork, exit, wait, kill, getpid, sbrk, uptime, and
+  pause. This module bridges syscall dispatch to process and
+  memory subsystems.
+related_slices:
+  - slice-09-full-syscall
+related_adrs: []
+owned_state:
+  - syscall-visible process state transitions
+  - syscall argument marshalling for process operations
+exported_interfaces:
+  - sys_fork
+  - sys_exit
+  - sys_wait
+  - sys_kill
+  - sys_getpid
+  - sys_sbrk
+  - sys_uptime
+  - sys_pause
+imported_interfaces:
+  - fork
+  - exit
+  - wait
+  - growproc
+  - kill
+  - myproc
+  - argint
+module_invariants:
+  - syscall handlers do not expose kernel pointers to user mode
+  - process lifecycle changes preserve scheduler invariants
+  - sbrk growth is mediated by memory subsystem checks
+error_model:
+  - invalid syscall arguments return -1
+  - failed process or memory operations return -1
+resource_lifetime_rules:
+  - process resources are released through exit and wait
+  - address-space growth and shrink are delegated to growproc
+security_boundary:
+  - user arguments are fetched through syscall argument helpers
+  - process identifiers do not grant direct kernel object access
+test_surfaces:
+  - fork/exit/wait syscall behavior
+  - getpid and kill argument handling
+  - sbrk growth and failure behavior

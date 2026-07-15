@@ -1,0 +1,9 @@
+# xv6 RISC-V debug specification
+
+debug:
+  symbols_required:
+    - _start
+    - kernel_main
+  gdb_script: null
+  trace_points:
+    - boot_banner

@@ -1,0 +1,35 @@
+id: ADR-003
+
+date: 2025-01-02
+status: accepted
+decision: >
+  Use memory-mapped I/O (MMIO) for all device access: 16550a UART at
+  UART0 (0x10000000), PLIC at PLIC (0x0C000000), and virtio MMIO at
+  VIRTIO0 (0x10001000). Device interrupts are routed through the
+  RISC-V PLIC with fixed IRQ assignments (UART0_IRQ=10, VIRTIO0_IRQ=1).
+  The console layer provides a line discipline on top of the UART driver.
+context: >
+  The qemu-system-riscv64 'virt' machine provides these devices at
+  fixed MMIO addresses. The PLIC is the standard RISC-V platform-level
+  interrupt controller. The virtio block device provides disk I/O
+  via a standardized interface with descriptor rings.
+alternatives:
+  - option: Polling-only UART (no interrupts)
+    rejected_reason: Would block the kernel during console output;
+      interrupt-driven transmit is needed for concurrent I/O.
+  - option: Direct disk I/O without virtio abstraction
+    rejected_reason: Virtio provides a standardized, well-documented
+      interface; raw device access would be less portable.
+tradeoffs:
+  - Fixed MMIO addresses are simpler but less portable across machines.
+  - Interrupt-driven UART requires careful synchronization between
+    the writer (uartwrite) and the interrupt handler (uartintr).
+  - Virtio initialization is complex but the runtime interface
+    (descriptor rings) is efficient.
+affected_specs:
+  - slice-08-device
+  - modules: kernel/uart, kernel/plic, kernel/virtio, kernel/console
+verification_impact:
+  - uart_output test validates interrupt-driven transmit.
+  - disk_read/write tests validate virtio disk I/O.
+  - console_echo test validates UART-to-console input path.
