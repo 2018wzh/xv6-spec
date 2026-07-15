@@ -10,7 +10,14 @@ OBJS = \
 +  $K/console.o \
 +  $K/printk.o \
 +  $K/uart.o \
-+  $K/plic.o
++  $K/plic.o \
++  $K/proc.o \
++  $K/swtch.o \
++  $K/trampoline.o \
++  $K/trap.o \
++  $K/syscall.o \
++  $K/sysproc.o \
++  $K/kernelvec.o
 
 all: $K/kernel
 $K/kernel: $(OBJS) $K/kernel.ld

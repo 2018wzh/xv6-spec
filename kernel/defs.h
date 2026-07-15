@@ -1,4 +1,6 @@
 struct spinlock;
+struct context;
+struct proc;
 const char* boot_banner(void);
 void console_putchar(int);
 void console_write(const char*, int);
@@ -17,3 +19,9 @@ void plicinit(void);
 void plicinithart(void);
 void printkinit(void);
 int printk(char*, ...);
+void procinit(void);
+void scheduler(void);
+void trapinit(void);
+void trapinithart(void);
+void userinit(void);
+void syscall(void);
