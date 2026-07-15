@@ -1,0 +1,81 @@
+id: kernel/virtio.virtio_disk_intr
+
+module: kernel/virtio
+
+operation: virtio_disk_intr
+stage: device
+purpose: >
+  Handle a virtio disk interrupt: acknowledge the interrupt, mark completed I/O operations, and wake any waiting processes.
+
+related_slice: slice-08-device
+related_adr: null
+depends_on:
+  requires_modules:
+    - kernel/virtio
+  requires_ops:
+    []
+
+rely:
+  state_assumptions:
+  callable_interfaces:
+    - wakeup (from kernel/process)
+  resource_assumptions:
+    - sufficient resources available
+  lock_assumptions:
+    - none
+
+guarantee:
+  returns:
+    - void
+  state_updates: []
+  side_effects:
+    - completed I/O operations processed
+    - waiting processes woken
+  emitted_events: []
+preconditions:
+  - called from interrupt context (devintr)
+postconditions:
+  - all completed descriptors processed
+invariants_preserved:
+  []
+failure_semantics:
+  - none
+
+concurrency:
+  atomicity: single operation
+  lock_order:
+    []
+  interrupt_state: enabled
+  wait_wakeup_rules:
+    []
+
+security:
+  authority_check: none
+  isolation_boundary: kernel-space only
+  user_pointer_policy: none
+
+observability:
+  traces: []
+  counters: []
+  expected_logs: []
+
+test_obligations:
+  public:
+    - virtio_disk_intr_basic
+  generated: []
+  hidden_tags:
+    []
+
+codegen:
+  targets:
+    - kind: symbol
+      path: kernel/virtio_disk.c
+      symbols: [virtio_disk_intr]
+      owner: kernel/virtio
+      mode: create
+  forbidden_changes:
+    - do not modify code outside the marked region
+    - do not create helper files
+    - do not modify build scripts
+  required_followup_checks:
+    - make build

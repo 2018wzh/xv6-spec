@@ -1,0 +1,86 @@
+id: kernel/log.end_op
+
+module: kernel/log
+
+operation: end_op
+stage: filesystem
+purpose: >
+  End a file-system operation. Decrement the outstanding operation count. If the count reaches zero and there are logged blocks, trigger a commit.
+
+related_slice: slice-06-filesystem
+related_adr: null
+depends_on:
+  requires_modules:
+    - kernel/log
+  requires_ops:
+    - kernel/log.begin_op
+
+rely:
+  state_assumptions:
+    - log.outstanding >= 1
+  callable_interfaces:
+    - commit (internal)
+    - wakeup (from kernel/process)
+  resource_assumptions:
+    - sufficient resources available
+  lock_assumptions:
+    - acquires log.lock
+
+guarantee:
+  returns:
+    - void
+  state_updates: []
+  side_effects:
+    - log.outstanding decremented
+    - commit triggered if outstanding == 0 and log has entries
+  emitted_events: []
+
+preconditions:
+  - caller has previously called begin_op
+postconditions:
+  - outstanding >= 0
+  - if commit triggered, all logged blocks are on disk
+invariants_preserved:
+  - log.outstanding >= 0
+failure_semantics:
+  - none
+
+concurrency:
+  atomicity: log.lock for counter update and commit decision
+  lock_order:
+    []
+  interrupt_state: enabled
+  wait_wakeup_rules:
+    []
+
+security:
+  authority_check: none
+  isolation_boundary: kernel-space only
+  user_pointer_policy: none
+
+observability:
+  traces: []
+  counters: []
+  expected_logs: []
+
+test_obligations:
+  public:
+    - end_op_basic
+    - end_op_commit_trigger
+  generated: []
+  hidden_tags:
+    []
+
+codegen:
+  targets:
+    - kind: symbol
+      path: kernel/log.c
+      symbols: [end_op]
+      owner: kernel/log
+      mode: create
+  forbidden_changes:
+    - do not modify code outside the marked region
+    - do not create helper files
+    - do not modify build scripts
+  required_followup_checks:
+    - make build

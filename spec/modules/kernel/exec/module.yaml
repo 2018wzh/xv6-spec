@@ -1,0 +1,34 @@
+id: kernel/exec
+module: kernel/exec
+stage: filesystem
+purpose: >
+  ELF executable loading (exec system call). Validates ELF headers, loads program segments into a new page table, sets up the user stack with argv, and atomically replaces the process address space.
+related_slices:
+  - slice-06-filesystem
+related_adrs:
+  - ADR-002-filesystem-model
+owned_state:
+  - none (stateless; operates on current process)
+exported_interfaces:
+  - kexec
+  - loadseg
+  - flags2perm
+imported_interfaces:
+  - namei/readi (from kernel/fs)
+  - uvmalloc/uvmfree/proc_pagetable (from kernel/memory)
+  - copyout/safestrcpy (utility)
+module_invariants:
+  - exec validates ELF magic before loading
+  - on failure, the original address space is preserved
+  - new stack is set up with argv array and argument strings
+  - sepc is set to the ELF entry point on success
+error_model:
+  - returns -1 on bad ELF magic, invalid program headers, OOM, or nonexistent path
+resource_lifetime_rules:
+  - old page table is freed after successful swap
+  - on failure, partial allocations are cleaned up
+security_boundary:
+  - ELF headers are validated before any memory allocation; path resolution uses namei which checks each component
+test_surfaces:
+  - unit tests for all exported functions
+  - integration tests with dependent modules

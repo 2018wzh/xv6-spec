@@ -1,0 +1,46 @@
+id: kernel/file
+module: kernel/file
+stage: filesystem
+purpose: >
+  File descriptor table and file object management. Provides
+  allocation, reference counting, duplication, closing, metadata
+  query, and typed read/write dispatch (pipe, inode, device).
+related_slices:
+  - slice-06-filesystem
+related_adrs:
+  - ADR-002-filesystem-model
+owned_state:
+  - file table (ftable.file[NFILE])
+  - ftable.lock spinlock
+  - device switch table (devsw[NDEV])
+exported_interfaces:
+  - fileinit
+  - filealloc
+  - filedup
+  - fileclose
+  - filestat
+  - fileread
+  - filewrite
+imported_interfaces:
+  - pipeclose/piperead/pipewrite (from kernel/pipe)
+  - ilock/iunlock/stati/readi/writei (from kernel/fs)
+  - copyout (from kernel/memory)
+module_invariants:
+  - every allocated file has ref >= 1
+  - file type is one of FD_NONE, FD_PIPE, FD_INODE, FD_DEVICE
+  - file offset is only meaningful for FD_INODE
+  - major device number is validated against NDEV
+error_model:
+  - filealloc returns 0 when table is full
+  - fileread/filewrite return -1 on invalid access
+  - fileclose panics if ref < 1
+resource_lifetime_rules:
+  - fileclose calls iput on the underlying inode when ref reaches 0
+  - pipe files are closed via pipeclose
+security_boundary:
+  - readable/writable flags gate all read/write access
+  - device major number bounds-checked before dispatch
+test_surfaces:
+  - file alloc/dup/close cycle
+  - read/write dispatch by type
+  - ref count correctness

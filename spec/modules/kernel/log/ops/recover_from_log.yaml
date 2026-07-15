@@ -1,0 +1,84 @@
+id: kernel/log.recover_from_log
+
+module: kernel/log
+
+operation: recover_from_log
+stage: filesystem
+purpose: >
+  Recover from a crash by reading the log header from disk. If the log contains a committed transaction, replay (install) the logged blocks to their final locations. Then clear the log.
+
+related_slice: slice-06-filesystem
+related_adr: null
+depends_on:
+  requires_modules:
+    - kernel/log
+  requires_ops:
+    - kernel/bio.bread
+
+rely:
+  state_assumptions:
+    - disk contains a valid log area
+  callable_interfaces:
+    - bread/bwrite/brelse (from kernel/bio)
+  resource_assumptions:
+    - sufficient resources available
+  lock_assumptions:
+    - none (called during boot, no concurrency)
+
+guarantee:
+  returns:
+    - void
+  state_updates: []
+  side_effects:
+    - committed transactions replayed to disk
+    - log cleared
+  emitted_events: []
+
+preconditions:
+  - called during boot, before any FS operations
+postconditions:
+  - file system is in a consistent state
+invariants_preserved:
+  - no uncommitted data is replayed
+failure_semantics:
+  - none
+
+concurrency:
+  atomicity: single-hart during boot
+  lock_order:
+    []
+  interrupt_state: enabled
+  wait_wakeup_rules:
+    []
+
+security:
+  authority_check: none
+  isolation_boundary: kernel-space only
+  user_pointer_policy: none
+
+observability:
+  traces: []
+  counters: []
+  expected_logs: []
+
+test_obligations:
+  public:
+    - recover_committed
+    - recover_empty_log
+  generated: []
+  hidden_tags:
+    []
+
+codegen:
+  targets:
+    - kind: symbol
+      path: kernel/log.c
+      symbols: [recover_from_log]
+      owner: kernel/log
+      mode: create
+  forbidden_changes:
+    - do not modify code outside the marked region
+    - do not create helper files
+    - do not modify build scripts
+  required_followup_checks:
+    - make build

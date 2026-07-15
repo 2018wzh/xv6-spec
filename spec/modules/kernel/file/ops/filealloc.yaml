@@ -1,0 +1,81 @@
+id: kernel/file.filealloc
+
+module: kernel/file
+
+operation: filealloc
+stage: filesystem
+purpose: >
+  Allocate an unused struct file from the file table. Scan the table for an entry with ref==0, set ref=1, and return it.
+
+related_slice: slice-06-filesystem
+related_adr: null
+depends_on:
+  requires_modules:
+    - kernel/file
+  requires_ops:
+    - kernel/file.fileinit
+
+rely:
+  state_assumptions:
+    - ftable is initialized
+  callable_interfaces:
+  resource_assumptions:
+    - sufficient resources available
+  lock_assumptions:
+    - acquires ftable.lock for table operations
+
+guarantee:
+  returns:
+    - struct file* on success
+    - 0 if table is full
+  state_updates: []
+  side_effects:
+    - file ref count set to 1
+  emitted_events: []
+preconditions:
+  - ftable is initialized
+postconditions:
+  - allocated file has ref==1 and is not yet typed
+invariants_preserved:
+  []
+failure_semantics:
+  - none
+
+concurrency:
+  atomicity: ftable.lock for allocation/refcount, per-inode lock for inode ops
+  lock_order:
+    []
+  interrupt_state: enabled
+  wait_wakeup_rules:
+    []
+
+security:
+  authority_check: none
+  isolation_boundary: kernel-space only
+  user_pointer_policy: none
+
+observability:
+  traces: []
+  counters: []
+  expected_logs: []
+
+test_obligations:
+  public:
+    - filealloc_basic
+  generated: []
+  hidden_tags:
+    []
+
+codegen:
+  targets:
+    - kind: symbol
+      path: kernel/file.c
+      symbols: [filealloc]
+      owner: kernel/file
+      mode: create
+  forbidden_changes:
+    - do not modify code outside the marked region
+    - do not create helper files
+    - do not modify build scripts
+  required_followup_checks:
+    - make build

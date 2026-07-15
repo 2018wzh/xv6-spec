@@ -1,0 +1,27 @@
+module: kernel/bio
+shared_state:
+  - bcache.buf[NBUF] (linked list of buffer entries)
+  - bcache.head (LRU sentinel)
+lock_types:
+  - bcache.lock: spinlock (protects linked-list structure)
+  - b->lock: sleeplock (protects individual buffer content and metadata)
+lock_order:
+  - bcache.lock before b->lock (in bget)
+  - b->lock before bcache.lock (in brelse, after releasesleep)
+atomic_sections:
+  - bget: bcache.lock held while scanning LRU list, released before acquiresleep
+  - brelse: releasesleep first, then bcache.lock for LRU reordering
+interrupt_rules:
+  - bcache.lock is never held with interrupts disabled for long (no push_off)
+  - bread may sleep in virtio_disk_rw (holds b->lock sleeplock)
+wait_wakeup_rules:
+  - bget sleeps on b->lock via acquiresleep until buffer is unlocked
+rely:
+  - virtio_disk_rw is safe to call while holding b->lock sleeplock
+  - callers must not hold spinlocks when calling bread (may sleep)
+guarantee:
+  - a locked buffer returned by bread has valid contents
+  - brelse moves the buffer to the head of the LRU list if refcnt==0
+forbidden_patterns:
+  - holding bcache.lock while calling acquiresleep (deadlock risk)
+  - using a buffer after calling brelse

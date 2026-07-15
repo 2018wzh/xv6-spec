@@ -1,0 +1,44 @@
+id: kernel/lock
+module: kernel/lock
+stage: filesystem
+purpose: >
+  Kernel locking primitives: spinlocks (initlock, acquire, release, holding, push_off, pop_off) for short critical sections with interrupt disabling, and sleeping locks (initsleeplock, acquiresleep, releasesleep, holdingsleep) for long-term locks that allow the holder to sleep.
+related_slices:
+  - slice-06-filesystem
+related_adrs:
+  []
+owned_state:
+  - per-spinlock: name, locked, cpu fields
+  - per-sleeplock: locked, lk (spinlock), name, pid fields
+  - per-CPU: noff (interrupt disable depth), intena (interrupt enable before first push_off)
+exported_interfaces:
+  - initlock
+  - acquire
+  - release
+  - holding
+  - push_off
+  - pop_off
+  - initsleeplock
+  - acquiresleep
+  - releasesleep
+  - holdingsleep
+imported_interfaces:
+  - sleep/wakeup (from kernel/process)
+  - panic (from kernel/printk)
+module_invariants:
+  - spinlock acquire/release must be paired
+  - push_off/pop_off must be paired
+  - holding() returns true only for the current CPU
+  - sleeplock holder's pid matches myproc()->pid
+  - acquire panics on recursive lock attempt
+error_model:
+  - acquire panics if already held (recursive lock)
+  - release panics if not held by current CPU
+resource_lifetime_rules:
+  - locks are embedded in their owning data structures
+  - spinlocks have static names for debugging
+security_boundary:
+  - push_off disables interrupts to prevent deadlocks; spinlocks use atomic exchange (amoswap)
+test_surfaces:
+  - unit tests for all exported functions
+  - integration tests with dependent modules

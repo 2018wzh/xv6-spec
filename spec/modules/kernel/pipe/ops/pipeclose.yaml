@@ -1,0 +1,84 @@
+id: kernel/pipe.pipeclose
+
+module: kernel/pipe
+
+operation: pipeclose
+stage: ipc
+purpose: >
+  Close one end of a pipe. Decrement the open flag (readopen or writeopen), wake any blocked processes, and free the pipe if both ends are closed.
+
+related_slice: slice-07-ipc
+related_adr: null
+depends_on:
+  requires_modules:
+    - kernel/pipe
+  requires_ops:
+    - kernel/pipe.pipealloc
+    - kernel/memory.kfree
+
+rely:
+  state_assumptions:
+  callable_interfaces:
+    - wakeup (from kernel/process)
+    - kfree (from kernel/memory)
+  resource_assumptions:
+    - sufficient resources available
+  lock_assumptions:
+    - acquires pi->lock
+
+guarantee:
+  returns:
+    - void
+  state_updates: []
+  side_effects:
+    - readopen or writeopen set to 0
+    - blocked readers/writers woken
+    - pipe freed if both ends closed
+  emitted_events: []
+preconditions:
+  []
+postconditions:
+  []
+invariants_preserved:
+  []
+failure_semantics:
+  - none
+
+concurrency:
+  atomicity: pi->lock
+  lock_order:
+    - pi->lock
+  interrupt_state: enabled
+  wait_wakeup_rules:
+    []
+
+security:
+  authority_check: none
+  isolation_boundary: kernel-space only
+  user_pointer_policy: user addresses validated by copyin/copyout
+
+observability:
+  traces: []
+  counters: []
+  expected_logs: []
+
+test_obligations:
+  public:
+    - pipeclose_basic
+  generated: []
+  hidden_tags:
+    []
+
+codegen:
+  targets:
+    - kind: symbol
+      path: kernel/pipe.c
+      symbols: [pipeclose]
+      owner: kernel/pipe
+      mode: create
+  forbidden_changes:
+    - do not modify code outside the marked region
+    - do not create helper files
+    - do not modify build scripts
+  required_followup_checks:
+    - make build

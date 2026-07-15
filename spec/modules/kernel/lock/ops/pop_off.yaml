@@ -1,0 +1,81 @@
+id: kernel/lock.pop_off
+
+module: kernel/lock
+
+operation: pop_off
+stage: filesystem
+purpose: >
+  Re-enable device interrupts if the disable depth reaches zero. Restore the saved interrupt enable state (intena). Panics if pop_off is called without matching push_off.
+
+related_slice: slice-06-filesystem
+related_adr: null
+depends_on:
+  requires_modules:
+    - kernel/lock
+  requires_ops:
+    []
+
+rely:
+  state_assumptions:
+  callable_interfaces:
+    - panic (from kernel/printk)
+  resource_assumptions:
+    - sufficient resources available
+  lock_assumptions:
+    - none
+
+guarantee:
+  returns:
+    - void
+  state_updates: []
+  side_effects:
+    - interrupts may be re-enabled if noff reaches 0
+    - noff decremented
+  emitted_events: []
+preconditions:
+  - noff >= 1 (push_off was called)
+postconditions:
+  - interrupts restored to pre-push_off state if noff==0
+invariants_preserved:
+  []
+failure_semantics:
+  - panics if noff < 1
+
+concurrency:
+  atomicity: single operation
+  lock_order:
+    []
+  interrupt_state: restored if noff reaches 0
+  wait_wakeup_rules:
+    []
+
+security:
+  authority_check: none
+  isolation_boundary: kernel-space only
+  user_pointer_policy: none
+
+observability:
+  traces: []
+  counters: []
+  expected_logs: []
+
+test_obligations:
+  public:
+    - pop_off_basic
+  generated: []
+  hidden_tags:
+    []
+
+codegen:
+  targets:
+    - kind: symbol
+      path: kernel/spinlock.c
+      symbols: [pop_off]
+      owner: kernel/lock
+      mode: create
+  forbidden_changes:
+    - do not modify code outside the marked region
+    - do not create helper files
+    - do not modify build scripts
+  required_followup_checks:
+    - make build

@@ -1,0 +1,85 @@
+id: kernel/fs.namei
+
+module: kernel/fs
+
+operation: namei
+stage: filesystem
+purpose: >
+  Resolve a path string to an inode. Walk each path component starting from the root or current directory, calling dirlookup for each step. Return the final inode locked.
+
+related_slice: slice-06-filesystem
+related_adr: null
+depends_on:
+  requires_modules:
+    - kernel/fs
+  requires_ops:
+    []
+
+rely:
+  state_assumptions:
+    - file system is initialized
+  callable_interfaces:
+    - bread/bwrite/brelse (from kernel/bio)
+    - begin_op/end_op/log_write (from kernel/log)
+  resource_assumptions:
+    - sufficient resources available
+  lock_assumptions:
+    - per-inode sleeplock for inode operations
+    - log.lock for transaction boundaries
+
+guarantee:
+  returns:
+    - struct inode* (locked) on success
+    - 0 on failure
+  state_updates: []
+  side_effects:
+    - intermediate inodes are unlocked and iput
+  emitted_events: []
+
+preconditions:
+  []
+postconditions:
+  []
+invariants_preserved:
+  []
+failure_semantics:
+  - none
+
+concurrency:
+  atomicity: single operation
+  lock_order:
+    []
+  interrupt_state: enabled
+  wait_wakeup_rules:
+    []
+
+security:
+  authority_check: none
+  isolation_boundary: kernel-space only
+  user_pointer_policy: none
+
+observability:
+  traces: []
+  counters: []
+  expected_logs: []
+
+test_obligations:
+  public:
+    - namei_basic
+  generated: []
+  hidden_tags:
+    []
+
+codegen:
+  targets:
+    - kind: symbol
+      path: kernel/fs.c
+      symbols: [namei]
+      owner: kernel/fs
+      mode: create
+  forbidden_changes:
+    - do not modify code outside the marked region
+    - do not create helper files
+    - do not modify build scripts
+  required_followup_checks:
+    - make build

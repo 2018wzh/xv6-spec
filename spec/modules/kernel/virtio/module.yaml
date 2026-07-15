@@ -1,0 +1,34 @@
+id: kernel/virtio
+module: kernel/virtio
+stage: device
+purpose: >
+  Virtio block device driver via MMIO. Manages descriptor rings for disk read/write operations. Initializes the virtio device, submits I/O requests via descriptor chains, and handles completion interrupts.
+related_slices:
+  - slice-08-device
+related_adrs:
+  - ADR-003-device-driver-model
+owned_state:
+  - struct disk (descriptor arrays, free list, used_idx, info array)
+  - disk.lock (virtio_disk_lock)
+exported_interfaces:
+  - virtio_disk_init
+  - virtio_disk_rw
+  - virtio_disk_intr
+imported_interfaces:
+  - kalloc (from kernel/memory)
+  - sleep/wakeup (from kernel/process)
+module_invariants:
+  - each virtq_desc corresponds to one I/O operation
+  - descriptors are allocated from a fixed pool (NUM)
+  - virtio_disk_rw blocks until the I/O completes (sleep/wakeup)
+error_model:
+  - virtio_disk_init panics if the device is not found
+  - virtio_disk_rw panics if the descriptor is not free
+resource_lifetime_rules:
+  - descriptor pool is allocated once at init
+  - disk struct persists for kernel lifetime
+security_boundary:
+  - Virtio MMIO registers are S-mode only; DMA uses physical addresses
+test_surfaces:
+  - unit tests for all exported functions
+  - integration tests with dependent modules

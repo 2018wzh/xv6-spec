@@ -1,0 +1,44 @@
+id: kernel/bio
+module: kernel/bio
+stage: filesystem
+purpose: >
+  Buffer cache for block I/O. Provides a linked list of cached
+  disk blocks with LRU eviction. The cache sits between the
+  file system and the virtio disk driver, reducing disk reads
+  and providing a synchronization point for concurrent block access.
+related_slices:
+  - slice-06-filesystem
+related_adrs:
+  - ADR-002-filesystem-model
+owned_state:
+  - buffer cache linked list (bcache.head)
+  - array of NBUF struct buf entries
+  - bcache.lock spinlock
+exported_interfaces:
+  - binit
+  - bread
+  - bwrite
+  - brelse
+  - bpin
+  - bunpin
+imported_interfaces:
+  - virtio_disk_rw (from kernel/virtio)
+  - sleeplock operations (from kernel/lock)
+module_invariants:
+  - every buf on the linked list has refcnt >= 0
+  - bcache.head.next is most-recently-used, bcache.head.prev is least-recently-used
+  - a buf with valid==1 has up-to-date contents from disk
+  - bpin/bunpin are used to protect blocks being actively modified by the log layer
+error_model:
+  - bget panics if no free buffer is available
+  - bread panics if virtio_disk_rw fails
+  - brelse panics if called without holding the buffer's sleeplock
+resource_lifetime_rules:
+  - buffers are never allocated or freed; the pool is fixed at NBUF
+  - each buffer has a sleeplock and is protected by bcache.lock for list operations
+security_boundary:
+  - buffer cache is kernel-only; user code never sees struct buf
+test_surfaces:
+  - cache hit/miss behavior
+  - LRU eviction order
+  - bread/bwrite/brelse cycle

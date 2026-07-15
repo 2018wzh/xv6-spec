@@ -1,0 +1,41 @@
+id: kernel/log
+module: kernel/log
+stage: filesystem
+purpose: >
+  File-system logging layer for crash-safe multi-step updates.
+  Uses a physical redo log: before modifying on-disk blocks, the
+  old contents are written to a log area. On recovery after crash,
+  committed log entries are replayed to restore consistency.
+related_slices:
+  - slice-06-filesystem
+related_adrs:
+  - ADR-002-filesystem-model
+owned_state:
+  - log header (struct logheader with block numbers)
+  - log struct (start block, outstanding count, committing flag)
+  - log.lock spinlock
+exported_interfaces:
+  - initlog
+  - begin_op
+  - end_op
+  - log_write
+imported_interfaces:
+  - bread/bwrite/brelse (from kernel/bio)
+module_invariants:
+  - log.outstanding >= 0 (count of in-progress FS syscalls)
+  - only one commit can be in progress (log.committing == 0 or 1)
+  - log_write only modifies the in-memory buffer; actual write happens at commit
+  - after recovery, the log area is consistent with on-disk state
+error_model:
+  - begin_op may sleep if the log is near full
+  - end_op triggers commit when log.outstanding reaches 0
+  - commit panics if disk write fails
+resource_lifetime_rules:
+  - log header blocks are pinned in the buffer cache during transactions
+  - the log area on disk has a fixed size (LOGBLOCKS)
+security_boundary:
+  - log is kernel-only; user code never interacts with the log directly
+test_surfaces:
+  - begin_op/end_op reference counting
+  - log_write + commit cycle
+  - crash recovery (replay committed, discard uncommitted)
