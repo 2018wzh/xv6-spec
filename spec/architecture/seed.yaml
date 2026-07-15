@@ -1,0 +1,7 @@
+id: xv6-riscv-seed
+project: xv6-riscv-kernel
+domain: teaching-operating-system
+target_platform: riscv64-qemu-virt
+architecture_name: xv6-riscv-layered
+architecture_summary: A teaching RISC-V kernel whose design is developed one lab at a time.
+constraints: [riscv64-unknown-elf-gcc toolchain, qemu-system-riscv64 virt machine]
