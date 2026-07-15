@@ -1,0 +1,93 @@
+id: kernel/memory.kinit
+
+module: kernel/memory
+
+operation: kinit
+stage: memory
+purpose: >
+  Initialize the physical page allocator: capture the kernel
+  end address, build the freelist from all physical pages
+  between end and PHYSTOP.
+
+related_slice: slice-02-memory
+related_adr: null
+depends_on:
+  requires_modules:
+    - kernel/memory
+
+    - kernel/boot
+
+    - kernel/headers
+
+  requires_ops: []
+
+rely:
+  state_assumptions:
+    - kernel image occupies [0x80000000 .. end)
+    - end is defined by the linker script
+  callable_interfaces:
+    - end (linker symbol)
+  resource_assumptions:
+    - physical memory is contiguous from end to PHYSTOP
+  lock_assumptions:
+    - no locks required (single-hart init)
+
+guarantee:
+  returns:
+    - void
+  state_updates: []
+  side_effects:
+    - freelist is populated with all free physical pages
+    - each page is zeroed via memset
+  emitted_events:
+    - none
+
+preconditions:
+  - called exactly once during early kernel init
+  - page allocator is not yet in use
+postconditions:
+  - freelist is non-empty (at least one page)
+  - kmem.lock is initialized
+invariants_preserved:
+  - freelist pages are 4096-byte aligned
+failure_semantics:
+  - panics if end >= PHYSTOP (no free memory)
+
+concurrency:
+  atomicity: init runs single-threaded
+  lock_order: []
+  interrupt_state: interrupts disabled during init
+  wait_wakeup_rules: []
+
+security:
+  authority_check: none
+  isolation_boundary: none
+  user_pointer_policy: none
+
+observability:
+  traces: []
+  counters:
+    - number of free pages initialized
+  expected_logs: []
+
+test_obligations:
+  public:
+    - kinit_free_pages_positive
+  generated:
+    - kinit_idempotent_detection
+  hidden_tags: []
+
+codegen:
+  targets:
+    - kind: symbol
+      path: kernel/memory.c
+      symbols: [kinit]
+      owner: kernel/memory
+      mode: create
+  forbidden_changes:
+    - do not modify code outside the marked region
+    - do not create helper files
+    - do not modify build scripts or linker settings
+  required_followup_checks:
+    - make build
+    - verify freelist size after kinit

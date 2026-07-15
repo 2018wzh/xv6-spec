@@ -1,0 +1,23 @@
+module: kernel/memory
+
+shared_state:
+  - physical page freelist (kmem.freelist)
+  - allocation counter
+lock_types:
+  - spinlock (kmem.lock)
+lock_order:
+  - kmem.lock (single lock, no nesting)
+atomic_sections:
+  - freelist push/pop under kmem.lock
+interrupt_rules:
+  - push_off/pop_off around freelist mutations
+rely:
+  - physical memory range is provided by boot stage
+guarantee:
+  - every allocated page is 4096-byte aligned and zeroed
+  - no page is simultaneously allocated and on freelist
+wait_wakeup_rules: []
+forbidden_patterns:
+  - accessing freelist without holding kmem.lock
+  - allocating or freeing pages before kinit
+  - using pages returned by kfree after the call

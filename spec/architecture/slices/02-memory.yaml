@@ -1,0 +1,52 @@
+id: slice-02-memory
+
+stage: memory
+title: Physical Memory and Page Table Setup
+summary: >
+  Initialize physical page allocator with a freelist, set up
+  the kernel page table with direct-mapped identity mapping,
+  and enable Sv39 paging.
+
+depends_on_slices:
+  - slice-01-boot
+depends_on_adrs: []
+
+mechanisms:
+  - physical page freelist allocator (kalloc/kfree)
+  - Sv39 three-level page table construction
+  - kernel direct-mapped identity mapping (0x80000000+)
+  - satp write to enable paging
+affected_modules:
+  - kernel/memory
+
+new_operations:
+  - kernel/memory.kinit
+
+  - kernel/memory.kalloc
+
+  - kernel/memory.kfree
+
+  - kernel/memory.kvmmake
+
+  - kernel/memory.kvmmap
+
+  - kernel/memory.walk
+
+removed_or_replaced_mechanisms: []
+
+invariants:
+  - every allocated page is 4 KiB aligned
+  - freelist never contains overlapping or duplicate pages
+  - kernel page table maps 0x80000000..0x88000000 as identity
+  - no page is both allocated and on freelist
+security_boundaries:
+  - kernel page table entries use supervisor mode permissions
+  - U-bit is clear on all kernel mappings
+concurrency_highlights:
+  - single-hart; no locking required for allocator
+validation_binding:
+  must_pass:
+    - build_kernel
+    - verify_page_allocator
+    - verify_kernel_page_table
+open_questions: []

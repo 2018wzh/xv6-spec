@@ -1,0 +1,55 @@
+id: kernel/memory
+
+module: kernel/memory
+
+stage: memory
+purpose: >
+  Physical page allocator with freelist, Sv39 page table
+  construction, kernel virtual address mapping, and user
+  page table management.
+related_slices:
+  - slice-02-memory
+related_adrs: []
+owned_state:
+  - physical page freelist
+  - kernel page table (kernel_pagetable)
+  - physical memory layout bounds
+exported_interfaces:
+  - kinit
+  - kalloc
+  - kfree
+  - kvmmake
+  - kvmmap
+  - walk
+  - walkaddr
+  - uvmcreate
+  - uvminit
+  - uvmalloc
+  - uvmfree
+  - uvmcopy
+  - uvmunmap
+  - copyin
+  - copyout
+  - copyinstr
+imported_interfaces: []
+module_invariants:
+  - every allocated page is 4096-byte aligned
+  - freelist is a singly-linked list of free pages
+  - a page is either on the freelist OR allocated, never both
+  - kernel_pagetable provides identity mapping 0x80000000..0x88000000
+  - Sv39 PTEs use DAG-extension permissions (R/W/X bits)
+error_model:
+  - kalloc returns NULL when freelist is exhausted
+  - walk returns NULL for invalid virtual addresses
+  - uvmunmap panics on missing mappings
+resource_lifetime_rules:
+  - allocated pages are freed back to freelist via kfree
+  - page tables are freed recursively (3-level walk)
+security_boundary:
+  - kernel page table entries have U-bit clear
+  - copyin/copyout validate user addresses via walkaddr
+  - user page tables never map kernel pages
+test_surfaces:
+  - alloc-free cycle coverage
+  - page table walk correctness
+  - copyin/copyout boundary checks

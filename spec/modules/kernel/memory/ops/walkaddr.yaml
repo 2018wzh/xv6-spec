@@ -1,0 +1,88 @@
+id: kernel/memory.walkaddr
+
+module: kernel/memory
+
+operation: walkaddr
+stage: memory
+purpose: >
+  Walk a page table and return the physical address
+  mapped at va, or 0 if the mapping is invalid or
+  the PTE lacks the User bit.
+
+related_slice: slice-02-memory
+related_adr: null
+depends_on:
+  requires_modules:
+    - kernel/memory
+
+  requires_ops:
+    - kernel/memory.walk
+
+
+rely:
+  state_assumptions:
+    - pagetable is valid
+  callable_interfaces:
+    - walk (alloc=0)
+  resource_assumptions:
+    - none
+  lock_assumptions:
+    - none
+
+guarantee:
+  returns:
+    - uint64 physical address on valid user mapping
+    - 0 on missing/invalid PTE or non-user mapping
+  state_updates: []
+  side_effects:
+    - none
+  emitted_events:
+    - none
+
+preconditions:
+  - va is a valid virtual address
+postconditions:
+  - returned PA is page-aligned (lower 12 bits from va)
+invariants_preserved:
+  - no page table mutation
+failure_semantics:
+  - returns 0 for invalid va or kernel-only mappings
+
+concurrency:
+  atomicity: read-only
+  lock_order: []
+  interrupt_state: irrelevant
+  wait_wakeup_rules: []
+
+security:
+  authority_check: U-bit gate prevents kernel address
+    leakage to user
+  isolation_boundary: U-bit enforcement
+  user_pointer_policy: safe to use with user addresses
+
+observability:
+  traces: []
+  counters: []
+  expected_logs: []
+
+test_obligations:
+  public:
+    - walkaddr_valid_user_mapping
+    - walkaddr_kernel_only_returns_zero
+  generated:
+    - walkaddr_invalid_va
+  hidden_tags: []
+
+codegen:
+  targets:
+    - kind: symbol
+      path: kernel/memory.c
+      symbols: [walkaddr]
+      owner: kernel/memory
+      mode: create
+  forbidden_changes:
+    - do not modify code outside the marked region
+    - do not create helper files
+    - do not modify build scripts
+  required_followup_checks:
+    - make build

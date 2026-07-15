@@ -1,0 +1,93 @@
+id: kernel/memory.copyinstr
+
+module: kernel/memory
+
+operation: copyinstr
+stage: memory
+purpose: >
+  Copy a null-terminated string from user virtual address
+  into a kernel buffer, validating the user address via
+  walkaddr. Returns the string length including the null
+  terminator.
+
+related_slice: slice-02-memory
+related_adr: null
+depends_on:
+  requires_modules:
+    - kernel/memory
+
+  requires_ops:
+    - kernel/memory.walkaddr
+
+
+rely:
+  state_assumptions:
+    - current process pagetable is valid
+  callable_interfaces:
+    - walkaddr
+  resource_assumptions:
+    - dst buffer is valid kernel memory of at least max bytes
+  lock_assumptions:
+    - none
+
+guarantee:
+  returns:
+    - string length (including null terminator) on success
+    - -1 on invalid user address or if max bytes exceeded
+  state_updates: []
+  side_effects:
+    - dst populated with null-terminated string from user memory
+  emitted_events:
+    - none
+
+preconditions:
+  - srcva is a user virtual address in current process
+  - dst points to valid kernel buffer
+  - max bytes specifies maximum copy length
+postconditions:
+  - dst contains null-terminated string (on success)
+  - no more than max bytes copied
+invariants_preserved:
+  - kernel never overruns kernel buffer
+  - kernel never dereferences raw user pointers
+failure_semantics:
+  - returns -1 if any page in the string range is invalid
+  - returns -1 if no null terminator found within max bytes
+
+concurrency:
+  atomicity: per-byte copy after address validation
+  lock_order: []
+  interrupt_state: interrupts enabled
+  wait_wakeup_rules: []
+
+security:
+  authority_check: user page must have U-bit set
+  isolation_boundary: kernel buffer is kernel-only memory
+  user_pointer_policy: validate each page via walkaddr
+
+observability:
+  traces: []
+  counters: []
+  expected_logs: []
+
+test_obligations:
+  public:
+    - copyinstr_valid
+    - copyinstr_invalid_address
+  generated:
+    - copyinstr_maxlen_boundary
+  hidden_tags: []
+
+codegen:
+  targets:
+    - kind: symbol
+      path: kernel/memory.c
+      symbols: [copyinstr]
+      owner: kernel/memory
+      mode: create
+  forbidden_changes:
+    - do not modify code outside the marked region
+    - do not create helper files
+    - do not modify build scripts
+  required_followup_checks:
+    - make build

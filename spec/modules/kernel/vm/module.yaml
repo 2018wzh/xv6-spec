@@ -1,0 +1,39 @@
+id: kernel/vm
+module: kernel/vm
+stage: memory
+purpose: >
+  Virtual memory helpers: proc_pagetable (create user page table with trampoline and trapframe mappings), proc_freepagetable (free a user page table and its physical pages), uvmclear (clear user-access bit on a page), vmfault (handle page faults for lazy allocation).
+related_slices:
+  - slice-02-memory
+related_adrs:
+  - ADR-001-paging-model
+owned_state:
+  - none (operates on pagetable_t passed as argument)
+exported_interfaces:
+  - proc_pagetable
+  - proc_freepagetable
+  - uvmclear
+  - vmfault
+  - kvmalloc_user
+  - kvmpa
+  - copyin_new
+  - copyinstr_new
+  - copyout_new
+imported_interfaces:
+  - kalloc/kfree (from kernel/memory)
+  - uvmalloc/uvmfree/walk/walkaddr (from kernel/memory)
+  - memset (from kernel/string)
+module_invariants:
+  - user page table always maps TRAMPOLINE at top of address space
+  - trapframe is mapped at TRAPFRAME in user page table
+  - vmfault allocates on-demand for lazy allocation pages
+error_model:
+  - proc_pagetable returns 0 on allocation failure
+  - vmfault panics if the faulting address is not in the valid range
+resource_lifetime_rules:
+  - page tables are created on fork/exec and freed on exit
+security_boundary:
+  - user page table maps trampoline and trapframe with appropriate permissions; kernel pages are never mapped in user pagetables
+test_surfaces:
+  - unit tests for all exported functions
+  - integration tests with dependent modules
