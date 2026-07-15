@@ -6,7 +6,11 @@ OBJS = \
 +  $K/main.o \
 +  $K/string.o \
 +  $K/kalloc.o \
-+  $K/vm.o
++  $K/vm.o \
++  $K/console.o \
++  $K/printk.o \
++  $K/uart.o \
++  $K/plic.o
 
 all: $K/kernel
 $K/kernel: $(OBJS) $K/kernel.ld
