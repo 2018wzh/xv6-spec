@@ -1,0 +1,16 @@
+id: slice-03-interrupt
+stage: interrupt
+title: Timer UART and PLIC interrupt handling
+summary: Configure QEMU virt interrupt delivery and service timer and UART events.
+depends_on_slices: [slice-01-boot]
+depends_on_adrs: []
+mechanisms: [PLIC routing, timer tick, UART interrupt dispatch]
+affected_modules: [kernel/plic, kernel/uart, kernel/console]
+new_operations: [kernel/plic.plicinit, kernel/uart.uartintr]
+removed_or_replaced_mechanisms: []
+invariants: [every claimed interrupt is completed once]
+security_boundaries: [device MMIO remains kernel-only]
+concurrency_highlights: [interrupt handlers execute with interrupts disabled]
+validation_binding:
+  must_pass: [build_kernel, verify_timer_interrupt, verify_uart]
+open_questions: []

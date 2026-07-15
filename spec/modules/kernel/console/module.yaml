@@ -1,0 +1,37 @@
+id: kernel/console
+module: kernel/console
+stage: device
+purpose: >
+  Console input and output layer: provides line-buffered input with editing (backspace, ctrl-u, ctrl-d, ctrl-p), output via UART (consputc), and the consoleintr callback for UART interrupt handling.
+related_slices:
+  - slice-08-device
+related_adrs:
+  - ADR-003-device-driver-model
+owned_state:
+  - input circular buffer (cons.buf)
+  - cons.lock spinlock
+  - read/write indices
+exported_interfaces:
+  - consoleinit
+  - consputc
+  - consoleintr
+  - consoleread
+  - consolewrite
+imported_interfaces:
+  - uartputc_sync (from kernel/uart)
+  - sleep/wakeup (from kernel/process)
+  - copyin/copyout (from kernel/memory)
+module_invariants:
+  - console input is line-buffered (delivered on newline or ctrl-d)
+  - backspace sends BACKSPACE marker
+  - ctrl-p prints process list via procdump
+error_model:
+  - consoleread blocks until a full line is available or EOF
+resource_lifetime_rules:
+  - console is initialized once (consoleinit)
+  - input buffer is fixed-size (INPUT_BUF)
+security_boundary:
+  - console does not access user pointers directly; consoleread/consolewrite use copyin/copyout
+test_surfaces:
+  - unit tests for all exported functions
+  - integration tests with dependent modules

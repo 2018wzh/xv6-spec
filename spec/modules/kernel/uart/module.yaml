@@ -1,0 +1,36 @@
+id: kernel/uart
+module: kernel/uart
+stage: device
+purpose: >
+  16550a UART driver via MMIO. Provides interrupt-driven transmit (uartwrite) with sleep/wakeup synchronization, polling synchronous output (uartputc_sync) for kernel printing, and interrupt handling (uartintr).
+related_slices:
+  - slice-08-device
+related_adrs:
+  - ADR-003-device-driver-model
+owned_state:
+  - tx_lock spinlock
+  - tx_busy flag
+  - tx_chan wait channel
+exported_interfaces:
+  - uartinit
+  - uartwrite
+  - uartputc_sync
+  - uartintr
+imported_interfaces:
+  - sleep/wakeup (from kernel/process)
+  - consoleintr (from kernel/console)
+module_invariants:
+  - only one writer can use uartwrite at a time (tx_lock)
+  - tx_busy==0 means UART is ready for next byte
+  - uartputc_sync disables interrupts via push_off
+error_model:
+  - uartputc_sync spins forever if panicked
+  - uartwrite blocks until all bytes are transmitted
+resource_lifetime_rules:
+  - UART is initialized once at boot (uartinit)
+  - tx_lock and tx_chan persist for kernel lifetime
+security_boundary:
+  - UART MMIO registers are only accessible in S-mode; userspace cannot access UART0
+test_surfaces:
+  - unit tests for all exported functions
+  - integration tests with dependent modules
