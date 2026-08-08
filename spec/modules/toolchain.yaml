@@ -1,0 +1,31 @@
+id: toolchain
+module: toolchain
+level: 2
+purpose: Own the structured build, QEMU runner, public checks and reproducible toolchain
+  projection.
+owns:
+- vos.yaml
+- Makefile
+- tests/public
+- .gitignore
+interface: []
+properties:
+- id: argv-only
+  text: Every target is an argv program with no shell-string interpolation.
+- id: serial-qemu
+  text: QEMU evidence is collected from non-graphical serial output.
+- id: stable-checks
+  text: Each public check verifies one or more stable ModuleSpec IDs.
+errors:
+- Missing compiler, linker, make or QEMU must fail visibly.
+state:
+  execution_projection: vos.yaml
+  evidence_root: .vos
+invariants:
+- id: clean-head
+  text: authoritative verify and submit require a clean HEAD
+preconditions:
+- Git identity and required host tools are available
+postconditions:
+- build and public checks leave reproducible evidence
+dependencies: []

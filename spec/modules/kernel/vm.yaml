@@ -1,0 +1,182 @@
+id: kernel/vm
+module: kernel/vm
+level: 3
+purpose: 'Virtual memory helpers: proc_pagetable (create user page table with trampoline
+  and trapframe mappings), proc_freepagetable (free a user page table and its physical
+  pages), uvmclear (clear user-access bit on a page), vmfault (handle page faults
+  for lazy allocation).'
+owns:
+- kernel/vm.c
+interface:
+- name: proc_freepagetable
+  pre: []
+  post:
+  - no dangling page table entries
+  - all physical memory returned to freelist
+  errors:
+  - none
+  properties:
+  - id: proc_freepagetable-property-1
+    text: 'guarantee.returns: void'
+  - id: proc_freepagetable-property-2
+    text: 'guarantee.side_effects: page table freed'
+  - id: proc_freepagetable-property-3
+    text: 'guarantee.side_effects: trapframe page freed'
+  - id: proc_freepagetable-property-4
+    text: 'guarantee.side_effects: all user pages freed'
+  - id: proc_freepagetable-property-5
+    text: 'guarantee.side_effects: trampoline unmapped but not freed'
+- name: proc_pagetable
+  pre: []
+  post:
+  - user page table has TRAMPOLINE and TRAPFRAME mappings
+  errors:
+  - returns 0 on allocation failure; cleans up partial allocations
+  properties:
+  - id: proc_pagetable-property-1
+    text: 'guarantee.returns: pagetable_t on success'
+  - id: proc_pagetable-property-2
+    text: 'guarantee.returns: 0 on failure'
+  - id: proc_pagetable-property-3
+    text: 'guarantee.side_effects: new page table created'
+  - id: proc_pagetable-property-4
+    text: 'guarantee.side_effects: trampoline mapped'
+  - id: proc_pagetable-property-5
+    text: 'guarantee.side_effects: trapframe allocated and mapped'
+- name: uvmclear
+  pre:
+  - page is mapped in pagetable
+  post:
+  - user cannot access the guard page
+  errors:
+  - none
+  properties:
+  - id: uvmclear-property-1
+    text: 'guarantee.returns: void'
+  - id: uvmclear-property-2
+    text: 'guarantee.side_effects: PTE_U cleared on the target page'
+- name: vmfault
+  pre:
+  - faulting address is page-aligned and in valid range
+  post:
+  - page is mapped and zeroed
+  errors:
+  - returns -1 if address is invalid or kalloc fails
+  properties:
+  - id: vmfault-property-1
+    text: 'guarantee.returns.int: 0 on success (page allocated)'
+  - id: vmfault-property-2
+    text: 'guarantee.returns: -1 on failure (invalid address or OOM)'
+  - id: vmfault-property-3
+    text: 'guarantee.side_effects: new physical page allocated and mapped'
+properties:
+- id: module-property-1
+  text: user page table maps trampoline and trapframe with appropriate permissions;
+    kernel pages are never mapped in user pagetables
+- id: module-property-2
+  text: page tables are created on fork/exec and freed on exit
+- id: module-property-3
+  text: unit tests for all exported functions
+- id: module-property-4
+  text: integration tests with dependent modules
+errors:
+- none
+- proc_pagetable returns 0 on allocation failure
+- returns -1 if address is invalid or kalloc fails
+- returns 0 on allocation failure; cleans up partial allocations
+- vmfault panics if the faulting address is not in the valid range
+state:
+  stage: memory
+  owned_state:
+  - none (operates on pagetable_t passed as argument)
+  resource_lifetime:
+  - page tables are created on fork/exec and freed on exit
+preconditions:
+- faulting address is page-aligned and in valid range
+- page is mapped in pagetable
+postconditions:
+- all physical memory returned to freelist
+- no dangling page table entries
+- page is mapped and zeroed
+- user cannot access the guard page
+- user page table has TRAMPOLINE and TRAPFRAME mappings
+invariants:
+- id: invariant-1
+  text: user page table always maps TRAMPOLINE at top of address space
+- id: invariant-2
+  text: trapframe is mapped at TRAPFRAME in user page table
+- id: invariant-3
+  text: vmfault allocates on-demand for lazy allocation pages
+dependencies:
+- kernel/vm
+rely:
+- 'module: kalloc/kfree (from kernel/memory)'
+- 'module: memset (from kernel/string)'
+- 'module: uvmalloc/uvmfree/walk/walkaddr (from kernel/memory)'
+- 'proc_freepagetable.rely.callable_interfaces: kfree (from kernel/memory)'
+- 'proc_freepagetable.rely.callable_interfaces: uvmfree (from kernel/memory)'
+- 'proc_freepagetable.rely.callable_interfaces: uvmunmap (from kernel/memory)'
+- 'proc_freepagetable.rely.lock_assumptions: none'
+- 'proc_freepagetable.rely.resource_assumptions: sufficient resources available'
+- 'proc_pagetable.rely.callable_interfaces: kalloc (from kernel/memory)'
+- 'proc_pagetable.rely.callable_interfaces: mappages (from kernel/memory)'
+- 'proc_pagetable.rely.callable_interfaces: uvmfree (from kernel/memory)'
+- 'proc_pagetable.rely.lock_assumptions: none'
+- 'proc_pagetable.rely.resource_assumptions: sufficient resources available'
+- 'uvmclear.rely.callable_interfaces: walk (from kernel/memory)'
+- 'uvmclear.rely.lock_assumptions: none'
+- 'uvmclear.rely.resource_assumptions: sufficient resources available'
+- 'vmfault.rely.callable_interfaces: kalloc (from kernel/memory)'
+- 'vmfault.rely.callable_interfaces: mappages (from kernel/memory)'
+- 'vmfault.rely.lock_assumptions: none'
+- 'vmfault.rely.resource_assumptions: sufficient resources available'
+guarantee:
+- 'exported: copyin_new'
+- 'exported: copyinstr_new'
+- 'exported: copyout_new'
+- 'exported: kvmalloc_user'
+- 'exported: kvmpa'
+- 'exported: proc_freepagetable'
+- 'exported: proc_pagetable'
+- 'exported: uvmclear'
+- 'exported: vmfault'
+- 'proc_freepagetable.guarantee.returns: void'
+- 'proc_freepagetable.guarantee.side_effects: all user pages freed'
+- 'proc_freepagetable.guarantee.side_effects: page table freed'
+- 'proc_freepagetable.guarantee.side_effects: trampoline unmapped but not freed'
+- 'proc_freepagetable.guarantee.side_effects: trapframe page freed'
+- 'proc_pagetable.guarantee.returns: 0 on failure'
+- 'proc_pagetable.guarantee.returns: pagetable_t on success'
+- 'proc_pagetable.guarantee.side_effects: new page table created'
+- 'proc_pagetable.guarantee.side_effects: trampoline mapped'
+- 'proc_pagetable.guarantee.side_effects: trapframe allocated and mapped'
+- 'uvmclear.guarantee.returns: void'
+- 'uvmclear.guarantee.side_effects: PTE_U cleared on the target page'
+- 'vmfault.guarantee.returns.int: 0 on success (page allocated)'
+- 'vmfault.guarantee.returns: -1 on failure (invalid address or OOM)'
+- 'vmfault.guarantee.side_effects: new physical page allocated and mapped'
+algorithm_intent: Implement the memory stage contract while preserving the declared
+  xv6 module boundaries.
+concurrency:
+  module: {}
+  operations:
+    proc_freepagetable:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    proc_pagetable:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    uvmclear:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    vmfault:
+      atomicity: single page allocation; may be preempted
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []

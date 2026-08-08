@@ -1,0 +1,527 @@
+id: kernel/syscall
+module: kernel/syscall
+level: 3
+purpose: 'System call dispatch: route user-mode ecall instructions through a dispatch
+  table, validate arguments, and implement the POSIX-like system call set (write,
+  exit, fork, wait, sbrk).'
+owns:
+- kernel/syscall.c
+interface:
+- name: argaddr
+  pre:
+  - 0 <= n <= 5
+  post:
+  - '*ip contains the pointer'
+  errors:
+  - returns -1 for invalid n
+  - 'note: does not validate the pointer itself; that is done by copyin/copyout/fetchaddr'
+  properties:
+  - id: argaddr-property-1
+    text: no kernel state mutation
+  - id: argaddr-property-2
+    text: 'guarantee.returns: 0 and sets *ip on success'
+  - id: argaddr-property-3
+    text: 'guarantee.returns: -1 if n out of range'
+  - id: argaddr-property-4
+    text: 'guarantee.side_effects: *ip written with user virtual address'
+  - id: argaddr-property-5
+    text: 'guarantee.emitted_events: none'
+- name: argint
+  pre:
+  - 0 <= n <= 5
+  post:
+  - '*ip contains the argument value'
+  errors:
+  - returns -1 for invalid n
+  properties:
+  - id: argint-property-1
+    text: no kernel state mutation
+  - id: argint-property-2
+    text: 'guarantee.returns: 0 and sets *ip on success'
+  - id: argint-property-3
+    text: 'guarantee.returns: -1 if n out of range'
+  - id: argint-property-4
+    text: 'guarantee.side_effects: *ip written with register value'
+  - id: argint-property-5
+    text: 'guarantee.emitted_events: none'
+- name: fetchaddr
+  pre:
+  - addr is a user virtual address in current process
+  - ip points to a valid kernel location
+  post:
+  - '*ip contains the value from addr (on success)'
+  errors:
+  - returns -1 if walkaddr returns 0
+  properties:
+  - id: fetchaddr-property-1
+    text: kernel never dereferences raw user pointers
+  - id: fetchaddr-property-2
+    text: 'guarantee.returns: 0 on success, *ip set to fetched value'
+  - id: fetchaddr-property-3
+    text: 'guarantee.returns: -1 on invalid user address'
+  - id: fetchaddr-property-4
+    text: 'guarantee.side_effects: *ip written with value from user memory'
+  - id: fetchaddr-property-5
+    text: 'guarantee.emitted_events: none'
+- name: fetchstr
+  pre:
+  - srcva is a user virtual address in current process
+  - dst points to a valid kernel buffer of at least maxlen bytes
+  post:
+  - dst contains null-terminated string (on success)
+  errors:
+  - returns -1 if any page in the string range is invalid
+  properties:
+  - id: fetchstr-property-1
+    text: kernel never overruns kernel buffer
+  - id: fetchstr-property-2
+    text: 'guarantee.returns: length of string copied (including null terminator)'
+  - id: fetchstr-property-3
+    text: 'guarantee.returns: -1 on invalid user address'
+  - id: fetchstr-property-4
+    text: 'guarantee.side_effects: dst populated with null-terminated string from
+      user memory'
+  - id: fetchstr-property-5
+    text: 'guarantee.emitted_events: none'
+- name: sys_exit
+  pre:
+  - a0 contains an integer exit status
+  post:
+  - process is ZOMBIE
+  errors:
+  - none (exit never fails)
+  properties:
+  - id: sys_exit-property-1
+    text: process lifecycle invariants
+  - id: sys_exit-property-2
+    text: 'guarantee.returns: never returns (exit does not return)'
+  - id: sys_exit-property-3
+    text: 'guarantee.side_effects: process transitions to ZOMBIE'
+  - id: sys_exit-property-4
+    text: 'guarantee.emitted_events: none'
+- name: sys_fork
+  pre:
+  - called from usermode
+  post:
+  - returns appropriate value to caller
+  errors:
+  - returns -1 on resource exhaustion
+  properties:
+  - id: sys_fork-property-1
+    text: process table invariants
+  - id: sys_fork-property-2
+    text: 'guarantee.returns: child PID to parent'
+  - id: sys_fork-property-3
+    text: 'guarantee.returns: 0 to child'
+  - id: sys_fork-property-4
+    text: 'guarantee.returns: -1 on failure'
+  - id: sys_fork-property-5
+    text: 'guarantee.side_effects: new child process created'
+  - id: sys_fork-property-6
+    text: 'guarantee.emitted_events: none'
+- name: sys_sbrk
+  pre:
+  - a0 contains signed integer increment n
+  post:
+  - process->sz adjusted
+  errors:
+  - returns -1 on growproc failure
+  properties:
+  - id: sys_sbrk-property-1
+    text: max user address boundary
+  - id: sys_sbrk-property-2
+    text: 'guarantee.returns: old process size on success'
+  - id: sys_sbrk-property-3
+    text: 'guarantee.returns: -1 on failure'
+  - id: sys_sbrk-property-4
+    text: 'guarantee.side_effects: process address space grows or shrinks'
+  - id: sys_sbrk-property-5
+    text: 'guarantee.emitted_events: none'
+- name: sys_wait
+  pre:
+  - a0 contains pointer to int for exit status (or 0)
+  post:
+  - if a0 != 0, user buffer updated with exit status
+  errors:
+  - returns -1 if no children or status buffer invalid
+  properties:
+  - id: sys_wait-property-1
+    text: process lifecycle invariants
+  - id: sys_wait-property-2
+    text: 'guarantee.returns: child PID on success'
+  - id: sys_wait-property-3
+    text: 'guarantee.returns: -1 on failure'
+  - id: sys_wait-property-4
+    text: 'guarantee.side_effects: exit status written to user buffer if provided'
+  - id: sys_wait-property-5
+    text: 'guarantee.emitted_events: none'
+- name: sys_write
+  pre:
+  - the caller passes a user buffer (a1) and a count (a2)
+  post:
+  - no unchecked user pointer is dereferenced
+  errors:
+  - return -1 when user buffer validation fails
+  - return -1 when count is zero
+  properties:
+  - id: sys_write-property-1
+    text: kernel never overruns user buffer
+  - id: sys_write-property-2
+    text: 'guarantee.returns: number of bytes written on success'
+  - id: sys_write-property-3
+    text: 'guarantee.returns: -1 on invalid user buffer'
+  - id: sys_write-property-4
+    text: 'guarantee.side_effects: bytes written to console UART via console_write'
+  - id: sys_write-property-5
+    text: 'guarantee.emitted_events: none'
+- name: syscall
+  pre:
+  - a7 contains a valid or invalid syscall number
+  post:
+  - a0 contains return value
+  errors:
+  - 'unknown syscall: return -1'
+  properties:
+  - id: syscall-property-1
+    text: dispatch table unchanged
+  - id: syscall-property-2
+    text: 'guarantee.returns: int: handler return value stored in trapframe->a0'
+  - id: syscall-property-3
+    text: 'guarantee.side_effects: handler invoked'
+  - id: syscall-property-4
+    text: 'guarantee.side_effects: return value in trapframe->a0'
+  - id: syscall-property-5
+    text: 'guarantee.emitted_events: none'
+properties:
+- id: module-property-1
+  text: kernel never dereferences raw user pointers
+- id: module-property-2
+  text: syscall dispatch table bounds checked
+- id: module-property-3
+  text: copyout/copyin validate destination addresses
+- id: module-property-4
+  text: none direct
+- id: module-property-5
+  text: syscall dispatch for valid/invalid numbers
+- id: module-property-6
+  text: sys_write boundary conditions
+- id: module-property-7
+  text: fork/wait integration
+- id: module-property-8
+  text: syscall_valid_number
+- id: module-property-9
+  text: syscall_invalid_number
+- id: module-property-10
+  text: sys_write_valid_buffer
+- id: module-property-11
+  text: sys_write_invalid_fd
+- id: module-property-12
+  text: sys_write_invalid_user_pointer
+- id: module-property-13
+  text: sys_exit_success
+- id: module-property-14
+  text: sys_fork_parent_pid
+- id: module-property-15
+  text: sys_fork_child_zero
+- id: module-property-16
+  text: sys_fork_failure
+- id: module-property-17
+  text: sys_wait_reap_child
+- id: module-property-18
+  text: sys_wait_no_children
+- id: module-property-19
+  text: sys_sbrk_grow
+- id: module-property-20
+  text: sys_sbrk_shrink
+- id: module-property-21
+  text: sys_sbrk_out_of_memory
+- id: module-property-22
+  text: argint_valid
+- id: module-property-23
+  text: argint_out_of_range
+- id: module-property-24
+  text: argaddr_valid
+- id: module-property-25
+  text: argaddr_unaligned
+- id: module-property-26
+  text: fetchaddr_valid
+- id: module-property-27
+  text: fetchaddr_invalid
+- id: module-property-28
+  text: fetchstr_valid
+- id: module-property-29
+  text: fetchstr_invalid
+- id: module-property-30
+  text: syscall_valid_number
+- id: module-property-31
+  text: syscall_invalid_number
+- id: module-property-32
+  text: sys_write_invalid_fd
+- id: module-property-33
+  text: sys_write_invalid_user_pointer
+- id: module-property-34
+  text: sys_fork_parent_pid
+- id: module-property-35
+  text: sys_fork_child_zero
+- id: module-property-36
+  text: sys_sbrk_grow
+- id: module-property-37
+  text: argint_out_of_range
+- id: module-property-38
+  text: fetchaddr_invalid
+errors:
+- invalid user pointers return -1 (EFAULT equivalent)
+- none (exit never fails)
+- 'note: does not validate the pointer itself; that is done by copyin/copyout/fetchaddr'
+- return -1 when count is zero
+- return -1 when user buffer validation fails
+- returns -1 for invalid n
+- returns -1 if any page in the string range is invalid
+- returns -1 if no children or status buffer invalid
+- returns -1 if walkaddr returns 0
+- returns -1 on growproc failure
+- returns -1 on resource exhaustion
+- unknown syscall number returns -1
+- 'unknown syscall: return -1'
+state:
+  stage: syscall
+  owned_state:
+  - syscall dispatch table (array of function pointers)
+  - per-syscall argument marshalling state
+  resource_lifetime:
+  - none direct
+preconditions:
+- 0 <= n <= 5
+- a0 contains an integer exit status
+- a0 contains pointer to int for exit status (or 0)
+- a0 contains signed integer increment n
+- a7 contains a valid or invalid syscall number
+- addr is a user virtual address in current process
+- called from usermode
+- dst points to a valid kernel buffer of at least maxlen bytes
+- ip points to a valid kernel location
+- srcva is a user virtual address in current process
+- the caller passes a user buffer (a1) and a count (a2)
+postconditions:
+- '*ip contains the argument value'
+- '*ip contains the pointer'
+- '*ip contains the value from addr (on success)'
+- a0 contains return value
+- dst contains null-terminated string (on success)
+- if a0 != 0, user buffer updated with exit status
+- no unchecked user pointer is dereferenced
+- process is ZOMBIE
+- process->sz adjusted
+- returns appropriate value to caller
+invariants:
+- id: invariant-1
+  text: syscall number is bounds-checked before dispatch
+- id: invariant-2
+  text: handlers return -1 on error
+- id: invariant-3
+  text: successful calls return non-negative values
+- id: argaddr-invariant-1
+  text: no kernel state mutation
+- id: argint-invariant-1
+  text: no kernel state mutation
+- id: fetchaddr-invariant-1
+  text: kernel never dereferences raw user pointers
+- id: fetchstr-invariant-1
+  text: kernel never overruns kernel buffer
+- id: sys_exit-invariant-1
+  text: process lifecycle invariants
+- id: sys_fork-invariant-1
+  text: process table invariants
+- id: sys_sbrk-invariant-1
+  text: max user address boundary
+- id: sys_wait-invariant-1
+  text: process lifecycle invariants
+- id: sys_write-invariant-1
+  text: kernel never overruns user buffer
+- id: syscall-invariant-1
+  text: dispatch table unchanged
+dependencies:
+- kernel/boot
+- kernel/memory
+- kernel/process
+- kernel/syscall
+- kernel/trap
+rely:
+- 'argaddr.rely.callable_interfaces: none'
+- 'argaddr.rely.lock_assumptions: none'
+- 'argaddr.rely.resource_assumptions: none'
+- 'argaddr.rely.state_assumptions: trapframe contains valid user register state'
+- 'argint.rely.callable_interfaces: none'
+- 'argint.rely.lock_assumptions: none'
+- 'argint.rely.resource_assumptions: none'
+- 'argint.rely.state_assumptions: trapframe contains valid user register state'
+- argument registers (a0-a5) are correctly saved to trapframe
+- 'fetchaddr.rely.callable_interfaces: walkaddr'
+- 'fetchaddr.rely.lock_assumptions: none'
+- 'fetchaddr.rely.resource_assumptions: none'
+- 'fetchaddr.rely.state_assumptions: current process pagetable is valid'
+- 'fetchstr.rely.callable_interfaces: fetchaddr'
+- 'fetchstr.rely.lock_assumptions: none'
+- 'fetchstr.rely.resource_assumptions: dst buffer is valid kernel memory of at least
+  maxlen bytes'
+- 'fetchstr.rely.state_assumptions: current process pagetable is valid'
+- 'module: console_write (from boot)'
+- 'module: fork, exit, wait, growproc (from process)'
+- 'sys_exit.rely.callable_interfaces: exit'
+- 'sys_exit.rely.lock_assumptions: none'
+- 'sys_exit.rely.resource_assumptions: none'
+- 'sys_exit.rely.state_assumptions: current process is valid'
+- 'sys_fork.rely.callable_interfaces: fork'
+- 'sys_fork.rely.lock_assumptions: none'
+- 'sys_fork.rely.resource_assumptions: free proc slot and memory'
+- 'sys_fork.rely.state_assumptions: current process is valid'
+- 'sys_sbrk.rely.callable_interfaces: growproc'
+- 'sys_sbrk.rely.lock_assumptions: none'
+- 'sys_sbrk.rely.resource_assumptions: free pages for positive n'
+- 'sys_sbrk.rely.state_assumptions: current process has valid address space'
+- 'sys_wait.rely.callable_interfaces: wait, copyout'
+- 'sys_wait.rely.lock_assumptions: none'
+- 'sys_wait.rely.resource_assumptions: none'
+- 'sys_wait.rely.state_assumptions: current process may have children'
+- 'sys_write.rely.callable_interfaces: console_write'
+- 'sys_write.rely.callable_interfaces: copyin'
+- 'sys_write.rely.lock_assumptions: no global kernel lock is held'
+- 'sys_write.rely.resource_assumptions: kernel buffer available for copyin'
+- 'sys_write.rely.state_assumptions: current task is in user context'
+- 'syscall.rely.callable_interfaces: dispatch table entries'
+- 'syscall.rely.lock_assumptions: none'
+- 'syscall.rely.resource_assumptions: trapframe->a7 holds syscall number'
+- 'syscall.rely.state_assumptions: called from usertrap with user registers in trapframe'
+- trap handler (usertrap) calls syscall() with validated sepc
+guarantee:
+- 'argaddr.guarantee.emitted_events: none'
+- 'argaddr.guarantee.returns: -1 if n out of range'
+- 'argaddr.guarantee.returns: 0 and sets *ip on success'
+- 'argaddr.guarantee.side_effects: *ip written with user virtual address'
+- 'argint.guarantee.emitted_events: none'
+- 'argint.guarantee.returns: -1 if n out of range'
+- 'argint.guarantee.returns: 0 and sets *ip on success'
+- 'argint.guarantee.side_effects: *ip written with register value'
+- every user pointer is validated before kernel dereference
+- 'exported: argaddr'
+- 'exported: argint'
+- 'exported: fetchaddr'
+- 'exported: fetchstr'
+- 'exported: sys_exit'
+- 'exported: sys_fork'
+- 'exported: sys_sbrk'
+- 'exported: sys_wait'
+- 'exported: sys_write'
+- 'exported: syscall'
+- 'fetchaddr.guarantee.emitted_events: none'
+- 'fetchaddr.guarantee.returns: -1 on invalid user address'
+- 'fetchaddr.guarantee.returns: 0 on success, *ip set to fetched value'
+- 'fetchaddr.guarantee.side_effects: *ip written with value from user memory'
+- 'fetchstr.guarantee.emitted_events: none'
+- 'fetchstr.guarantee.returns: -1 on invalid user address'
+- 'fetchstr.guarantee.returns: length of string copied (including null terminator)'
+- 'fetchstr.guarantee.side_effects: dst populated with null-terminated string from
+  user memory'
+- 'sys_exit.guarantee.emitted_events: none'
+- 'sys_exit.guarantee.returns: never returns (exit does not return)'
+- 'sys_exit.guarantee.side_effects: process transitions to ZOMBIE'
+- 'sys_fork.guarantee.emitted_events: none'
+- 'sys_fork.guarantee.returns: -1 on failure'
+- 'sys_fork.guarantee.returns: 0 to child'
+- 'sys_fork.guarantee.returns: child PID to parent'
+- 'sys_fork.guarantee.side_effects: new child process created'
+- 'sys_sbrk.guarantee.emitted_events: none'
+- 'sys_sbrk.guarantee.returns: -1 on failure'
+- 'sys_sbrk.guarantee.returns: old process size on success'
+- 'sys_sbrk.guarantee.side_effects: process address space grows or shrinks'
+- 'sys_wait.guarantee.emitted_events: none'
+- 'sys_wait.guarantee.returns: -1 on failure'
+- 'sys_wait.guarantee.returns: child PID on success'
+- 'sys_wait.guarantee.side_effects: exit status written to user buffer if provided'
+- 'sys_write.guarantee.emitted_events: none'
+- 'sys_write.guarantee.returns: -1 on invalid user buffer'
+- 'sys_write.guarantee.returns: number of bytes written on success'
+- 'sys_write.guarantee.side_effects: bytes written to console UART via console_write'
+- syscall number is bounds-checked before dispatch
+- 'syscall.guarantee.emitted_events: none'
+- 'syscall.guarantee.returns: int: handler return value stored in trapframe->a0'
+- 'syscall.guarantee.side_effects: handler invoked'
+- 'syscall.guarantee.side_effects: return value in trapframe->a0'
+algorithm_intent: Implement the syscall stage contract while preserving the declared
+  xv6 module boundaries.
+concurrency:
+  module:
+    module: kernel/syscall
+    shared_state:
+    - syscall dispatch table (array of function pointers)
+    lock_types:
+    - none (dispatch is non-preemptible on single hart)
+    lock_order: []
+    atomic_sections:
+    - fd lookup and validation must observe a stable descriptor binding
+    - user pointer validation via walkaddr is atomic per-page
+    interrupt_rules:
+    - interrupts disabled during trap handling
+    - do not hold scheduler-global locks across user buffer validation
+    wait_wakeup_rules: []
+    rely:
+    - trap handler (usertrap) calls syscall() with validated sepc
+    - argument registers (a0-a5) are correctly saved to trapframe
+    guarantee:
+    - every user pointer is validated before kernel dereference
+    - syscall number is bounds-checked before dispatch
+    forbidden_patterns:
+    - dereferencing a user pointer without prior walkaddr check
+    - returning to usermode without setting sepc += 4 on success
+    - calling syscall handlers directly (bypassing the dispatcher)
+  operations:
+    argaddr:
+      atomicity: single register read
+      lock_order: []
+      interrupt_state: irrelevant
+      wait_wakeup_rules: []
+    argint:
+      atomicity: single register read
+      lock_order: []
+      interrupt_state: irrelevant
+      wait_wakeup_rules: []
+    fetchaddr:
+      atomicity: single word fetch after address validation
+      lock_order: []
+      interrupt_state: interrupts enabled
+      wait_wakeup_rules: []
+    fetchstr:
+      atomicity: per-word fetch after address validation
+      lock_order: []
+      interrupt_state: interrupts enabled
+      wait_wakeup_rules: []
+    sys_exit:
+      atomicity: exit holds necessary locks
+      lock_order: []
+      interrupt_state: irrelevant
+      wait_wakeup_rules: []
+    sys_fork:
+      atomicity: fork holds its own locks
+      lock_order: []
+      interrupt_state: irrelevant
+      wait_wakeup_rules: []
+    sys_sbrk:
+      atomicity: growproc is non-atomic
+      lock_order: []
+      interrupt_state: irrelevant
+      wait_wakeup_rules: []
+    sys_wait:
+      atomicity: wait holds necessary locks
+      lock_order: []
+      interrupt_state: irrelevant
+      wait_wakeup_rules: []
+    sys_write:
+      atomicity: syscall is non-preemptible on a single hart
+      lock_order: []
+      interrupt_state: interrupts disabled during trap handling
+      wait_wakeup_rules: []
+    syscall:
+      atomicity: syscall is non-preemptible
+      lock_order: []
+      interrupt_state: interrupts disabled during trap
+      wait_wakeup_rules: []

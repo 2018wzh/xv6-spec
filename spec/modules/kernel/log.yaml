@@ -1,0 +1,318 @@
+id: kernel/log
+module: kernel/log
+level: 3
+purpose: 'File-system logging layer for crash-safe multi-step updates. Uses a physical
+  redo log: before modifying on-disk blocks, the old contents are written to a log
+  area. On recovery after crash, committed log entries are replayed to restore consistency.'
+owns:
+- kernel/log.c
+interface:
+- name: begin_op
+  pre:
+  - called by FS syscall entry point
+  post:
+  - log.outstanding > 0
+  - caller may now call log_write
+  errors:
+  - none
+  properties:
+  - id: begin_op-property-1
+    text: log.outstanding >= 1 after call
+  - id: begin_op-property-2
+    text: 'guarantee.returns: void'
+  - id: begin_op-property-3
+    text: 'guarantee.side_effects: log.outstanding incremented'
+- name: commit
+  pre:
+  - log.outstanding == 0
+  - no other commit in progress
+  post:
+  - log.lh.n == 0
+  - all blocks are on disk in final locations
+  errors:
+  - none
+  properties:
+  - id: commit-property-1
+    text: '{"atomic": "all blocks written or none (after recovery)"}'
+  - id: commit-property-2
+    text: 'guarantee.returns: void'
+  - id: commit-property-3
+    text: 'guarantee.side_effects: all logged blocks written to disk'
+  - id: commit-property-4
+    text: 'guarantee.side_effects: log header written'
+  - id: commit-property-5
+    text: 'guarantee.side_effects: blocks installed to final locations'
+  - id: commit-property-6
+    text: 'guarantee.side_effects: log cleared'
+  - id: commit-property-7
+    text: 'guarantee.side_effects: buffers unpinned'
+- name: end_op
+  pre:
+  - caller has previously called begin_op
+  post:
+  - outstanding >= 0
+  - if commit triggered, all logged blocks are on disk
+  errors:
+  - none
+  properties:
+  - id: end_op-property-1
+    text: log.outstanding >= 0
+  - id: end_op-property-2
+    text: 'guarantee.returns: void'
+  - id: end_op-property-3
+    text: 'guarantee.side_effects: log.outstanding decremented'
+  - id: end_op-property-4
+    text: 'guarantee.side_effects: commit triggered if outstanding == 0 and log has
+      entries'
+- name: initlog
+  pre:
+  - called once during fsinit
+  post:
+  - log is ready for begin_op/end_op
+  errors:
+  - none
+  properties:
+  - id: initlog-property-1
+    text: log.outstanding == 0
+  - id: initlog-property-2
+    text: log.committing == 0
+  - id: initlog-property-3
+    text: 'guarantee.returns: void'
+  - id: initlog-property-4
+    text: 'guarantee.side_effects: log.lock initialized'
+  - id: initlog-property-5
+    text: 'guarantee.side_effects: log.start set from superblock'
+  - id: initlog-property-6
+    text: 'guarantee.side_effects: recovery performed if needed'
+- name: log_write
+  pre:
+  - called between begin_op and end_op
+  - buffer is locked by caller
+  post:
+  - buffer will be written to log area at commit
+  errors:
+  - none
+  properties:
+  - id: log_write-property-1
+    text: log.lh.n <= LOGBLOCKS
+  - id: log_write-property-2
+    text: 'guarantee.returns: void'
+  - id: log_write-property-3
+    text: 'guarantee.side_effects: buffer pinned'
+  - id: log_write-property-4
+    text: 'guarantee.side_effects: block number added to log header'
+  - id: log_write-property-5
+    text: 'guarantee.side_effects: log.lh.n incremented'
+- name: recover_from_log
+  pre:
+  - called during boot, before any FS operations
+  post:
+  - file system is in a consistent state
+  errors:
+  - none
+  properties:
+  - id: recover_from_log-property-1
+    text: no uncommitted data is replayed
+  - id: recover_from_log-property-2
+    text: 'guarantee.returns: void'
+  - id: recover_from_log-property-3
+    text: 'guarantee.side_effects: committed transactions replayed to disk'
+  - id: recover_from_log-property-4
+    text: 'guarantee.side_effects: log cleared'
+properties:
+- id: module-property-1
+  text: log is kernel-only; user code never interacts with the log directly
+- id: module-property-2
+  text: log header blocks are pinned in the buffer cache during transactions
+- id: module-property-3
+  text: the log area on disk has a fixed size (LOGBLOCKS)
+- id: module-property-4
+  text: begin_op/end_op reference counting
+- id: module-property-5
+  text: log_write + commit cycle
+- id: module-property-6
+  text: crash recovery (replay committed, discard uncommitted)
+errors:
+- begin_op may sleep if the log is near full
+- commit panics if disk write fails
+- end_op triggers commit when log.outstanding reaches 0
+- none
+state:
+  stage: filesystem
+  owned_state:
+  - log header (struct logheader with block numbers)
+  - log struct (start block, outstanding count, committing flag)
+  - log.lock spinlock
+  resource_lifetime:
+  - log header blocks are pinned in the buffer cache during transactions
+  - the log area on disk has a fixed size (LOGBLOCKS)
+preconditions:
+- buffer is locked by caller
+- called between begin_op and end_op
+- called by FS syscall entry point
+- called during boot, before any FS operations
+- called once during fsinit
+- caller has previously called begin_op
+- log.outstanding == 0
+- no other commit in progress
+postconditions:
+- all blocks are on disk in final locations
+- buffer will be written to log area at commit
+- caller may now call log_write
+- file system is in a consistent state
+- if commit triggered, all logged blocks are on disk
+- log is ready for begin_op/end_op
+- log.lh.n == 0
+- log.outstanding > 0
+- outstanding >= 0
+invariants:
+- id: invariant-1
+  text: log.outstanding >= 0 (count of in-progress FS syscalls)
+- id: invariant-2
+  text: only one commit can be in progress (log.committing == 0 or 1)
+- id: invariant-3
+  text: log_write only modifies the in-memory buffer; actual write happens at commit
+- id: invariant-4
+  text: after recovery, the log area is consistent with on-disk state
+- id: begin_op-invariant-1
+  text: log.outstanding >= 1 after call
+- id: commit-invariant-1
+  text: '{"atomic": "all blocks written or none (after recovery)"}'
+- id: end_op-invariant-1
+  text: log.outstanding >= 0
+- id: initlog-invariant-1
+  text: log.outstanding == 0
+- id: initlog-invariant-2
+  text: log.committing == 0
+- id: log_write-invariant-1
+  text: log.lh.n <= LOGBLOCKS
+- id: recover_from_log-invariant-1
+  text: no uncommitted data is replayed
+dependencies:
+- kernel/log
+rely:
+- 'begin_op.rely.callable_interfaces: sleep/wakeup (from kernel/process)'
+- 'begin_op.rely.lock_assumptions: acquires log.lock briefly'
+- 'begin_op.rely.resource_assumptions: sufficient resources available'
+- 'begin_op.rely.state_assumptions: log is initialized'
+- bread/bwrite operate correctly under bcache.lock + buffer sleeplock
+- caller of begin_op must not hold any buffer locks
+- 'commit.rely.callable_interfaces: bread/bwrite/brelse/bunpin (from kernel/bio)'
+- 'commit.rely.lock_assumptions: acquires log.lock'
+- 'commit.rely.lock_assumptions: releases log.lock during disk writes'
+- 'commit.rely.resource_assumptions: sufficient resources available'
+- 'commit.rely.state_assumptions: log.committing == 0'
+- 'commit.rely.state_assumptions: log.lh.n > 0'
+- 'end_op.rely.callable_interfaces: commit (internal)'
+- 'end_op.rely.callable_interfaces: wakeup (from kernel/process)'
+- 'end_op.rely.lock_assumptions: acquires log.lock'
+- 'end_op.rely.resource_assumptions: sufficient resources available'
+- 'end_op.rely.state_assumptions: log.outstanding >= 1'
+- 'initlog.rely.callable_interfaces: bread/brelse (from kernel/bio)'
+- 'initlog.rely.callable_interfaces: initlock (from kernel/lock)'
+- 'initlog.rely.lock_assumptions: none during init'
+- 'initlog.rely.resource_assumptions: sufficient resources available'
+- 'initlog.rely.state_assumptions: superblock has been read'
+- 'log_write.rely.callable_interfaces: bpin (from kernel/bio)'
+- 'log_write.rely.lock_assumptions: acquires log.lock'
+- 'log_write.rely.resource_assumptions: sufficient resources available'
+- 'log_write.rely.state_assumptions: log.outstanding >= 1'
+- 'module: bread/bwrite/brelse (from kernel/bio)'
+- 'recover_from_log.rely.callable_interfaces: bread/bwrite/brelse (from kernel/bio)'
+- 'recover_from_log.rely.lock_assumptions: none (called during boot, no concurrency)'
+- 'recover_from_log.rely.resource_assumptions: sufficient resources available'
+- 'recover_from_log.rely.state_assumptions: disk contains a valid log area'
+guarantee:
+- after commit, all logged blocks are on disk
+- 'begin_op.guarantee.returns: void'
+- 'begin_op.guarantee.side_effects: log.outstanding incremented'
+- 'commit.guarantee.returns: void'
+- 'commit.guarantee.side_effects: all logged blocks written to disk'
+- 'commit.guarantee.side_effects: blocks installed to final locations'
+- 'commit.guarantee.side_effects: buffers unpinned'
+- 'commit.guarantee.side_effects: log cleared'
+- 'commit.guarantee.side_effects: log header written'
+- 'end_op.guarantee.returns: void'
+- 'end_op.guarantee.side_effects: commit triggered if outstanding == 0 and log has
+  entries'
+- 'end_op.guarantee.side_effects: log.outstanding decremented'
+- 'exported: begin_op'
+- 'exported: end_op'
+- 'exported: initlog'
+- 'exported: log_write'
+- 'initlog.guarantee.returns: void'
+- 'initlog.guarantee.side_effects: log.lock initialized'
+- 'initlog.guarantee.side_effects: log.start set from superblock'
+- 'initlog.guarantee.side_effects: recovery performed if needed'
+- log_write only marks a buffer for logging; actual write is at commit
+- 'log_write.guarantee.returns: void'
+- 'log_write.guarantee.side_effects: block number added to log header'
+- 'log_write.guarantee.side_effects: buffer pinned'
+- 'log_write.guarantee.side_effects: log.lh.n incremented'
+- 'recover_from_log.guarantee.returns: void'
+- 'recover_from_log.guarantee.side_effects: committed transactions replayed to disk'
+- 'recover_from_log.guarantee.side_effects: log cleared'
+- recovery replays committed transactions and discards uncommitted ones
+algorithm_intent: Implement the filesystem stage contract while preserving the declared
+  xv6 module boundaries.
+concurrency:
+  module:
+    module: kernel/log
+    shared_state:
+    - log.lh (log header: block numbers of logged blocks)
+    - log.outstanding (count of in-progress FS syscalls)
+    - log.committing (flag: commit in progress)
+    lock_types:
+    - log.lock: spinlock (protects log state)
+    atomic_sections:
+    - begin_op: acquires log.lock, increments outstanding, may sleep if log near full
+    - end_op: acquires log.lock, decrements outstanding, triggers commit when outstanding==0
+    - commit: holds log.lock while writing log header and blocks to disk
+    interrupt_rules:
+    - log.lock is never held across disk I/O (commit releases log.lock during writes)
+    wait_wakeup_rules:
+    - begin_op sleeps on &log if outstanding + committing would overflow log
+    - commit wakes up processes sleeping on &log after completion
+    rely:
+    - bread/bwrite operate correctly under bcache.lock + buffer sleeplock
+    - caller of begin_op must not hold any buffer locks
+    guarantee:
+    - after commit, all logged blocks are on disk
+    - log_write only marks a buffer for logging; actual write is at commit
+    - recovery replays committed transactions and discards uncommitted ones
+    forbidden_patterns:
+    - calling begin_op while holding log.lock (recursive lock panic)
+    - modifying a disk block without calling log_write first
+  operations:
+    begin_op:
+      atomicity: log.lock for counter update
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules:
+      - sleeps on &log if log would overflow
+    commit:
+      atomicity: log.lock for state, released during disk I/O
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules:
+      - wakes processes sleeping on &log after commit
+    end_op:
+      atomicity: log.lock for counter update and commit decision
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    initlog:
+      atomicity: single-hart init
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    log_write:
+      atomicity: log.lock for header update
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    recover_from_log:
+      atomicity: single-hart during boot
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []

@@ -1,0 +1,190 @@
+id: interface/kernel-syscall
+name: kernel/syscall syscall boundary
+boundary: syscall
+module: kernel/syscall
+operations:
+- name: argaddr
+  pre:
+  - 0 <= n <= 5
+  post:
+  - '*ip contains the pointer'
+  errors:
+  - returns -1 for invalid n
+  - 'note: does not validate the pointer itself; that is done by copyin/copyout/fetchaddr'
+  properties:
+  - id: argaddr-property-1
+    text: no kernel state mutation
+  - id: argaddr-property-2
+    text: 'guarantee.returns: 0 and sets *ip on success'
+  - id: argaddr-property-3
+    text: 'guarantee.returns: -1 if n out of range'
+  - id: argaddr-property-4
+    text: 'guarantee.side_effects: *ip written with user virtual address'
+  - id: argaddr-property-5
+    text: 'guarantee.emitted_events: none'
+- name: argint
+  pre:
+  - 0 <= n <= 5
+  post:
+  - '*ip contains the argument value'
+  errors:
+  - returns -1 for invalid n
+  properties:
+  - id: argint-property-1
+    text: no kernel state mutation
+  - id: argint-property-2
+    text: 'guarantee.returns: 0 and sets *ip on success'
+  - id: argint-property-3
+    text: 'guarantee.returns: -1 if n out of range'
+  - id: argint-property-4
+    text: 'guarantee.side_effects: *ip written with register value'
+  - id: argint-property-5
+    text: 'guarantee.emitted_events: none'
+- name: fetchaddr
+  pre:
+  - addr is a user virtual address in current process
+  - ip points to a valid kernel location
+  post:
+  - '*ip contains the value from addr (on success)'
+  errors:
+  - returns -1 if walkaddr returns 0
+  properties:
+  - id: fetchaddr-property-1
+    text: kernel never dereferences raw user pointers
+  - id: fetchaddr-property-2
+    text: 'guarantee.returns: 0 on success, *ip set to fetched value'
+  - id: fetchaddr-property-3
+    text: 'guarantee.returns: -1 on invalid user address'
+  - id: fetchaddr-property-4
+    text: 'guarantee.side_effects: *ip written with value from user memory'
+  - id: fetchaddr-property-5
+    text: 'guarantee.emitted_events: none'
+- name: fetchstr
+  pre:
+  - srcva is a user virtual address in current process
+  - dst points to a valid kernel buffer of at least maxlen bytes
+  post:
+  - dst contains null-terminated string (on success)
+  errors:
+  - returns -1 if any page in the string range is invalid
+  properties:
+  - id: fetchstr-property-1
+    text: kernel never overruns kernel buffer
+  - id: fetchstr-property-2
+    text: 'guarantee.returns: length of string copied (including null terminator)'
+  - id: fetchstr-property-3
+    text: 'guarantee.returns: -1 on invalid user address'
+  - id: fetchstr-property-4
+    text: 'guarantee.side_effects: dst populated with null-terminated string from
+      user memory'
+  - id: fetchstr-property-5
+    text: 'guarantee.emitted_events: none'
+- name: sys_exit
+  pre:
+  - a0 contains an integer exit status
+  post:
+  - process is ZOMBIE
+  errors:
+  - none (exit never fails)
+  properties:
+  - id: sys_exit-property-1
+    text: process lifecycle invariants
+  - id: sys_exit-property-2
+    text: 'guarantee.returns: never returns (exit does not return)'
+  - id: sys_exit-property-3
+    text: 'guarantee.side_effects: process transitions to ZOMBIE'
+  - id: sys_exit-property-4
+    text: 'guarantee.emitted_events: none'
+- name: sys_fork
+  pre:
+  - called from usermode
+  post:
+  - returns appropriate value to caller
+  errors:
+  - returns -1 on resource exhaustion
+  properties:
+  - id: sys_fork-property-1
+    text: process table invariants
+  - id: sys_fork-property-2
+    text: 'guarantee.returns: child PID to parent'
+  - id: sys_fork-property-3
+    text: 'guarantee.returns: 0 to child'
+  - id: sys_fork-property-4
+    text: 'guarantee.returns: -1 on failure'
+  - id: sys_fork-property-5
+    text: 'guarantee.side_effects: new child process created'
+  - id: sys_fork-property-6
+    text: 'guarantee.emitted_events: none'
+- name: sys_sbrk
+  pre:
+  - a0 contains signed integer increment n
+  post:
+  - process->sz adjusted
+  errors:
+  - returns -1 on growproc failure
+  properties:
+  - id: sys_sbrk-property-1
+    text: max user address boundary
+  - id: sys_sbrk-property-2
+    text: 'guarantee.returns: old process size on success'
+  - id: sys_sbrk-property-3
+    text: 'guarantee.returns: -1 on failure'
+  - id: sys_sbrk-property-4
+    text: 'guarantee.side_effects: process address space grows or shrinks'
+  - id: sys_sbrk-property-5
+    text: 'guarantee.emitted_events: none'
+- name: sys_wait
+  pre:
+  - a0 contains pointer to int for exit status (or 0)
+  post:
+  - if a0 != 0, user buffer updated with exit status
+  errors:
+  - returns -1 if no children or status buffer invalid
+  properties:
+  - id: sys_wait-property-1
+    text: process lifecycle invariants
+  - id: sys_wait-property-2
+    text: 'guarantee.returns: child PID on success'
+  - id: sys_wait-property-3
+    text: 'guarantee.returns: -1 on failure'
+  - id: sys_wait-property-4
+    text: 'guarantee.side_effects: exit status written to user buffer if provided'
+  - id: sys_wait-property-5
+    text: 'guarantee.emitted_events: none'
+- name: sys_write
+  pre:
+  - the caller passes a user buffer (a1) and a count (a2)
+  post:
+  - no unchecked user pointer is dereferenced
+  errors:
+  - return -1 when user buffer validation fails
+  - return -1 when count is zero
+  properties:
+  - id: sys_write-property-1
+    text: kernel never overruns user buffer
+  - id: sys_write-property-2
+    text: 'guarantee.returns: number of bytes written on success'
+  - id: sys_write-property-3
+    text: 'guarantee.returns: -1 on invalid user buffer'
+  - id: sys_write-property-4
+    text: 'guarantee.side_effects: bytes written to console UART via console_write'
+  - id: sys_write-property-5
+    text: 'guarantee.emitted_events: none'
+- name: syscall
+  pre:
+  - a7 contains a valid or invalid syscall number
+  post:
+  - a0 contains return value
+  errors:
+  - 'unknown syscall: return -1'
+  properties:
+  - id: syscall-property-1
+    text: dispatch table unchanged
+  - id: syscall-property-2
+    text: 'guarantee.returns: int: handler return value stored in trapframe->a0'
+  - id: syscall-property-3
+    text: 'guarantee.side_effects: handler invoked'
+  - id: syscall-property-4
+    text: 'guarantee.side_effects: return value in trapframe->a0'
+  - id: syscall-property-5
+    text: 'guarantee.emitted_events: none'

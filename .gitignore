@@ -12,10 +12,6 @@ user/*.asm
 user/*.sym
 user/_*
 user/usys.S
-*.env
+.vos/
+.env
 .tmp/
-.vos/*
-!.vos/project.yaml
-!.vos/policy.yaml
-!.vos/config.toml
-!.vos/toolchain.json

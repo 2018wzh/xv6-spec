@@ -1,0 +1,129 @@
+id: kernel/printk
+module: kernel/printk
+level: 3
+purpose: 'Formatted kernel printing: printk() for printf-style output, panic() for
+  fatal errors. Uses consputc for character output and a spinlock (pr.lock) to serialize
+  concurrent printk calls.'
+owns:
+- kernel/printk.c
+interface:
+- name: panic
+  pre: []
+  post:
+  - kernel is halted
+  errors:
+  - never returns; spins forever
+  properties:
+  - id: panic-property-1
+    text: 'guarantee.returns: void (never returns)'
+  - id: panic-property-2
+    text: 'guarantee.side_effects: panic message printed'
+  - id: panic-property-3
+    text: 'guarantee.side_effects: kernel halted forever'
+- name: printk
+  pre:
+  - printkinit has been called
+  post:
+  - formatted string is on the console
+  errors:
+  - none
+  properties:
+  - id: printk-property-1
+    text: 'guarantee.returns.int: 0'
+  - id: printk-property-2
+    text: 'guarantee.side_effects: formatted output written to console'
+- name: printkinit
+  pre:
+  - called once during boot
+  post:
+  - printk is ready
+  errors:
+  - none
+  properties:
+  - id: printkinit-property-1
+    text: 'guarantee.returns: void'
+  - id: printkinit-property-2
+    text: 'guarantee.side_effects: pr.lock initialized'
+properties:
+- id: module-property-1
+  text: printk is kernel-only; format string attacks are not applicable (no user-controlled
+    format strings)
+- id: module-property-2
+  text: printkinit runs once at boot
+- id: module-property-3
+  text: pr.lock persists for kernel lifetime
+- id: module-property-4
+  text: unit tests for all exported functions
+- id: module-property-5
+  text: integration tests with dependent modules
+errors:
+- never returns; spins forever
+- none
+- panic never returns
+state:
+  stage: device
+  owned_state:
+  - pr.lock spinlock
+  - panicking/panicked flags
+  resource_lifetime:
+  - printkinit runs once at boot
+  - pr.lock persists for kernel lifetime
+preconditions:
+- called once during boot
+- printkinit has been called
+postconditions:
+- formatted string is on the console
+- kernel is halted
+- printk is ready
+invariants:
+- id: invariant-1
+  text: printk output is serialized by pr.lock (unless panicking)
+- id: invariant-2
+  text: panic disables interrupts and spins forever after printing message
+- id: invariant-3
+  text: panicked flag prevents further UART output
+dependencies:
+- kernel/printk
+rely:
+- 'module: consputc (from kernel/console)'
+- 'panic.rely.callable_interfaces: printk (internal)'
+- 'panic.rely.lock_assumptions: none'
+- 'panic.rely.resource_assumptions: sufficient resources available'
+- 'printk.rely.callable_interfaces: consputc (from kernel/console)'
+- 'printk.rely.lock_assumptions: none'
+- 'printk.rely.resource_assumptions: sufficient resources available'
+- 'printkinit.rely.callable_interfaces: initlock (from kernel/lock)'
+- 'printkinit.rely.lock_assumptions: none'
+- 'printkinit.rely.resource_assumptions: sufficient resources available'
+guarantee:
+- 'exported: panic'
+- 'exported: printk'
+- 'exported: printkinit'
+- 'panic.guarantee.returns: void (never returns)'
+- 'panic.guarantee.side_effects: kernel halted forever'
+- 'panic.guarantee.side_effects: panic message printed'
+- 'printk.guarantee.returns.int: 0'
+- 'printk.guarantee.side_effects: formatted output written to console'
+- 'printkinit.guarantee.returns: void'
+- 'printkinit.guarantee.side_effects: pr.lock initialized'
+algorithm_intent: Implement the device stage contract while preserving the declared
+  xv6 module boundaries.
+concurrency:
+  module: {}
+  operations:
+    panic:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    printk:
+      atomicity: pr.lock serializes concurrent printk calls
+      lock_order:
+      - pr.lock (unless panicking)
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    printkinit:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []

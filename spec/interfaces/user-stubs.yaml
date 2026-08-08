@@ -1,0 +1,16 @@
+id: interface/user-stubs
+name: user/stubs syscall boundary
+boundary: syscall
+module: user/stubs
+operations:
+- name: generate_usys_S
+  pre: []
+  post:
+  - each stub correctly loads syscall number and invokes ecall
+  errors:
+  - none (build-time)
+  properties:
+  - id: generate_usys_S-property-1
+    text: 'guarantee.returns: void'
+  - id: generate_usys_S-property-2
+    text: 'guarantee.side_effects: user/usys.S generated with all syscall stubs'

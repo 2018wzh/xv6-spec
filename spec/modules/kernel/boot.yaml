@@ -1,0 +1,336 @@
+id: kernel/boot
+module: kernel/boot
+level: 3
+purpose: 'Early boot path: stack setup, BSS zeroing, SBI console abstraction, boot
+  banner printing, and graceful shutdown.'
+owns:
+- kernel/boot.c
+- kernel/entry.S
+interface:
+- name: boot_banner
+  pre:
+  - implementation must be valid in a freestanding (no_std) context
+  post:
+  - returned string is static and byte-for-byte printable via UART
+  errors:
+  - do not panic or abort during normal banner retrieval
+  properties:
+  - id: boot_banner-property-1
+    text: no global state is mutated
+  - id: boot_banner-property-2
+    text: 'guarantee.returns: const char * pointing to a null-terminated static banner'
+  - id: boot_banner-property-3
+    text: 'guarantee.side_effects: none'
+  - id: boot_banner-property-4
+    text: 'guarantee.emitted_events: none'
+- name: console_putchar
+  pre:
+  - argument byte is a valid ASCII or UTF-8 code unit
+  post:
+  - byte is queued or emitted on the SBI debug console
+  errors:
+  - 'SBI spec: putchar may drop bytes if buffer is full'
+  - no error is returned
+  properties:
+  - id: console_putchar-property-1
+    text: no kernel memory is touched
+  - id: console_putchar-property-2
+    text: 'guarantee.returns: void'
+  - id: console_putchar-property-3
+    text: 'guarantee.side_effects: one byte transmitted to UART via SBI'
+  - id: console_putchar-property-4
+    text: 'guarantee.emitted_events: none'
+- name: console_write
+  pre:
+  - input is a valid, non-null pointer to null-terminated char array
+  post:
+  - all bytes up to the null terminator are transmitted
+  errors:
+  - null pointer input is undefined behaviour (caller contract)
+  - partial output if SBI putchar drops bytes
+  properties:
+  - id: console_write-property-1
+    text: no kernel memory is mutated
+  - id: console_write-property-2
+    text: 'guarantee.returns: void'
+  - id: console_write-property-3
+    text: 'guarantee.side_effects: each non-null byte emitted via console_putchar'
+  - id: console_write-property-4
+    text: 'guarantee.emitted_events: none'
+- name: entry
+  pre:
+  - hart 0 is in S-mode
+  - satp is not yet configured
+  post:
+  - C environment is set up (stack + BSS)
+  errors:
+  - undefined if BSS or stack overlap with kernel image
+  properties:
+  - id: entry-property-1
+    text: single-hart execution
+  - id: entry-property-2
+    text: 'guarantee.returns: void (never returns; transfers to kernel_main)'
+  - id: entry-property-3
+    text: 'guarantee.side_effects: sp set to stack0+STACK_SIZE'
+  - id: entry-property-4
+    text: 'guarantee.side_effects: BSS section zeroed'
+  - id: entry-property-5
+    text: 'guarantee.side_effects: control transferred to kernel_main'
+  - id: entry-property-6
+    text: 'guarantee.emitted_events: none'
+- name: kernel_main
+  pre:
+  - called exactly once at boot
+  - console UART is functional
+  post:
+  - kernel is fully operational
+  - scheduler is running
+  errors:
+  - panics on any subsystem initialization failure
+  properties:
+  - id: kernel_main-property-1
+    text: 'init order: memory -> trap -> process -> scheduler'
+  - id: kernel_main-property-2
+    text: 'guarantee.returns: void (never returns; enters scheduler loop)'
+  - id: kernel_main-property-3
+    text: 'guarantee.side_effects: page allocator initialized'
+  - id: kernel_main-property-4
+    text: 'guarantee.side_effects: kernel page table created and paging enabled'
+  - id: kernel_main-property-5
+    text: 'guarantee.side_effects: process table initialized'
+  - id: kernel_main-property-6
+    text: 'guarantee.side_effects: trap vector installed'
+  - id: kernel_main-property-7
+    text: 'guarantee.side_effects: first user process created'
+  - id: kernel_main-property-8
+    text: 'guarantee.side_effects: scheduler started'
+  - id: kernel_main-property-9
+    text: 'guarantee.emitted_events: boot banner printed to console'
+- name: shutdown
+  pre:
+  - system is in a valid state for power-off
+  post:
+  - execution terminates; QEMU exits
+  errors:
+  - if SBI SRST fails, fallback infinite loop with wfi
+  properties:
+  - id: shutdown-property-1
+    text: no further instructions execute
+  - id: shutdown-property-2
+    text: 'guarantee.returns: does not return (noreturn)'
+  - id: shutdown-property-3
+    text: 'guarantee.side_effects: system halt via SBI SRST'
+  - id: shutdown-property-4
+    text: 'guarantee.emitted_events: none'
+properties:
+- id: module-property-1
+  text: no user/kernel boundary exists during boot
+- id: module-property-2
+  text: boot banner is a static string with infinite lifetime
+- id: module-property-3
+  text: boot banner content verification
+- id: module-property-4
+  text: console output smoke test
+- id: module-property-5
+  text: shutdown signal detection
+- id: module-property-6
+  text: boot_banner_not_null
+- id: module-property-7
+  text: boot_banner_length_positive
+- id: module-property-8
+  text: boot_banner_printable
+- id: module-property-9
+  text: console_putchar_ecall
+- id: module-property-10
+  text: console_write_newline
+- id: module-property-11
+  text: shutdown_success_signal
+- id: module-property-12
+  text: boot_banner_not_null
+- id: module-property-13
+  text: boot_banner_length_positive
+- id: module-property-14
+  text: boot_banner_printable
+- id: module-property-15
+  text: console_putchar_ecall
+- id: module-property-16
+  text: console_write_newline
+- id: module-property-17
+  text: shutdown_success_signal
+errors:
+- 'SBI spec: putchar may drop bytes if buffer is full'
+- console_putchar is infallible in SBI spec
+- do not panic or abort during normal banner retrieval
+- if SBI SRST fails, fallback infinite loop with wfi
+- no error is returned
+- null pointer input is undefined behaviour (caller contract)
+- panics on any subsystem initialization failure
+- partial output if SBI putchar drops bytes
+- shutdown does not return
+- undefined if BSS or stack overlap with kernel image
+state:
+  stage: boot
+  owned_state:
+  - boot banner text (static)
+  - console output contract (SBI ecall)
+  resource_lifetime:
+  - boot banner is a static string with infinite lifetime
+preconditions:
+- argument byte is a valid ASCII or UTF-8 code unit
+- called exactly once at boot
+- console UART is functional
+- hart 0 is in S-mode
+- implementation must be valid in a freestanding (no_std) context
+- input is a valid, non-null pointer to null-terminated char array
+- satp is not yet configured
+- system is in a valid state for power-off
+postconditions:
+- C environment is set up (stack + BSS)
+- all bytes up to the null terminator are transmitted
+- byte is queued or emitted on the SBI debug console
+- execution terminates; QEMU exits
+- kernel is fully operational
+- returned string is static and byte-for-byte printable via UART
+- scheduler is running
+invariants:
+- id: invariant-1
+  text: boot banner is printable without heap allocation
+- id: invariant-2
+  text: boot path remains no_std and side-effect free apart from UART
+- id: invariant-3
+  text: all console output goes through SBI ecall
+- id: boot_banner-invariant-1
+  text: no global state is mutated
+- id: console_putchar-invariant-1
+  text: no kernel memory is touched
+- id: console_write-invariant-1
+  text: no kernel memory is mutated
+- id: entry-invariant-1
+  text: single-hart execution
+- id: kernel_main-invariant-1
+  text: 'init order: memory -> trap -> process -> scheduler'
+- id: shutdown-invariant-1
+  text: no further instructions execute
+dependencies:
+- kernel/boot
+- kernel/headers
+rely:
+- 'boot_banner.rely.callable_interfaces: boot_banner (returns const char *)'
+- 'boot_banner.rely.lock_assumptions: none'
+- 'boot_banner.rely.resource_assumptions: stack is available'
+- 'boot_banner.rely.state_assumptions: boot banner is consumed during early startup
+  before heap init'
+- 'console_putchar.rely.callable_interfaces: sbi_console_putchar (inline asm ecall)'
+- 'console_putchar.rely.lock_assumptions: none'
+- 'console_putchar.rely.resource_assumptions: none'
+- 'console_putchar.rely.state_assumptions: SBI firmware is initialized (OpenSBI before
+  S-mode entry)'
+- 'console_write.rely.callable_interfaces: console_putchar'
+- 'console_write.rely.lock_assumptions: none'
+- 'console_write.rely.resource_assumptions: stack is available for call frames'
+- 'console_write.rely.state_assumptions: null-terminated string pointer is valid'
+- 'entry.rely.callable_interfaces: kernel_main (C entry)'
+- 'entry.rely.lock_assumptions: none'
+- 'entry.rely.resource_assumptions: stack space reserved in BSS'
+- 'entry.rely.state_assumptions: hart 0 enters in S-mode via OpenSBI'
+- 'entry.rely.state_assumptions: memory is accessible from 0x80000000'
+- 'entry.rely.state_assumptions: no other harts are active'
+- 'kernel_main.rely.callable_interfaces: boot_banner, console_write, kinit, kvmmake,
+  proc_init, trap_init, userinit, scheduler'
+- 'kernel_main.rely.lock_assumptions: none during init'
+- 'kernel_main.rely.resource_assumptions: sufficient physical memory for all subsystems'
+- 'kernel_main.rely.state_assumptions: entered from _start with valid stack and zeroed
+  BSS'
+- 'kernel_main.rely.state_assumptions: single hart execution'
+- 'shutdown.rely.callable_interfaces: sbi_system_reset (inline asm ecall)'
+- 'shutdown.rely.lock_assumptions: none'
+- 'shutdown.rely.resource_assumptions: none'
+- 'shutdown.rely.state_assumptions: SBI firmware is initialized'
+- single-hart execution from OpenSBI
+guarantee:
+- BSS is zeroed
+- boot banner is printed before any subsystem init
+- 'boot_banner.guarantee.emitted_events: none'
+- 'boot_banner.guarantee.returns: const char * pointing to a null-terminated static
+  banner'
+- 'boot_banner.guarantee.side_effects: none'
+- 'console_putchar.guarantee.emitted_events: none'
+- 'console_putchar.guarantee.returns: void'
+- 'console_putchar.guarantee.side_effects: one byte transmitted to UART via SBI'
+- 'console_write.guarantee.emitted_events: none'
+- 'console_write.guarantee.returns: void'
+- 'console_write.guarantee.side_effects: each non-null byte emitted via console_putchar'
+- 'entry.guarantee.emitted_events: none'
+- 'entry.guarantee.returns: void (never returns; transfers to kernel_main)'
+- 'entry.guarantee.side_effects: BSS section zeroed'
+- 'entry.guarantee.side_effects: control transferred to kernel_main'
+- 'entry.guarantee.side_effects: sp set to stack0+STACK_SIZE'
+- 'exported: boot_banner'
+- 'exported: console_putchar'
+- 'exported: console_write'
+- 'exported: entry'
+- 'exported: kernel_main'
+- 'exported: shutdown'
+- 'kernel_main.guarantee.emitted_events: boot banner printed to console'
+- 'kernel_main.guarantee.returns: void (never returns; enters scheduler loop)'
+- 'kernel_main.guarantee.side_effects: first user process created'
+- 'kernel_main.guarantee.side_effects: kernel page table created and paging enabled'
+- 'kernel_main.guarantee.side_effects: page allocator initialized'
+- 'kernel_main.guarantee.side_effects: process table initialized'
+- 'kernel_main.guarantee.side_effects: scheduler started'
+- 'kernel_main.guarantee.side_effects: trap vector installed'
+- 'shutdown.guarantee.emitted_events: none'
+- 'shutdown.guarantee.returns: does not return (noreturn)'
+- 'shutdown.guarantee.side_effects: system halt via SBI SRST'
+algorithm_intent: Implement the boot stage contract while preserving the declared
+  xv6 module boundaries.
+concurrency:
+  module:
+    module: kernel/boot
+    shared_state:
+    - none (stack-only, no global mutable state beyond BSS)
+    lock_types: []
+    lock_order: []
+    atomic_sections: []
+    interrupt_rules:
+    - interrupts disabled throughout boot
+    rely:
+    - single-hart execution from OpenSBI
+    guarantee:
+    - boot banner is printed before any subsystem init
+    - BSS is zeroed
+    wait_wakeup_rules: []
+    forbidden_patterns:
+    - calling boot functions after paging is enabled
+    - performing heap allocation during boot
+  operations:
+    boot_banner:
+      atomicity: not applicable (single-hart, early boot)
+      lock_order: []
+      interrupt_state: interrupts disabled during boot
+      wait_wakeup_rules: []
+    console_putchar:
+      atomicity: single instruction (ecall) is atomic
+      lock_order: []
+      interrupt_state: caller decides
+      wait_wakeup_rules: []
+    console_write:
+      atomicity: intraword (per-character ecall)
+      lock_order: []
+      interrupt_state: caller decides
+      wait_wakeup_rules: []
+    entry:
+      atomicity: single-hart boot
+      lock_order: []
+      interrupt_state: all interrupts disabled
+      wait_wakeup_rules: []
+    kernel_main:
+      atomicity: single-hart init sequence
+      lock_order: []
+      interrupt_state: disabled until scheduler starts
+      wait_wakeup_rules: []
+    shutdown:
+      atomicity: not applicable
+      lock_order: []
+      interrupt_state: irrelevant (does not return)
+      wait_wakeup_rules: []

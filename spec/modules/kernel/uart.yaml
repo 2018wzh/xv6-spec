@@ -1,0 +1,168 @@
+id: kernel/uart
+module: kernel/uart
+level: 3
+purpose: 16550a UART driver via MMIO. Provides interrupt-driven transmit (uartwrite)
+  with sleep/wakeup synchronization, polling synchronous output (uartputc_sync) for
+  kernel printing, and interrupt handling (uartintr).
+owns:
+- kernel/uart.c
+interface:
+- name: uartinit
+  pre:
+  - called once during boot
+  post:
+  - UART is ready for transmit and receive
+  errors:
+  - none
+  properties:
+  - id: uartinit-property-1
+    text: 'guarantee.returns: void'
+  - id: uartinit-property-2
+    text: 'guarantee.side_effects: UART configured and ready'
+  - id: uartinit-property-3
+    text: 'guarantee.side_effects: tx_lock initialized'
+- name: uartintr
+  pre:
+  - called from interrupt context (devintr)
+  post:
+  - all pending input characters processed
+  errors:
+  - none
+  properties:
+  - id: uartintr-property-1
+    text: 'guarantee.returns: void'
+  - id: uartintr-property-2
+    text: 'guarantee.side_effects: interrupt acknowledged'
+  - id: uartintr-property-3
+    text: 'guarantee.side_effects: tx_chan woken if TX complete'
+  - id: uartintr-property-4
+    text: 'guarantee.side_effects: incoming characters passed to consoleintr'
+- name: uartputc_sync
+  pre:
+  - may be called from any context (including interrupt)
+  post:
+  - byte is visible on UART output
+  errors:
+  - spins forever if panicked
+  properties:
+  - id: uartputc_sync-property-1
+    text: 'guarantee.returns: void'
+  - id: uartputc_sync-property-2
+    text: 'guarantee.side_effects: byte written to UART THR'
+- name: uartwrite
+  pre:
+  - not called from interrupt context
+  post:
+  - bytes are in the UART transmit FIFO
+  errors:
+  - none (blocks until complete)
+  properties:
+  - id: uartwrite-property-1
+    text: 'guarantee.returns: void'
+  - id: uartwrite-property-2
+    text: 'guarantee.side_effects: all n bytes transmitted to UART'
+properties:
+- id: module-property-1
+  text: UART MMIO registers are only accessible in S-mode; userspace cannot access
+    UART0
+- id: module-property-2
+  text: UART is initialized once at boot (uartinit)
+- id: module-property-3
+  text: tx_lock and tx_chan persist for kernel lifetime
+- id: module-property-4
+  text: unit tests for all exported functions
+- id: module-property-5
+  text: integration tests with dependent modules
+errors:
+- none
+- none (blocks until complete)
+- spins forever if panicked
+- uartputc_sync spins forever if panicked
+- uartwrite blocks until all bytes are transmitted
+state:
+  stage: device
+  owned_state:
+  - tx_lock spinlock
+  - tx_busy flag
+  - tx_chan wait channel
+  resource_lifetime:
+  - UART is initialized once at boot (uartinit)
+  - tx_lock and tx_chan persist for kernel lifetime
+preconditions:
+- called from interrupt context (devintr)
+- called once during boot
+- may be called from any context (including interrupt)
+- not called from interrupt context
+postconditions:
+- UART is ready for transmit and receive
+- all pending input characters processed
+- byte is visible on UART output
+- bytes are in the UART transmit FIFO
+invariants:
+- id: invariant-1
+  text: only one writer can use uartwrite at a time (tx_lock)
+- id: invariant-2
+  text: tx_busy==0 means UART is ready for next byte
+- id: invariant-3
+  text: uartputc_sync disables interrupts via push_off
+dependencies:
+- kernel/uart
+rely:
+- 'module: consoleintr (from kernel/console)'
+- 'module: sleep/wakeup (from kernel/process)'
+- 'uartinit.rely.callable_interfaces: initlock (from kernel/lock)'
+- 'uartinit.rely.lock_assumptions: none'
+- 'uartinit.rely.resource_assumptions: sufficient resources available'
+- 'uartintr.rely.callable_interfaces: consoleintr (from kernel/console)'
+- 'uartintr.rely.callable_interfaces: wakeup (from kernel/process)'
+- 'uartintr.rely.lock_assumptions: none'
+- 'uartintr.rely.resource_assumptions: sufficient resources available'
+- 'uartputc_sync.rely.lock_assumptions: none'
+- 'uartputc_sync.rely.resource_assumptions: sufficient resources available'
+- 'uartwrite.rely.callable_interfaces: sleep/wakeup (from kernel/process)'
+- 'uartwrite.rely.lock_assumptions: none'
+- 'uartwrite.rely.resource_assumptions: sufficient resources available'
+guarantee:
+- 'exported: uartinit'
+- 'exported: uartintr'
+- 'exported: uartputc_sync'
+- 'exported: uartwrite'
+- 'uartinit.guarantee.returns: void'
+- 'uartinit.guarantee.side_effects: UART configured and ready'
+- 'uartinit.guarantee.side_effects: tx_lock initialized'
+- 'uartintr.guarantee.returns: void'
+- 'uartintr.guarantee.side_effects: incoming characters passed to consoleintr'
+- 'uartintr.guarantee.side_effects: interrupt acknowledged'
+- 'uartintr.guarantee.side_effects: tx_chan woken if TX complete'
+- 'uartputc_sync.guarantee.returns: void'
+- 'uartputc_sync.guarantee.side_effects: byte written to UART THR'
+- 'uartwrite.guarantee.returns: void'
+- 'uartwrite.guarantee.side_effects: all n bytes transmitted to UART'
+algorithm_intent: Implement the device stage contract while preserving the declared
+  xv6 module boundaries.
+concurrency:
+  module: {}
+  operations:
+    uartinit:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    uartintr:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    uartputc_sync:
+      atomicity: push_off/pop_off disables interrupts during poll
+      lock_order: []
+      interrupt_state: disabled (push_off)
+      wait_wakeup_rules: []
+    uartwrite:
+      atomicity: tx_lock serializes writers
+      lock_order:
+      - tx_lock
+      interrupt_state: enabled (may sleep)
+      wait_wakeup_rules:
+      - sleeps on &tx_chan while tx_busy
+      - woken by uartintr

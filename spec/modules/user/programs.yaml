@@ -1,0 +1,446 @@
+id: user/programs
+module: user/programs
+level: 3
+purpose: User-space programs and their build infrastructure for the xv6 kernel. Generates
+  init (pid 1), the shell (sh), core utilities (cat, echo, grep, kill, ln, ls, mkdir,
+  rm, wc), and their linker script user/user.ld. User programs are compiled separately
+  as freestanding binaries and linked into the kernel image.
+owns:
+- user/cat.c
+- user/echo.c
+- user/grep.c
+- user/init.c
+- user/kill.c
+- user/ln.c
+- user/ls.c
+- user/mkdir.c
+- user/rm.c
+- user/sh.c
+- user/user.ld
+- user/wc.c
+- user/zombie.c
+interface:
+- name: generate_cat_c
+  pre: []
+  post:
+  - program compiles and links
+  errors:
+  - none (build-time)
+  properties:
+  - id: generate_cat_c-property-1
+    text: 'guarantee.returns: void'
+  - id: generate_cat_c-property-2
+    text: 'guarantee.side_effects: user/cat.c generated'
+- name: generate_echo_c
+  pre: []
+  post:
+  - program compiles and links
+  errors:
+  - none (build-time)
+  properties:
+  - id: generate_echo_c-property-1
+    text: 'guarantee.returns: void'
+  - id: generate_echo_c-property-2
+    text: 'guarantee.side_effects: user/echo.c generated'
+- name: generate_grep_c
+  pre: []
+  post:
+  - program compiles and links
+  errors:
+  - none (build-time)
+  properties:
+  - id: generate_grep_c-property-1
+    text: 'guarantee.returns: void'
+  - id: generate_grep_c-property-2
+    text: 'guarantee.side_effects: user/grep.c generated'
+- name: generate_kill_c
+  pre: []
+  post:
+  - program compiles and links
+  errors:
+  - none (build-time)
+  properties:
+  - id: generate_kill_c-property-1
+    text: 'guarantee.returns: void'
+  - id: generate_kill_c-property-2
+    text: 'guarantee.side_effects: user/kill.c generated'
+- name: generate_ln_c
+  pre: []
+  post:
+  - program compiles and links
+  errors:
+  - none (build-time)
+  properties:
+  - id: generate_ln_c-property-1
+    text: 'guarantee.returns: void'
+  - id: generate_ln_c-property-2
+    text: 'guarantee.side_effects: user/ln.c generated'
+- name: generate_ls_c
+  pre: []
+  post:
+  - program compiles and links
+  errors:
+  - none (build-time)
+  properties:
+  - id: generate_ls_c-property-1
+    text: 'guarantee.returns: void'
+  - id: generate_ls_c-property-2
+    text: 'guarantee.side_effects: user/ls.c generated'
+- name: generate_mkdir_c
+  pre: []
+  post:
+  - program compiles and links
+  errors:
+  - none (build-time)
+  properties:
+  - id: generate_mkdir_c-property-1
+    text: 'guarantee.returns: void'
+  - id: generate_mkdir_c-property-2
+    text: 'guarantee.side_effects: user/mkdir.c generated'
+- name: generate_rm_c
+  pre: []
+  post:
+  - program compiles and links
+  errors:
+  - none (build-time)
+  properties:
+  - id: generate_rm_c-property-1
+    text: 'guarantee.returns: void'
+  - id: generate_rm_c-property-2
+    text: 'guarantee.side_effects: user/rm.c generated'
+- name: generate_sh_c
+  pre: []
+  post:
+  - program compiles and links
+  errors:
+  - none (build-time)
+  properties:
+  - id: generate_sh_c-property-1
+    text: 'guarantee.returns: void'
+  - id: generate_sh_c-property-2
+    text: 'guarantee.side_effects: user/sh.c generated'
+- name: generate_wc_c
+  pre: []
+  post:
+  - program compiles and links
+  errors:
+  - none (build-time)
+  properties:
+  - id: generate_wc_c-property-1
+    text: 'guarantee.returns: void'
+  - id: generate_wc_c-property-2
+    text: 'guarantee.side_effects: user/wc.c generated'
+- name: generate_zombie_c
+  pre: []
+  post:
+  - program compiles and links
+  errors:
+  - none (build-time)
+  properties:
+  - id: generate_zombie_c-property-1
+    text: 'guarantee.returns: void'
+  - id: generate_zombie_c-property-2
+    text: 'guarantee.side_effects: user/zombie.c generated'
+- name: generate_init_c
+  pre:
+  - user page table set up with trampoline and trapframe
+  - syscall dispatch table populated
+  post:
+  - init process is running in U-mode
+  errors:
+  - panics if sys_write fails (unexpected)
+  properties:
+  - id: generate_init_c-property-1
+    text: init never exits (system panics if init exits)
+  - id: generate_init_c-property-2
+    text: 'guarantee.returns: void (never returns)'
+  - id: generate_init_c-property-3
+    text: 'guarantee.side_effects.prints "init: starting\n" to console'
+  - id: generate_init_c-property-4
+    text: 'guarantee.side_effects: enters infinite loop (with yields)'
+- name: generate_user_ld
+  pre:
+  - none
+  post:
+  - user/user.ld exists and is valid GNU ld syntax
+  errors:
+  - invalid linker script causes link failure
+  properties:
+  - id: generate_user_ld-property-1
+    text: 'guarantee.linker_sections.name: .text'
+  - id: generate_user_ld-property-2
+    text: 'guarantee.linker_sections.vma: 0x0'
+  - id: generate_user_ld-property-3
+    text: 'guarantee.linker_sections.flags: RX'
+  - id: generate_user_ld-property-4
+    text: 'guarantee.linker_sections.inputs: *(.text .text.*)'
+  - id: generate_user_ld-property-5
+    text: 'guarantee.linker_sections.name: .rodata'
+  - id: generate_user_ld-property-6
+    text: 'guarantee.linker_sections.vma: ALIGN(16)'
+  - id: generate_user_ld-property-7
+    text: 'guarantee.linker_sections.flags: R'
+  - id: generate_user_ld-property-8
+    text: 'guarantee.linker_sections.inputs: *(.rodata .rodata.*)'
+  - id: generate_user_ld-property-9
+    text: 'guarantee.linker_sections.name: .data'
+  - id: generate_user_ld-property-10
+    text: 'guarantee.linker_sections.vma: ALIGN(16)'
+  - id: generate_user_ld-property-11
+    text: 'guarantee.linker_sections.flags: RW'
+  - id: generate_user_ld-property-12
+    text: 'guarantee.linker_sections.inputs: *(.data .data.*)'
+  - id: generate_user_ld-property-13
+    text: 'guarantee.linker_sections.name: .bss'
+  - id: generate_user_ld-property-14
+    text: 'guarantee.linker_sections.vma: ALIGN(16)'
+  - id: generate_user_ld-property-15
+    text: 'guarantee.linker_sections.flags: RW'
+  - id: generate_user_ld-property-16
+    text: 'guarantee.linker_sections.inputs: *(.bss .bss.*)'
+  - id: generate_user_ld-property-17
+    text: 'guarantee.linker_sections.inputs: *(COMMON)'
+  - id: generate_user_ld-property-18
+    text: 'guarantee.exported_symbols.name: _end'
+  - id: generate_user_ld-property-19
+    text: 'guarantee.exported_symbols.value: current location after .bss'
+  - id: generate_user_ld-property-20
+    text: 'guarantee.discarded_sections: *(.eh_frame)'
+  - id: generate_user_ld-property-21
+    text: 'guarantee.discarded_sections: *(.note .note.*)'
+  - id: generate_user_ld-property-22
+    text: 'guarantee.side_effects: user/user.ld created'
+properties:
+- id: module-property-1
+  text: user programs run in U-mode isolated from kernel
+- id: module-property-2
+  text: init binary is statically linked, loaded once at boot
+- id: module-property-3
+  text: init boots and prints banner to console
+- id: module-property-4
+  text: init does not crash or exit
+errors:
+- init must not exit (system panics if init exits)
+- invalid linker script causes link failure
+- none (build-time)
+- panics if sys_write fails (unexpected)
+state:
+  stage: full-syscall
+  owned_state:
+  - init program binary (embedded in kernel image)
+  resource_lifetime:
+  - init binary is statically linked, loaded once at boot
+preconditions:
+- none
+- syscall dispatch table populated
+- user page table set up with trampoline and trapframe
+postconditions:
+- init process is running in U-mode
+- program compiles and links
+- user/user.ld exists and is valid GNU ld syntax
+invariants:
+- id: invariant-1
+  text: init is the first user process (pid 1)
+- id: invariant-2
+  text: user programs run in U-mode with independent page tables
+- id: generate_init_c-invariant-1
+  text: init never exits (system panics if init exits)
+dependencies:
+- kernel/syscall
+- user/headers
+- user/lib
+- user/programs
+- user/stubs
+rely:
+- 'generate_cat_c.rely.callable_interfaces: printf/malloc/free (from user/lib)'
+- 'generate_cat_c.rely.callable_interfaces: syscall stubs (from user/stubs)'
+- 'generate_cat_c.rely.lock_assumptions: none'
+- 'generate_cat_c.rely.resource_assumptions: sufficient resources available'
+- 'generate_cat_c.rely.state_assumptions: user library is available'
+- 'generate_echo_c.rely.callable_interfaces: printf/malloc/free (from user/lib)'
+- 'generate_echo_c.rely.callable_interfaces: syscall stubs (from user/stubs)'
+- 'generate_echo_c.rely.lock_assumptions: none'
+- 'generate_echo_c.rely.resource_assumptions: sufficient resources available'
+- 'generate_echo_c.rely.state_assumptions: user library is available'
+- 'generate_grep_c.rely.callable_interfaces: printf/malloc/free (from user/lib)'
+- 'generate_grep_c.rely.callable_interfaces: syscall stubs (from user/stubs)'
+- 'generate_grep_c.rely.lock_assumptions: none'
+- 'generate_grep_c.rely.resource_assumptions: sufficient resources available'
+- 'generate_grep_c.rely.state_assumptions: user library is available'
+- 'generate_init_c.rely.callable_interfaces: sys_write (via ecall)'
+- 'generate_init_c.rely.resource_assumptions: kernel provides a valid user page table'
+- 'generate_init_c.rely.state_assumptions: kernel is fully initialized before init
+  runs'
+- 'generate_init_c.rely.state_assumptions: sys_write maps fd 1 to the console UART'
+- 'generate_kill_c.rely.callable_interfaces: printf/malloc/free (from user/lib)'
+- 'generate_kill_c.rely.callable_interfaces: syscall stubs (from user/stubs)'
+- 'generate_kill_c.rely.lock_assumptions: none'
+- 'generate_kill_c.rely.resource_assumptions: sufficient resources available'
+- 'generate_kill_c.rely.state_assumptions: user library is available'
+- 'generate_ln_c.rely.callable_interfaces: printf/malloc/free (from user/lib)'
+- 'generate_ln_c.rely.callable_interfaces: syscall stubs (from user/stubs)'
+- 'generate_ln_c.rely.lock_assumptions: none'
+- 'generate_ln_c.rely.resource_assumptions: sufficient resources available'
+- 'generate_ln_c.rely.state_assumptions: user library is available'
+- 'generate_ls_c.rely.callable_interfaces: printf/malloc/free (from user/lib)'
+- 'generate_ls_c.rely.callable_interfaces: syscall stubs (from user/stubs)'
+- 'generate_ls_c.rely.lock_assumptions: none'
+- 'generate_ls_c.rely.resource_assumptions: sufficient resources available'
+- 'generate_ls_c.rely.state_assumptions: user library is available'
+- 'generate_mkdir_c.rely.callable_interfaces: printf/malloc/free (from user/lib)'
+- 'generate_mkdir_c.rely.callable_interfaces: syscall stubs (from user/stubs)'
+- 'generate_mkdir_c.rely.lock_assumptions: none'
+- 'generate_mkdir_c.rely.resource_assumptions: sufficient resources available'
+- 'generate_mkdir_c.rely.state_assumptions: user library is available'
+- 'generate_rm_c.rely.callable_interfaces: printf/malloc/free (from user/lib)'
+- 'generate_rm_c.rely.callable_interfaces: syscall stubs (from user/stubs)'
+- 'generate_rm_c.rely.lock_assumptions: none'
+- 'generate_rm_c.rely.resource_assumptions: sufficient resources available'
+- 'generate_rm_c.rely.state_assumptions: user library is available'
+- 'generate_sh_c.rely.callable_interfaces: printf/malloc/free (from user/lib)'
+- 'generate_sh_c.rely.callable_interfaces: syscall stubs (from user/stubs)'
+- 'generate_sh_c.rely.lock_assumptions: none'
+- 'generate_sh_c.rely.resource_assumptions: sufficient resources available'
+- 'generate_sh_c.rely.state_assumptions: user library is available'
+- 'generate_user_ld.rely.state_assumptions: user programs are linked at virtual address
+  0'
+- 'generate_wc_c.rely.callable_interfaces: printf/malloc/free (from user/lib)'
+- 'generate_wc_c.rely.callable_interfaces: syscall stubs (from user/stubs)'
+- 'generate_wc_c.rely.lock_assumptions: none'
+- 'generate_wc_c.rely.resource_assumptions: sufficient resources available'
+- 'generate_wc_c.rely.state_assumptions: user library is available'
+- 'generate_zombie_c.rely.callable_interfaces: printf/malloc/free (from user/lib)'
+- 'generate_zombie_c.rely.callable_interfaces: syscall stubs (from user/stubs)'
+- 'generate_zombie_c.rely.lock_assumptions: none'
+- 'generate_zombie_c.rely.resource_assumptions: sufficient resources available'
+- 'generate_zombie_c.rely.state_assumptions: user library is available'
+- 'module: kernel/syscall.sys_exit'
+- 'module: kernel/syscall.sys_write'
+guarantee:
+- 'exported: generate_cat_c'
+- 'exported: generate_echo_c'
+- 'exported: generate_grep_c'
+- 'exported: generate_init_c'
+- 'exported: generate_kill_c'
+- 'exported: generate_ln_c'
+- 'exported: generate_ls_c'
+- 'exported: generate_mkdir_c'
+- 'exported: generate_rm_c'
+- 'exported: generate_sh_c'
+- 'exported: generate_user_ld'
+- 'exported: generate_wc_c'
+- 'exported: generate_zombie_c'
+- 'generate_cat_c.guarantee.returns: void'
+- 'generate_cat_c.guarantee.side_effects: user/cat.c generated'
+- 'generate_echo_c.guarantee.returns: void'
+- 'generate_echo_c.guarantee.side_effects: user/echo.c generated'
+- 'generate_grep_c.guarantee.returns: void'
+- 'generate_grep_c.guarantee.side_effects: user/grep.c generated'
+- 'generate_init_c.guarantee.returns: void (never returns)'
+- 'generate_init_c.guarantee.side_effects.prints "init: starting\n" to console'
+- 'generate_init_c.guarantee.side_effects: enters infinite loop (with yields)'
+- 'generate_kill_c.guarantee.returns: void'
+- 'generate_kill_c.guarantee.side_effects: user/kill.c generated'
+- 'generate_ln_c.guarantee.returns: void'
+- 'generate_ln_c.guarantee.side_effects: user/ln.c generated'
+- 'generate_ls_c.guarantee.returns: void'
+- 'generate_ls_c.guarantee.side_effects: user/ls.c generated'
+- 'generate_mkdir_c.guarantee.returns: void'
+- 'generate_mkdir_c.guarantee.side_effects: user/mkdir.c generated'
+- 'generate_rm_c.guarantee.returns: void'
+- 'generate_rm_c.guarantee.side_effects: user/rm.c generated'
+- 'generate_sh_c.guarantee.returns: void'
+- 'generate_sh_c.guarantee.side_effects: user/sh.c generated'
+- 'generate_user_ld.guarantee.discarded_sections: *(.eh_frame)'
+- 'generate_user_ld.guarantee.discarded_sections: *(.note .note.*)'
+- 'generate_user_ld.guarantee.exported_symbols.name: _end'
+- 'generate_user_ld.guarantee.exported_symbols.value: current location after .bss'
+- 'generate_user_ld.guarantee.linker_sections.flags: R'
+- 'generate_user_ld.guarantee.linker_sections.flags: RW'
+- 'generate_user_ld.guarantee.linker_sections.flags: RX'
+- 'generate_user_ld.guarantee.linker_sections.inputs: *(.bss .bss.*)'
+- 'generate_user_ld.guarantee.linker_sections.inputs: *(.data .data.*)'
+- 'generate_user_ld.guarantee.linker_sections.inputs: *(.rodata .rodata.*)'
+- 'generate_user_ld.guarantee.linker_sections.inputs: *(.text .text.*)'
+- 'generate_user_ld.guarantee.linker_sections.inputs: *(COMMON)'
+- 'generate_user_ld.guarantee.linker_sections.name: .bss'
+- 'generate_user_ld.guarantee.linker_sections.name: .data'
+- 'generate_user_ld.guarantee.linker_sections.name: .rodata'
+- 'generate_user_ld.guarantee.linker_sections.name: .text'
+- 'generate_user_ld.guarantee.linker_sections.vma: 0x0'
+- 'generate_user_ld.guarantee.linker_sections.vma: ALIGN(16)'
+- 'generate_user_ld.guarantee.side_effects: user/user.ld created'
+- 'generate_wc_c.guarantee.returns: void'
+- 'generate_wc_c.guarantee.side_effects: user/wc.c generated'
+- 'generate_zombie_c.guarantee.returns: void'
+- 'generate_zombie_c.guarantee.side_effects: user/zombie.c generated'
+algorithm_intent: Implement the full-syscall stage contract while preserving the declared
+  xv6 module boundaries.
+concurrency:
+  module: {}
+  operations:
+    generate_cat_c:
+      atomicity: build-time only
+      lock_order: []
+      interrupt_state: n/a
+      wait_wakeup_rules: []
+    generate_echo_c:
+      atomicity: build-time only
+      lock_order: []
+      interrupt_state: n/a
+      wait_wakeup_rules: []
+    generate_grep_c:
+      atomicity: build-time only
+      lock_order: []
+      interrupt_state: n/a
+      wait_wakeup_rules: []
+    generate_kill_c:
+      atomicity: build-time only
+      lock_order: []
+      interrupt_state: n/a
+      wait_wakeup_rules: []
+    generate_ln_c:
+      atomicity: build-time only
+      lock_order: []
+      interrupt_state: n/a
+      wait_wakeup_rules: []
+    generate_ls_c:
+      atomicity: build-time only
+      lock_order: []
+      interrupt_state: n/a
+      wait_wakeup_rules: []
+    generate_mkdir_c:
+      atomicity: build-time only
+      lock_order: []
+      interrupt_state: n/a
+      wait_wakeup_rules: []
+    generate_rm_c:
+      atomicity: build-time only
+      lock_order: []
+      interrupt_state: n/a
+      wait_wakeup_rules: []
+    generate_sh_c:
+      atomicity: build-time only
+      lock_order: []
+      interrupt_state: n/a
+      wait_wakeup_rules: []
+    generate_wc_c:
+      atomicity: build-time only
+      lock_order: []
+      interrupt_state: n/a
+      wait_wakeup_rules: []
+    generate_zombie_c:
+      atomicity: build-time only
+      lock_order: []
+      interrupt_state: n/a
+      wait_wakeup_rules: []
+    generate_init_c:
+      atomicity: single-hart user execution
+      lock_order: []
+      interrupt_state: interrupts enabled in U-mode
+      wait_wakeup_rules: []
+    generate_user_ld:
+      atomicity: build-time only
+      lock_order: []
+      interrupt_state: n/a
+      wait_wakeup_rules: []

@@ -1,0 +1,563 @@
+id: kernel/fs
+module: kernel/fs
+level: 3
+purpose: 'xv6 inode-based file system. Five layers: block allocator, inode allocator/reader/writer,
+  directory entries, path resolution, and file descriptor integration. Operates on
+  a disk image formatted by mkfs.'
+owns:
+- kernel/fs.c
+interface:
+- name: balloc
+  pre:
+  - called within a transaction (begin_op/end_op)
+  post: []
+  errors:
+  - none
+  properties:
+  - id: balloc-property-1
+    text: 'guarantee.returns: uint (block number) on success'
+  - id: balloc-property-2
+    text: 'guarantee.returns: 0 on failure'
+  - id: balloc-property-3
+    text: 'guarantee.side_effects: block marked in bitmap'
+  - id: balloc-property-4
+    text: 'guarantee.side_effects: block zeroed'
+- name: bfree
+  pre:
+  - called within a transaction
+  post: []
+  errors:
+  - none
+  properties:
+  - id: bfree-property-1
+    text: 'guarantee.returns: void'
+  - id: bfree-property-2
+    text: 'guarantee.side_effects: block marked free in bitmap'
+- name: dirlink
+  pre:
+  - inode is locked
+  - called within a transaction
+  post: []
+  errors:
+  - none
+  properties:
+  - id: dirlink-property-1
+    text: 'guarantee.returns.int: 0 on success, -1 on failure'
+  - id: dirlink-property-2
+    text: 'guarantee.side_effects: new dirent written to directory'
+- name: dirlookup
+  pre:
+  - inode is locked
+  - inode type == T_DIR
+  post: []
+  errors:
+  - none
+  properties:
+  - id: dirlookup-property-1
+    text: 'guarantee.returns.int: 0 on success (found), -1 on failure (not found)'
+  - id: dirlookup-property-2
+    text: 'guarantee.side_effects: *poff set to byte offset if poff != 0'
+- name: fsinit
+  pre:
+  - called once during boot after disk init
+  post:
+  - sb.magic == FSMAGIC
+  - log and inode cache ready
+  errors:
+  - none
+  properties:
+  - id: fsinit-property-1
+    text: file system is in a consistent state
+  - id: fsinit-property-2
+    text: 'guarantee.returns: void'
+  - id: fsinit-property-3
+    text: 'guarantee.side_effects: superblock read'
+  - id: fsinit-property-4
+    text: 'guarantee.side_effects: log initialized'
+  - id: fsinit-property-5
+    text: 'guarantee.side_effects: inode cache populated'
+- name: ialloc
+  pre: []
+  post: []
+  errors:
+  - none
+  properties:
+  - id: ialloc-property-1
+    text: 'guarantee.returns: struct inode* (locked) on success'
+  - id: ialloc-property-2
+    text: 'guarantee.returns: 0 on failure'
+  - id: ialloc-property-3
+    text: 'guarantee.side_effects: inode allocated on disk'
+  - id: ialloc-property-4
+    text: 'guarantee.side_effects: inode cached in memory'
+- name: iget
+  pre: []
+  post: []
+  errors:
+  - none
+  properties:
+  - id: iget-property-1
+    text: itable entries are unique by (dev, inum)
+  - id: iget-property-2
+    text: 'guarantee.returns: struct inode* (not locked) on success'
+  - id: iget-property-3
+    text: 'guarantee.side_effects: inode ref count incremented'
+- name: ilock
+  pre:
+  - inode ref count >= 1
+  post: []
+  errors:
+  - none
+  properties:
+  - id: ilock-property-1
+    text: 'guarantee.returns: void'
+  - id: ilock-property-2
+    text: 'guarantee.side_effects: inode locked via sleeplock'
+  - id: ilock-property-3
+    text: 'guarantee.side_effects: inode contents read from disk if not valid'
+- name: iput
+  pre: []
+  post: []
+  errors:
+  - none
+  properties:
+  - id: iput-property-1
+    text: 'guarantee.returns: void'
+  - id: iput-property-2
+    text: 'guarantee.side_effects: inode ref count decremented'
+  - id: iput-property-3
+    text: 'guarantee.side_effects: may free inode on disk if nlink==0'
+- name: iunlock
+  pre: []
+  post: []
+  errors:
+  - none
+  properties:
+  - id: iunlock-property-1
+    text: 'guarantee.returns: void'
+  - id: iunlock-property-2
+    text: 'guarantee.side_effects: inode unlocked'
+- name: iunlockput
+  pre: []
+  post: []
+  errors:
+  - none
+  properties:
+  - id: iunlockput-property-1
+    text: 'guarantee.returns: void'
+  - id: iunlockput-property-2
+    text: 'guarantee.side_effects: inode unlocked'
+  - id: iunlockput-property-3
+    text: 'guarantee.side_effects: ref count decremented (may trigger free)'
+- name: iupdate
+  pre:
+  - inode is locked
+  post: []
+  errors:
+  - none
+  properties:
+  - id: iupdate-property-1
+    text: 'guarantee.returns: void'
+  - id: iupdate-property-2
+    text: 'guarantee.side_effects: inode written to disk via bread/bwrite'
+- name: namei
+  pre: []
+  post: []
+  errors:
+  - none
+  properties:
+  - id: namei-property-1
+    text: 'guarantee.returns: struct inode* (locked) on success'
+  - id: namei-property-2
+    text: 'guarantee.returns: 0 on failure'
+  - id: namei-property-3
+    text: 'guarantee.side_effects: intermediate inodes are unlocked and iput'
+- name: nameiparent
+  pre: []
+  post: []
+  errors:
+  - none
+  properties:
+  - id: nameiparent-property-1
+    text: 'guarantee.returns: struct inode* (locked parent) on success'
+  - id: nameiparent-property-2
+    text: 'guarantee.returns: 0 on failure'
+  - id: nameiparent-property-3
+    text: 'guarantee.side_effects: *name points into path for the last component'
+- name: readi
+  pre:
+  - inode is locked
+  post: []
+  errors:
+  - none
+  properties:
+  - id: readi-property-1
+    text: 'guarantee.returns: int (number of bytes read)'
+  - id: readi-property-2
+    text: 'guarantee.side_effects: data copied to dst'
+- name: readsb
+  pre: []
+  post: []
+  errors:
+  - none
+  properties:
+  - id: readsb-property-1
+    text: 'guarantee.returns: void'
+  - id: readsb-property-2
+    text: 'guarantee.side_effects: *sb populated from disk block 1'
+- name: skipelem
+  pre: []
+  post: []
+  errors:
+  - none
+  properties:
+  - id: skipelem-property-1
+    text: 'guarantee.returns.char*: pointer to the next character after the extracted
+      component'
+  - id: skipelem-property-2
+    text: 'guarantee.side_effects: name buffer filled with component'
+- name: writei
+  pre:
+  - inode is locked
+  - called within a transaction
+  post: []
+  errors:
+  - none
+  properties:
+  - id: writei-property-1
+    text: 'guarantee.returns: int (number of bytes written)'
+  - id: writei-property-2
+    text: 'guarantee.side_effects: data written to inode'
+  - id: writei-property-3
+    text: 'guarantee.side_effects: new blocks may be allocated'
+  - id: writei-property-4
+    text: 'guarantee.side_effects: inode size may increase'
+properties:
+- id: module-property-1
+  text: path traversal validates each component via dirlookup
+- id: module-property-2
+  text: '"." and ".." are restricted to prevent escape'
+- id: module-property-3
+  text: file permissions are checked through struct file flags
+- id: module-property-4
+  text: inodes are cached in itable; iget/iput manage ref counts
+- id: module-property-5
+  text: blocks are freed via bfree when an inode is truncated
+- id: module-property-6
+  text: directory entries are freed when a file is unlinked
+- id: module-property-7
+  text: inode alloc/free cycle
+- id: module-property-8
+  text: block alloc/free cycle
+- id: module-property-9
+  text: directory create/lookup/delete
+- id: module-property-10
+  text: path resolution edge cases
+errors:
+- balloc returns 0 when no free blocks
+- ialloc returns 0 when no free inodes
+- iput frees inode and blocks when nlink==0 and ref==0
+- namei returns 0 for nonexistent paths
+- none
+state:
+  stage: filesystem
+  owned_state:
+  - superblock (struct superblock sb)
+  - in-memory inode cache (itable)
+  - per-inode sleeplocks
+  resource_lifetime:
+  - inodes are cached in itable; iget/iput manage ref counts
+  - blocks are freed via bfree when an inode is truncated
+  - directory entries are freed when a file is unlinked
+preconditions:
+- called once during boot after disk init
+- called within a transaction
+- called within a transaction (begin_op/end_op)
+- inode is locked
+- inode ref count >= 1
+- inode type == T_DIR
+postconditions:
+- log and inode cache ready
+- sb.magic == FSMAGIC
+invariants:
+- id: invariant-1
+  text: superblock magic == FSMAGIC
+- id: invariant-2
+  text: every allocated inode has nlink >= 1
+- id: invariant-3
+  text: directory entries never span block boundaries
+- id: invariant-4
+  text: inode type is one of T_DIR, T_FILE, T_DEVICE
+- id: invariant-5
+  text: path resolution follows "." and ".." correctly
+- id: fsinit-invariant-1
+  text: file system is in a consistent state
+- id: iget-invariant-1
+  text: itable entries are unique by (dev, inum)
+dependencies:
+- kernel/fs
+rely:
+- 'balloc.rely.callable_interfaces: begin_op/end_op/log_write (from kernel/log)'
+- 'balloc.rely.callable_interfaces: bread/bwrite/brelse (from kernel/bio)'
+- 'balloc.rely.lock_assumptions: log.lock for transaction boundaries'
+- 'balloc.rely.lock_assumptions: per-inode sleeplock for inode operations'
+- 'balloc.rely.resource_assumptions: sufficient resources available'
+- 'balloc.rely.state_assumptions: file system is initialized'
+- 'bfree.rely.callable_interfaces: begin_op/end_op/log_write (from kernel/log)'
+- 'bfree.rely.callable_interfaces: bread/bwrite/brelse (from kernel/bio)'
+- 'bfree.rely.lock_assumptions: log.lock for transaction boundaries'
+- 'bfree.rely.lock_assumptions: per-inode sleeplock for inode operations'
+- 'bfree.rely.resource_assumptions: sufficient resources available'
+- 'bfree.rely.state_assumptions: file system is initialized'
+- 'dirlink.rely.callable_interfaces: begin_op/end_op/log_write (from kernel/log)'
+- 'dirlink.rely.callable_interfaces: bread/bwrite/brelse (from kernel/bio)'
+- 'dirlink.rely.lock_assumptions: log.lock for transaction boundaries'
+- 'dirlink.rely.lock_assumptions: per-inode sleeplock for inode operations'
+- 'dirlink.rely.resource_assumptions: sufficient resources available'
+- 'dirlink.rely.state_assumptions: file system is initialized'
+- 'dirlookup.rely.callable_interfaces: begin_op/end_op/log_write (from kernel/log)'
+- 'dirlookup.rely.callable_interfaces: bread/bwrite/brelse (from kernel/bio)'
+- 'dirlookup.rely.lock_assumptions: log.lock for transaction boundaries'
+- 'dirlookup.rely.lock_assumptions: per-inode sleeplock for inode operations'
+- 'dirlookup.rely.resource_assumptions: sufficient resources available'
+- 'dirlookup.rely.state_assumptions: file system is initialized'
+- 'fsinit.rely.callable_interfaces: begin_op/end_op/log_write (from kernel/log)'
+- 'fsinit.rely.callable_interfaces: bread/bwrite/brelse (from kernel/bio)'
+- 'fsinit.rely.lock_assumptions: log.lock for transaction boundaries'
+- 'fsinit.rely.lock_assumptions: per-inode sleeplock for inode operations'
+- 'fsinit.rely.resource_assumptions: sufficient resources available'
+- 'fsinit.rely.state_assumptions: file system is initialized'
+- 'ialloc.rely.callable_interfaces: begin_op/end_op/log_write (from kernel/log)'
+- 'ialloc.rely.callable_interfaces: bread/bwrite/brelse (from kernel/bio)'
+- 'ialloc.rely.lock_assumptions: log.lock for transaction boundaries'
+- 'ialloc.rely.lock_assumptions: per-inode sleeplock for inode operations'
+- 'ialloc.rely.resource_assumptions: sufficient resources available'
+- 'ialloc.rely.state_assumptions: file system is initialized'
+- 'iget.rely.callable_interfaces: begin_op/end_op/log_write (from kernel/log)'
+- 'iget.rely.callable_interfaces: bread/bwrite/brelse (from kernel/bio)'
+- 'iget.rely.lock_assumptions: log.lock for transaction boundaries'
+- 'iget.rely.lock_assumptions: per-inode sleeplock for inode operations'
+- 'iget.rely.resource_assumptions: sufficient resources available'
+- 'iget.rely.state_assumptions: file system is initialized'
+- 'ilock.rely.callable_interfaces: begin_op/end_op/log_write (from kernel/log)'
+- 'ilock.rely.callable_interfaces: bread/bwrite/brelse (from kernel/bio)'
+- 'ilock.rely.lock_assumptions: log.lock for transaction boundaries'
+- 'ilock.rely.lock_assumptions: per-inode sleeplock for inode operations'
+- 'ilock.rely.resource_assumptions: sufficient resources available'
+- 'ilock.rely.state_assumptions: file system is initialized'
+- 'iput.rely.callable_interfaces: begin_op/end_op/log_write (from kernel/log)'
+- 'iput.rely.callable_interfaces: bread/bwrite/brelse (from kernel/bio)'
+- 'iput.rely.lock_assumptions: log.lock for transaction boundaries'
+- 'iput.rely.lock_assumptions: per-inode sleeplock for inode operations'
+- 'iput.rely.resource_assumptions: sufficient resources available'
+- 'iput.rely.state_assumptions: file system is initialized'
+- 'iunlock.rely.callable_interfaces: begin_op/end_op/log_write (from kernel/log)'
+- 'iunlock.rely.callable_interfaces: bread/bwrite/brelse (from kernel/bio)'
+- 'iunlock.rely.lock_assumptions: log.lock for transaction boundaries'
+- 'iunlock.rely.lock_assumptions: per-inode sleeplock for inode operations'
+- 'iunlock.rely.resource_assumptions: sufficient resources available'
+- 'iunlock.rely.state_assumptions: file system is initialized'
+- 'iunlockput.rely.callable_interfaces: begin_op/end_op/log_write (from kernel/log)'
+- 'iunlockput.rely.callable_interfaces: bread/bwrite/brelse (from kernel/bio)'
+- 'iunlockput.rely.lock_assumptions: log.lock for transaction boundaries'
+- 'iunlockput.rely.lock_assumptions: per-inode sleeplock for inode operations'
+- 'iunlockput.rely.resource_assumptions: sufficient resources available'
+- 'iunlockput.rely.state_assumptions: file system is initialized'
+- 'iupdate.rely.callable_interfaces: begin_op/end_op/log_write (from kernel/log)'
+- 'iupdate.rely.callable_interfaces: bread/bwrite/brelse (from kernel/bio)'
+- 'iupdate.rely.lock_assumptions: log.lock for transaction boundaries'
+- 'iupdate.rely.lock_assumptions: per-inode sleeplock for inode operations'
+- 'iupdate.rely.resource_assumptions: sufficient resources available'
+- 'iupdate.rely.state_assumptions: file system is initialized'
+- 'module: begin_op/end_op/log_write (from kernel/log)'
+- 'module: bread/bwrite/brelse/bpin/bunpin (from kernel/bio)'
+- 'namei.rely.callable_interfaces: begin_op/end_op/log_write (from kernel/log)'
+- 'namei.rely.callable_interfaces: bread/bwrite/brelse (from kernel/bio)'
+- 'namei.rely.lock_assumptions: log.lock for transaction boundaries'
+- 'namei.rely.lock_assumptions: per-inode sleeplock for inode operations'
+- 'namei.rely.resource_assumptions: sufficient resources available'
+- 'namei.rely.state_assumptions: file system is initialized'
+- 'nameiparent.rely.callable_interfaces: begin_op/end_op/log_write (from kernel/log)'
+- 'nameiparent.rely.callable_interfaces: bread/bwrite/brelse (from kernel/bio)'
+- 'nameiparent.rely.lock_assumptions: log.lock for transaction boundaries'
+- 'nameiparent.rely.lock_assumptions: per-inode sleeplock for inode operations'
+- 'nameiparent.rely.resource_assumptions: sufficient resources available'
+- 'nameiparent.rely.state_assumptions: file system is initialized'
+- 'readi.rely.callable_interfaces: begin_op/end_op/log_write (from kernel/log)'
+- 'readi.rely.callable_interfaces: bread/bwrite/brelse (from kernel/bio)'
+- 'readi.rely.lock_assumptions: log.lock for transaction boundaries'
+- 'readi.rely.lock_assumptions: per-inode sleeplock for inode operations'
+- 'readi.rely.resource_assumptions: sufficient resources available'
+- 'readi.rely.state_assumptions: file system is initialized'
+- 'readsb.rely.callable_interfaces: begin_op/end_op/log_write (from kernel/log)'
+- 'readsb.rely.callable_interfaces: bread/bwrite/brelse (from kernel/bio)'
+- 'readsb.rely.lock_assumptions: log.lock for transaction boundaries'
+- 'readsb.rely.lock_assumptions: per-inode sleeplock for inode operations'
+- 'readsb.rely.resource_assumptions: sufficient resources available'
+- 'readsb.rely.state_assumptions: file system is initialized'
+- 'skipelem.rely.callable_interfaces: begin_op/end_op/log_write (from kernel/log)'
+- 'skipelem.rely.callable_interfaces: bread/bwrite/brelse (from kernel/bio)'
+- 'skipelem.rely.lock_assumptions: log.lock for transaction boundaries'
+- 'skipelem.rely.lock_assumptions: per-inode sleeplock for inode operations'
+- 'skipelem.rely.resource_assumptions: sufficient resources available'
+- 'skipelem.rely.state_assumptions: file system is initialized'
+- 'writei.rely.callable_interfaces: begin_op/end_op/log_write (from kernel/log)'
+- 'writei.rely.callable_interfaces: bread/bwrite/brelse (from kernel/bio)'
+- 'writei.rely.lock_assumptions: log.lock for transaction boundaries'
+- 'writei.rely.lock_assumptions: per-inode sleeplock for inode operations'
+- 'writei.rely.resource_assumptions: sufficient resources available'
+- 'writei.rely.state_assumptions: file system is initialized'
+guarantee:
+- 'balloc.guarantee.returns: 0 on failure'
+- 'balloc.guarantee.returns: uint (block number) on success'
+- 'balloc.guarantee.side_effects: block marked in bitmap'
+- 'balloc.guarantee.side_effects: block zeroed'
+- 'bfree.guarantee.returns: void'
+- 'bfree.guarantee.side_effects: block marked free in bitmap'
+- 'dirlink.guarantee.returns.int: 0 on success, -1 on failure'
+- 'dirlink.guarantee.side_effects: new dirent written to directory'
+- 'dirlookup.guarantee.returns.int: 0 on success (found), -1 on failure (not found)'
+- 'dirlookup.guarantee.side_effects: *poff set to byte offset if poff != 0'
+- 'exported: balloc, bfree'
+- 'exported: dirlookup, dirlink'
+- 'exported: fsinit'
+- 'exported: ialloc, iupdate, iget, iput'
+- 'exported: ilock, iunlock, iunlockput'
+- 'exported: namei, nameiparent'
+- 'exported: readi, writei'
+- 'exported: skipelem'
+- 'fsinit.guarantee.returns: void'
+- 'fsinit.guarantee.side_effects: inode cache populated'
+- 'fsinit.guarantee.side_effects: log initialized'
+- 'fsinit.guarantee.side_effects: superblock read'
+- 'ialloc.guarantee.returns: 0 on failure'
+- 'ialloc.guarantee.returns: struct inode* (locked) on success'
+- 'ialloc.guarantee.side_effects: inode allocated on disk'
+- 'ialloc.guarantee.side_effects: inode cached in memory'
+- 'iget.guarantee.returns: struct inode* (not locked) on success'
+- 'iget.guarantee.side_effects: inode ref count incremented'
+- 'ilock.guarantee.returns: void'
+- 'ilock.guarantee.side_effects: inode contents read from disk if not valid'
+- 'ilock.guarantee.side_effects: inode locked via sleeplock'
+- 'iput.guarantee.returns: void'
+- 'iput.guarantee.side_effects: inode ref count decremented'
+- 'iput.guarantee.side_effects: may free inode on disk if nlink==0'
+- 'iunlock.guarantee.returns: void'
+- 'iunlock.guarantee.side_effects: inode unlocked'
+- 'iunlockput.guarantee.returns: void'
+- 'iunlockput.guarantee.side_effects: inode unlocked'
+- 'iunlockput.guarantee.side_effects: ref count decremented (may trigger free)'
+- 'iupdate.guarantee.returns: void'
+- 'iupdate.guarantee.side_effects: inode written to disk via bread/bwrite'
+- 'namei.guarantee.returns: 0 on failure'
+- 'namei.guarantee.returns: struct inode* (locked) on success'
+- 'namei.guarantee.side_effects: intermediate inodes are unlocked and iput'
+- 'nameiparent.guarantee.returns: 0 on failure'
+- 'nameiparent.guarantee.returns: struct inode* (locked parent) on success'
+- 'nameiparent.guarantee.side_effects: *name points into path for the last component'
+- 'readi.guarantee.returns: int (number of bytes read)'
+- 'readi.guarantee.side_effects: data copied to dst'
+- 'readsb.guarantee.returns: void'
+- 'readsb.guarantee.side_effects: *sb populated from disk block 1'
+- 'skipelem.guarantee.returns.char*: pointer to the next character after the extracted
+  component'
+- 'skipelem.guarantee.side_effects: name buffer filled with component'
+- 'writei.guarantee.returns: int (number of bytes written)'
+- 'writei.guarantee.side_effects: data written to inode'
+- 'writei.guarantee.side_effects: inode size may increase'
+- 'writei.guarantee.side_effects: new blocks may be allocated'
+algorithm_intent: Implement the filesystem stage contract while preserving the declared
+  xv6 module boundaries.
+concurrency:
+  module: {}
+  operations:
+    balloc:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    bfree:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    dirlink:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    dirlookup:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    fsinit:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    ialloc:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    iget:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    ilock:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    iput:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    iunlock:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    iunlockput:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    iupdate:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    namei:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    nameiparent:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    readi:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    readsb:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    skipelem:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    writei:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []

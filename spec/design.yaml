@@ -1,0 +1,46 @@
+system:
+  name: xv6-riscv-kernel
+  language: gnu99-c
+  isa: riscv64
+machine:
+  qemu:
+    machine: virt
+    memory: 128M
+    firmware: default
+    console: serial
+  hardware:
+    board: qemu-virt-canonical
+    status: reference-only
+kernel:
+  organization: monolithic
+  execution: preemptive single-hart supervisor mode
+  protection: RISC-V Sv39 paging with user/kernel privilege separation
+  communication: system calls, sleep/wakeup IPC, UART and PLIC interrupts
+  resource_model: physical-page freelist, reference-counted inodes and owned file
+    descriptors
+required_mechanisms:
+- OpenSBI boot and serial banner
+- Sv39 page tables and physical-page allocation
+- trap and timer dispatch
+- round-robin process scheduler
+- validated syscall ABI
+- buffer cache, logging and inode filesystem
+- pipe IPC and UART/PLIC/virtio drivers
+- user shell and regression programs
+composition_invariants:
+- Every syscall user pointer is validated through the memory module before kernel
+  access.
+- Every filesystem block transfer is mediated by the buffer-cache, logging and virtio
+  chain.
+- User page tables never expose writable kernel mappings or another process's writable
+  pages.
+non_goals:
+- multi-core scheduling
+- networking
+- full POSIX compliance
+- copy-on-write fork
+hardware_port:
+  board: qemu-virt
+  boot: OpenSBI default firmware
+  console: 16550A UART on serial stdio
+  interrupt: PLIC and supervisor timer

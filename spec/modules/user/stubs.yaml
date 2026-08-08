@@ -1,0 +1,63 @@
+id: user/stubs
+module: user/stubs
+level: 3
+purpose: Assembly syscall stub generator (usys.S). Each stub loads the syscall number
+  into register a7 and executes the RISC-V ecall instruction to trap into the kernel.
+owns:
+- user/usys.S
+interface:
+- name: generate_usys_S
+  pre: []
+  post:
+  - each stub correctly loads syscall number and invokes ecall
+  errors:
+  - none (build-time)
+  properties:
+  - id: generate_usys_S-property-1
+    text: 'guarantee.returns: void'
+  - id: generate_usys_S-property-2
+    text: 'guarantee.side_effects: user/usys.S generated with all syscall stubs'
+properties:
+- id: module-property-1
+  text: stubs are user-space code; ecall is the only kernel entry point
+- id: module-property-2
+  text: none
+- id: module-property-3
+  text: usys stubs compile and link
+errors:
+- none (build-time artifact)
+- none (build-time)
+state:
+  stage: full-syscall
+  owned_state:
+  - none (generates build artifact)
+  resource_lifetime:
+  - none
+preconditions: []
+postconditions:
+- each stub correctly loads syscall number and invokes ecall
+invariants:
+- id: invariant-1
+  text: every syscall stub uses the correct syscall number
+- id: invariant-2
+  text: stubs follow the RISC-V calling convention (arguments in a0-a5)
+dependencies:
+- user/stubs
+rely:
+- 'generate_usys_S.rely.lock_assumptions: none'
+- 'generate_usys_S.rely.resource_assumptions: sufficient resources available'
+guarantee:
+- 'exported: generate_usys_S'
+- 'generate_usys_S.guarantee.returns: void'
+- 'generate_usys_S.guarantee.side_effects: user/usys.S generated with all syscall
+  stubs'
+algorithm_intent: Implement the full-syscall stage contract while preserving the declared
+  xv6 module boundaries.
+concurrency:
+  module: {}
+  operations:
+    generate_usys_S:
+      atomicity: build-time only
+      lock_order: []
+      interrupt_state: n/a
+      wait_wakeup_rules: []

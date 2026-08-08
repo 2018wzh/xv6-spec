@@ -1,0 +1,53 @@
+id: interface/kernel-plic
+name: kernel/plic driver boundary
+boundary: driver
+module: kernel/plic
+operations:
+- name: plic_claim
+  pre:
+  - called from interrupt context (devintr)
+  post: []
+  errors:
+  - none
+  properties:
+  - id: plic_claim-property-1
+    text: 'guarantee.returns.int: IRQ number (UART0_IRQ, VIRTIO0_IRQ, or 0)'
+  - id: plic_claim-property-2
+    text: 'guarantee.side_effects: interrupt claimed (marked in-progress)'
+- name: plic_complete
+  pre: []
+  post:
+  - PLIC can deliver the next interrupt of this type
+  errors:
+  - none
+  properties:
+  - id: plic_complete-property-1
+    text: 'guarantee.returns: void'
+  - id: plic_complete-property-2
+    text: 'guarantee.side_effects: interrupt marked complete'
+- name: plicinit
+  pre:
+  - called once during boot
+  post:
+  - PLIC is configured
+  errors:
+  - none
+  properties:
+  - id: plicinit-property-1
+    text: 'guarantee.returns: void'
+  - id: plicinit-property-2
+    text: 'guarantee.side_effects: UART and VIRTIO IRQ priorities set'
+- name: plicinithart
+  pre:
+  - called once per hart during boot
+  post:
+  - hart can receive UART and VIRTIO interrupts
+  errors:
+  - none
+  properties:
+  - id: plicinithart-property-1
+    text: 'guarantee.returns: void'
+  - id: plicinithart-property-2
+    text: 'guarantee.side_effects: hart-specific PLIC enable bits set'
+  - id: plicinithart-property-3
+    text: 'guarantee.side_effects: priority threshold set to 0'

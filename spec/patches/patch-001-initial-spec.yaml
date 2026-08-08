@@ -1,0 +1,49 @@
+id: patch-001-initial-spec
+reason: 'Captures the baseline specification state for the xv6-riscv kernel after
+  the core boot/memory/trap/process/syscall stages have been defined. All subsequent
+  evolutions must be recorded as follow-on SpecPatches.
+
+  '
+changes:
+- kernel
+- kernel/bio
+- kernel/boot
+- kernel/console
+- kernel/exec
+- kernel/file
+- kernel/fs
+- kernel/headers
+- kernel/log
+- kernel/memory
+- kernel/pipe
+- kernel/plic
+- kernel/printk
+- kernel/process
+- kernel/start
+- kernel/string
+- kernel/syscall
+- kernel/sysfile
+- kernel/sysproc
+- kernel/trap
+- kernel/uart
+- kernel/virtio
+- kernel/vm
+- user
+- user/programs
+new_invariants:
+- 'Core five-stage architecture specification with ArchitectureSeed, ArchitectureSlices,
+  ADR-001, CompositionSpec, module specs, and operation contracts for the boot, memory,
+  trap, process, and syscall stages.
+
+  '
+- build_kernel
+- qemu_boot_smoke
+- verify_boot_banner
+- verify_fork_exit_wait
+- verify_fork_syscall
+- verify_kernel_page_table
+- verify_page_allocator
+- verify_sys_write
+- verify_syscall_dispatch
+- verify_timer_interrupt
+- verify_trap_vector

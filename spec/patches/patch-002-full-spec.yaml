@@ -1,0 +1,54 @@
+id: patch-002-full-spec
+reason: 'Expands the core syscall baseline into the full xv6-riscv teaching system:
+  filesystem, IPC, device drivers, full file and process syscalls, and the supporting
+  user-space libraries and programs.
+
+  '
+changes:
+- kernel
+- kernel/bio
+- kernel/boot
+- kernel/console
+- kernel/exec
+- kernel/file
+- kernel/fs
+- kernel/headers
+- kernel/lock
+- kernel/log
+- kernel/memory
+- kernel/pipe
+- kernel/plic
+- kernel/printk
+- kernel/process
+- kernel/start
+- kernel/string
+- kernel/syscall
+- kernel/sysfile
+- kernel/sysproc
+- kernel/trap
+- kernel/uart
+- kernel/virtio
+- kernel/vm
+- user
+- user/headers
+- user/lib
+- user/programs
+- user/stubs
+- user/tests
+new_invariants:
+- 'Full xv6-riscv system specification covering filesystem, pipes, device drivers,
+  shell utilities, and the extended file/process syscall surface.
+
+  '
+- build_kernel
+- verify_buffer_cache
+- verify_console_echo
+- verify_disk_read
+- verify_exec
+- verify_file_syscalls
+- verify_inode_ops
+- verify_pipe_close
+- verify_pipe_read_write
+- verify_pipe_syscall
+- verify_proc_syscalls
+- verify_uart_output

@@ -1,0 +1,62 @@
+id: user/headers
+module: user/headers
+level: 3
+purpose: 'User-space header files: user.h providing system call declarations, type
+  definitions (struct stat), and library function prototypes for all user programs.'
+owns:
+- user/user.h
+interface:
+- name: generate_user_h
+  pre: []
+  post:
+  - user/user.h is self-consistent and compiles
+  errors:
+  - none (build-time)
+  properties:
+  - id: generate_user_h-property-1
+    text: 'guarantee.returns: void'
+  - id: generate_user_h-property-2
+    text: 'guarantee.side_effects: user/user.h generated'
+properties:
+- id: module-property-1
+  text: header is used by user programs; contains no kernel addresses
+- id: module-property-2
+  text: none
+- id: module-property-3
+  text: user_h_compiles
+errors:
+- none (build-time artifact)
+- none (build-time)
+state:
+  stage: full-syscall
+  owned_state:
+  - none (header definitions only)
+  resource_lifetime:
+  - none
+preconditions: []
+postconditions:
+- user/user.h is self-consistent and compiles
+invariants:
+- id: invariant-1
+  text: all syscall numbers match kernel/syscall.h
+- id: invariant-2
+  text: struct stat layout matches kernel/stat.h
+dependencies:
+- user/headers
+rely:
+- 'generate_user_h.rely.lock_assumptions: none'
+- 'generate_user_h.rely.resource_assumptions: sufficient resources available'
+guarantee:
+- 'exported: generate_user_h'
+- 'generate_user_h.guarantee.returns: void'
+- 'generate_user_h.guarantee.side_effects: user/user.h generated'
+algorithm_intent: Implement the full-syscall stage contract while preserving the declared
+  xv6 module boundaries.
+concurrency:
+  module: {}
+  operations:
+    generate_user_h:
+      atomicity: build-time only
+      lock_order: []
+      interrupt_state: n/a
+      wait_wakeup_rules: []

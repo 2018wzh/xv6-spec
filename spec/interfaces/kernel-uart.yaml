@@ -1,0 +1,59 @@
+id: interface/kernel-uart
+name: kernel/uart driver boundary
+boundary: driver
+module: kernel/uart
+operations:
+- name: uartinit
+  pre:
+  - called once during boot
+  post:
+  - UART is ready for transmit and receive
+  errors:
+  - none
+  properties:
+  - id: uartinit-property-1
+    text: 'guarantee.returns: void'
+  - id: uartinit-property-2
+    text: 'guarantee.side_effects: UART configured and ready'
+  - id: uartinit-property-3
+    text: 'guarantee.side_effects: tx_lock initialized'
+- name: uartintr
+  pre:
+  - called from interrupt context (devintr)
+  post:
+  - all pending input characters processed
+  errors:
+  - none
+  properties:
+  - id: uartintr-property-1
+    text: 'guarantee.returns: void'
+  - id: uartintr-property-2
+    text: 'guarantee.side_effects: interrupt acknowledged'
+  - id: uartintr-property-3
+    text: 'guarantee.side_effects: tx_chan woken if TX complete'
+  - id: uartintr-property-4
+    text: 'guarantee.side_effects: incoming characters passed to consoleintr'
+- name: uartputc_sync
+  pre:
+  - may be called from any context (including interrupt)
+  post:
+  - byte is visible on UART output
+  errors:
+  - spins forever if panicked
+  properties:
+  - id: uartputc_sync-property-1
+    text: 'guarantee.returns: void'
+  - id: uartputc_sync-property-2
+    text: 'guarantee.side_effects: byte written to UART THR'
+- name: uartwrite
+  pre:
+  - not called from interrupt context
+  post:
+  - bytes are in the UART transmit FIFO
+  errors:
+  - none (blocks until complete)
+  properties:
+  - id: uartwrite-property-1
+    text: 'guarantee.returns: void'
+  - id: uartwrite-property-2
+    text: 'guarantee.side_effects: all n bytes transmitted to UART'

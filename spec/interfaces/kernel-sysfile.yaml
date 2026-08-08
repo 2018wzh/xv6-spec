@@ -1,0 +1,220 @@
+id: interface/kernel-sysfile
+name: kernel/sysfile syscall boundary
+boundary: syscall
+module: kernel/sysfile
+operations:
+- name: argfd
+  pre: []
+  post:
+  - '*pf points to a valid struct file with ref>=1'
+  errors:
+  - returns -1 if fd is out of range or not open
+  properties:
+  - id: argfd-property-1
+    text: 'guarantee.returns.int: 0 on success'
+  - id: argfd-property-2
+    text: 'guarantee.returns: -1 on invalid fd'
+  - id: argfd-property-3
+    text: 'guarantee.side_effects: *pfd and *pf set on success'
+- name: fdalloc
+  pre: []
+  post:
+  - the file can be accessed via the returned fd
+  errors:
+  - returns -1 if all NOFILE slots are in use
+  properties:
+  - id: fdalloc-property-1
+    text: 'guarantee.returns.int: fd number on success'
+  - id: fdalloc-property-2
+    text: 'guarantee.returns: -1 if no free slot'
+  - id: fdalloc-property-3
+    text: 'guarantee.side_effects: p->ofile[fd] set to f'
+- name: sys_chdir
+  pre: []
+  post:
+  - p->cwd points to the new directory
+  - old cwd's ref count decremented
+  errors:
+  - returns -1 if path invalid or not a directory
+  properties:
+  - id: sys_chdir-property-1
+    text: 'guarantee.returns.int: 0 on success'
+  - id: sys_chdir-property-2
+    text: 'guarantee.returns: -1 on failure'
+  - id: sys_chdir-property-3
+    text: 'guarantee.side_effects: p->cwd updated to the new directory inode'
+- name: sys_close
+  pre:
+  - fd is valid
+  post:
+  - fd is available for reuse
+  errors:
+  - returns -1 on invalid fd
+  properties:
+  - id: sys_close-property-1
+    text: 'guarantee.returns.int: 0 on success'
+  - id: sys_close-property-2
+    text: 'guarantee.returns: -1 on invalid fd'
+  - id: sys_close-property-3
+    text: 'guarantee.side_effects: fd slot cleared'
+  - id: sys_close-property-4
+    text: 'guarantee.side_effects: file ref count decremented'
+  - id: sys_close-property-5
+    text: 'guarantee.side_effects: file may be freed'
+- name: sys_dup
+  pre: []
+  post:
+  - the old and new fds share the same file offset
+  errors:
+  - returns -1 if fd is invalid or no free slot
+  properties:
+  - id: sys_dup-property-1
+    text: 'guarantee.returns.int: new fd on success'
+  - id: sys_dup-property-2
+    text: 'guarantee.returns: -1 on failure'
+  - id: sys_dup-property-3
+    text: 'guarantee.side_effects: new fd points to the same file'
+  - id: sys_dup-property-4
+    text: 'guarantee.side_effects: file ref count incremented'
+- name: sys_fstat
+  pre:
+  - fd is valid
+  post:
+  - user has file metadata
+  errors:
+  - returns -1 on invalid fd or copyout failure
+  properties:
+  - id: sys_fstat-property-1
+    text: 'guarantee.returns.int: 0 on success'
+  - id: sys_fstat-property-2
+    text: 'guarantee.returns: -1 on failure'
+  - id: sys_fstat-property-3
+    text: 'guarantee.side_effects: stat structure copied to user address'
+- name: sys_link
+  pre:
+  - old exists and is not a directory
+  post:
+  - old and new refer to the same inode
+  errors:
+  - returns -1 if old doesn't exist, new already exists, or old is a directory
+  properties:
+  - id: sys_link-property-1
+    text: 'guarantee.returns.int: 0 on success'
+  - id: sys_link-property-2
+    text: 'guarantee.returns: -1 on failure'
+  - id: sys_link-property-3
+    text: 'guarantee.side_effects: new directory entry created'
+  - id: sys_link-property-4
+    text: 'guarantee.side_effects: inode nlink incremented'
+- name: sys_mkdir
+  pre: []
+  post:
+  - new directory exists with . and ..
+  errors:
+  - returns -1 if path already exists or parent invalid
+  properties:
+  - id: sys_mkdir-property-1
+    text: 'guarantee.returns.int: 0 on success'
+  - id: sys_mkdir-property-2
+    text: 'guarantee.returns: -1 on failure'
+  - id: sys_mkdir-property-3
+    text: 'guarantee.side_effects: new directory created'
+  - id: sys_mkdir-property-4
+    text: 'guarantee.side_effects: . and .. entries added'
+  - id: sys_mkdir-property-5
+    text: 'guarantee.side_effects: parent directory updated'
+- name: sys_mknod
+  pre: []
+  post:
+  - device file exists
+  errors:
+  - returns -1 if path already exists
+  properties:
+  - id: sys_mknod-property-1
+    text: 'guarantee.returns.int: 0 on success'
+  - id: sys_mknod-property-2
+    text: 'guarantee.returns: -1 on failure'
+  - id: sys_mknod-property-3
+    text: 'guarantee.side_effects: device inode created'
+  - id: sys_mknod-property-4
+    text: 'guarantee.side_effects: major/minor set'
+- name: sys_open
+  pre: []
+  post:
+  - fd can be used for read/write according to flags
+  errors:
+  - returns -1 if path invalid, permission denied, or table full
+  properties:
+  - id: sys_open-property-1
+    text: 'guarantee.returns.int: fd on success'
+  - id: sys_open-property-2
+    text: 'guarantee.returns: -1 on failure'
+  - id: sys_open-property-3
+    text: 'guarantee.side_effects: file opened'
+  - id: sys_open-property-4
+    text: 'guarantee.side_effects: fd allocated'
+  - id: sys_open-property-5
+    text: 'guarantee.side_effects: inode created if O_CREATE'
+  - id: sys_open-property-6
+    text: 'guarantee.side_effects: file truncated if O_TRUNC'
+- name: sys_pipe
+  pre: []
+  post:
+  - p[0] is the read end
+  - p[1] is the write end
+  errors:
+  - returns -1 on allocation failure
+  properties:
+  - id: sys_pipe-property-1
+    text: 'guarantee.returns.int: 0 on success'
+  - id: sys_pipe-property-2
+    text: 'guarantee.returns: -1 on failure'
+  - id: sys_pipe-property-3
+    text: 'guarantee.side_effects: pipe created'
+  - id: sys_pipe-property-4
+    text: 'guarantee.side_effects: two fds allocated'
+  - id: sys_pipe-property-5
+    text: 'guarantee.side_effects: fd array in user space populated'
+- name: sys_read
+  pre:
+  - fd is valid
+  post:
+  - user buffer contains the read data
+  errors:
+  - returns -1 on invalid fd or read error
+  properties:
+  - id: sys_read-property-1
+    text: 'guarantee.returns.int: number of bytes read, or -1 on error'
+  - id: sys_read-property-2
+    text: 'guarantee.side_effects: data copied to user buffer'
+- name: sys_unlink
+  pre:
+  - file exists
+  post:
+  - directory entry is gone
+  - inode may be freed if nlink==0 and ref==0
+  errors:
+  - returns -1 if file doesn't exist
+  properties:
+  - id: sys_unlink-property-1
+    text: 'guarantee.returns.int: 0 on success'
+  - id: sys_unlink-property-2
+    text: 'guarantee.returns: -1 on failure'
+  - id: sys_unlink-property-3
+    text: 'guarantee.side_effects: directory entry removed'
+  - id: sys_unlink-property-4
+    text: 'guarantee.side_effects: inode nlink decremented'
+  - id: sys_unlink-property-5
+    text: 'guarantee.side_effects: inode may be freed'
+- name: sys_write
+  pre:
+  - fd is valid
+  post:
+  - data is on the output device or in the file
+  errors:
+  - returns -1 on invalid fd or write error
+  properties:
+  - id: sys_write-property-1
+    text: 'guarantee.returns.int: number of bytes written, or -1 on error'
+  - id: sys_write-property-2
+    text: 'guarantee.side_effects: data written to file'

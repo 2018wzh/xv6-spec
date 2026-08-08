@@ -1,0 +1,759 @@
+id: interface/kernel-headers
+name: kernel/headers abi boundary
+boundary: abi
+module: kernel/headers
+operations:
+- name: generate_defs_h
+  pre:
+  - all other kernel/*.h headers exist
+  post:
+  - kernel/defs.h exists with all kernel API declarations
+  errors: []
+  properties:
+  - id: generate_defs_h-property-1
+    text: 'guarantee.declarations.function_declarations: const char *boot_banner(void)'
+  - id: generate_defs_h-property-2
+    text: 'guarantee.declarations.function_declarations: void console_putchar(int
+      c)'
+  - id: generate_defs_h-property-3
+    text: 'guarantee.declarations.function_declarations: void console_write(const
+      char *buf, int n)'
+  - id: generate_defs_h-property-4
+    text: 'guarantee.declarations.function_declarations: void shutdown(void)'
+  - id: generate_defs_h-property-5
+    text: 'guarantee.declarations.function_declarations: void kernel_main(void)'
+  - id: generate_defs_h-property-6
+    text: 'guarantee.declarations.function_declarations: void kinit(void)'
+  - id: generate_defs_h-property-7
+    text: 'guarantee.declarations.function_declarations: void *kalloc(void)'
+  - id: generate_defs_h-property-8
+    text: 'guarantee.declarations.function_declarations: void kfree(void *pa)'
+  - id: generate_defs_h-property-9
+    text: 'guarantee.declarations.function_declarations: pagetable_t kvmmake(void)'
+  - id: generate_defs_h-property-10
+    text: 'guarantee.declarations.function_declarations: void kvmmap(pagetable_t,
+      uint64 va, uint64 pa, uint64 sz, int perm)'
+  - id: generate_defs_h-property-11
+    text: 'guarantee.declarations.function_declarations: pte_t *walk(pagetable_t,
+      uint64 va, int alloc)'
+  - id: generate_defs_h-property-12
+    text: 'guarantee.declarations.function_declarations: uint64 walkaddr(pagetable_t,
+      uint64 va)'
+  - id: generate_defs_h-property-13
+    text: 'guarantee.declarations.function_declarations: pagetable_t uvmcreate(void)'
+  - id: generate_defs_h-property-14
+    text: 'guarantee.declarations.function_declarations: void uvminit(pagetable_t,
+      pagetable_t)'
+  - id: generate_defs_h-property-15
+    text: 'guarantee.declarations.function_declarations: uint64 uvmalloc(pagetable_t,
+      uint64 oldsz, uint64 newsz)'
+  - id: generate_defs_h-property-16
+    text: 'guarantee.declarations.function_declarations: uint64 uvmdealloc(pagetable_t,
+      uint64 oldsz, uint64 newsz)'
+  - id: generate_defs_h-property-17
+    text: 'guarantee.declarations.function_declarations: void uvmfree(pagetable_t,
+      uint64 sz)'
+  - id: generate_defs_h-property-18
+    text: 'guarantee.declarations.function_declarations: void uvmunmap(pagetable_t,
+      uint64 va, uint64 npages, int do_free)'
+  - id: generate_defs_h-property-19
+    text: 'guarantee.declarations.function_declarations: pagetable_t uvmcopy(pagetable_t
+      old, uint64 sz)'
+  - id: generate_defs_h-property-20
+    text: 'guarantee.declarations.function_declarations: int copyin(pagetable_t, char
+      *dst, uint64 srcva, uint64 len)'
+  - id: generate_defs_h-property-21
+    text: 'guarantee.declarations.function_declarations: int copyout(pagetable_t,
+      uint64 dstva, char *src, uint64 len)'
+  - id: generate_defs_h-property-22
+    text: 'guarantee.declarations.function_declarations: int copyinstr(pagetable_t,
+      char *dst, uint64 srcva, uint64 max)'
+  - id: generate_defs_h-property-23
+    text: 'guarantee.declarations.function_declarations: void trap_init(void)'
+  - id: generate_defs_h-property-24
+    text: 'guarantee.declarations.function_declarations: void usertrap(void)'
+  - id: generate_defs_h-property-25
+    text: 'guarantee.declarations.function_declarations: void kerneltrap(void)'
+  - id: generate_defs_h-property-26
+    text: 'guarantee.declarations.function_declarations: void usertrapret(void)'
+  - id: generate_defs_h-property-27
+    text: 'guarantee.declarations.function_declarations: int devintr(void)'
+  - id: generate_defs_h-property-28
+    text: 'guarantee.declarations.function_declarations: void proc_init(void)'
+  - id: generate_defs_h-property-29
+    text: 'guarantee.declarations.function_declarations: struct proc *allocproc(void)'
+  - id: generate_defs_h-property-30
+    text: 'guarantee.declarations.function_declarations: void freeproc(struct proc
+      *p)'
+  - id: generate_defs_h-property-31
+    text: 'guarantee.declarations.function_declarations: void scheduler(void)'
+  - id: generate_defs_h-property-32
+    text: 'guarantee.declarations.function_declarations: void swtch(struct context*,
+      struct context*)'
+  - id: generate_defs_h-property-33
+    text: 'guarantee.declarations.function_declarations: void yield(void)'
+  - id: generate_defs_h-property-34
+    text: 'guarantee.declarations.function_declarations: int fork(void)'
+  - id: generate_defs_h-property-35
+    text: 'guarantee.declarations.function_declarations: void exit(int status)'
+  - id: generate_defs_h-property-36
+    text: 'guarantee.declarations.function_declarations: int wait(uint64 addr)'
+  - id: generate_defs_h-property-37
+    text: 'guarantee.declarations.function_declarations: void sleep(void *chan, struct
+      spinlock *lk)'
+  - id: generate_defs_h-property-38
+    text: 'guarantee.declarations.function_declarations: void wakeup(void *chan)'
+  - id: generate_defs_h-property-39
+    text: 'guarantee.declarations.function_declarations: int growproc(int n)'
+  - id: generate_defs_h-property-40
+    text: 'guarantee.declarations.function_declarations: void userinit(void)'
+  - id: generate_defs_h-property-41
+    text: 'guarantee.declarations.function_declarations: void syscall(void)'
+  - id: generate_defs_h-property-42
+    text: 'guarantee.declarations.function_declarations: uint64 sys_write(void)'
+  - id: generate_defs_h-property-43
+    text: 'guarantee.declarations.function_declarations: uint64 sys_exit(void)'
+  - id: generate_defs_h-property-44
+    text: 'guarantee.declarations.function_declarations: uint64 sys_fork(void)'
+  - id: generate_defs_h-property-45
+    text: 'guarantee.declarations.function_declarations: uint64 sys_wait(void)'
+  - id: generate_defs_h-property-46
+    text: 'guarantee.declarations.function_declarations: uint64 sys_sbrk(void)'
+  - id: generate_defs_h-property-47
+    text: 'guarantee.declarations.function_declarations: int argint(int n, int *ip)'
+  - id: generate_defs_h-property-48
+    text: 'guarantee.declarations.function_declarations: int argaddr(int n, uint64
+      *ip)'
+  - id: generate_defs_h-property-49
+    text: 'guarantee.declarations.function_declarations: int fetchaddr(uint64 addr,
+      uint64 *ip)'
+  - id: generate_defs_h-property-50
+    text: 'guarantee.declarations.function_declarations: int fetchstr(uint64 addr,
+      char *buf, int max)'
+  - id: generate_defs_h-property-51
+    text: 'guarantee.side_effects: kernel/defs.h created'
+- name: generate_elf_h
+  pre:
+  - kernel/types.h exists
+  post:
+  - kernel/elf.h exists
+  errors: []
+  properties:
+  - id: generate_elf_h-property-1
+    text: 'guarantee.declarations.constants.name: ELF_MAGIC'
+  - id: generate_elf_h-property-2
+    text: 'guarantee.declarations.constants.value: 0x464C457FU  // \x7FELF LE'
+  - id: generate_elf_h-property-3
+    text: 'guarantee.declarations.constants.name: ELF_PROG_LOAD'
+  - id: generate_elf_h-property-4
+    text: 'guarantee.declarations.constants.value: 1'
+  - id: generate_elf_h-property-5
+    text: 'guarantee.declarations.constants.name: ELF_PROG_FLAG_EXEC'
+  - id: generate_elf_h-property-6
+    text: 'guarantee.declarations.constants.value: 1'
+  - id: generate_elf_h-property-7
+    text: 'guarantee.declarations.constants.name: ELF_PROG_FLAG_WRITE'
+  - id: generate_elf_h-property-8
+    text: 'guarantee.declarations.constants.value: 2'
+  - id: generate_elf_h-property-9
+    text: 'guarantee.declarations.constants.name: ELF_PROG_FLAG_READ'
+  - id: generate_elf_h-property-10
+    text: 'guarantee.declarations.constants.value: 4'
+  - id: generate_elf_h-property-11
+    text: 'guarantee.declarations.structs.name: elf64_hdr'
+  - id: generate_elf_h-property-12
+    text: 'guarantee.declarations.structs.fields: uint32 magic[4]  // must be ELF_MAGIC'
+  - id: generate_elf_h-property-13
+    text: 'guarantee.declarations.structs.fields: uint64 entry'
+  - id: generate_elf_h-property-14
+    text: 'guarantee.declarations.structs.fields: uint64 phoff'
+  - id: generate_elf_h-property-15
+    text: 'guarantee.declarations.structs.fields: uint16 phnum'
+  - id: generate_elf_h-property-16
+    text: 'guarantee.declarations.structs.fields: uint16 type'
+  - id: generate_elf_h-property-17
+    text: 'guarantee.declarations.structs.fields: uint16 machine'
+  - id: generate_elf_h-property-18
+    text: 'guarantee.declarations.structs.fields: uint32 version'
+  - id: generate_elf_h-property-19
+    text: 'guarantee.declarations.structs.name: elf64_phdr'
+  - id: generate_elf_h-property-20
+    text: 'guarantee.declarations.structs.fields: uint32 type'
+  - id: generate_elf_h-property-21
+    text: 'guarantee.declarations.structs.fields: uint32 flags'
+  - id: generate_elf_h-property-22
+    text: 'guarantee.declarations.structs.fields: uint64 offset'
+  - id: generate_elf_h-property-23
+    text: 'guarantee.declarations.structs.fields: uint64 vaddr'
+  - id: generate_elf_h-property-24
+    text: 'guarantee.declarations.structs.fields: uint64 paddr'
+  - id: generate_elf_h-property-25
+    text: 'guarantee.declarations.structs.fields: uint64 filesz'
+  - id: generate_elf_h-property-26
+    text: 'guarantee.declarations.structs.fields: uint64 memsz'
+  - id: generate_elf_h-property-27
+    text: 'guarantee.declarations.structs.fields: uint64 align'
+  - id: generate_elf_h-property-28
+    text: 'guarantee.side_effects: kernel/elf.h created'
+- name: generate_link_ld
+  pre:
+  - none
+  post:
+  - kernel/kernel.ld exists and is valid GNU ld syntax
+  errors:
+  - invalid linker script causes link failure
+  properties:
+  - id: generate_link_ld-property-1
+    text: 'guarantee.linker_sections.name: .text'
+  - id: generate_link_ld-property-2
+    text: 'guarantee.linker_sections.vma: 0x80000000'
+  - id: generate_link_ld-property-3
+    text: 'guarantee.linker_sections.flags: RX'
+  - id: generate_link_ld-property-4
+    text: 'guarantee.linker_sections.inputs: *(.text .text.*)'
+  - id: generate_link_ld-property-5
+    text: 'guarantee.linker_sections.inputs: kernel/entry.o(.text)'
+  - id: generate_link_ld-property-6
+    text: 'guarantee.linker_sections.name: .rodata'
+  - id: generate_link_ld-property-7
+    text: 'guarantee.linker_sections.vma: ALIGN(16)'
+  - id: generate_link_ld-property-8
+    text: 'guarantee.linker_sections.flags: R'
+  - id: generate_link_ld-property-9
+    text: 'guarantee.linker_sections.inputs: *(.srodata .srodata.*)'
+  - id: generate_link_ld-property-10
+    text: 'guarantee.linker_sections.inputs: *(.rodata .rodata.*)'
+  - id: generate_link_ld-property-11
+    text: 'guarantee.linker_sections.name: .data'
+  - id: generate_link_ld-property-12
+    text: 'guarantee.linker_sections.vma: ALIGN(16)'
+  - id: generate_link_ld-property-13
+    text: 'guarantee.linker_sections.flags: RW'
+  - id: generate_link_ld-property-14
+    text: 'guarantee.linker_sections.inputs: *(.sdata .sdata.*)'
+  - id: generate_link_ld-property-15
+    text: 'guarantee.linker_sections.inputs: *(.data .data.*)'
+  - id: generate_link_ld-property-16
+    text: 'guarantee.linker_sections.name: .bss'
+  - id: generate_link_ld-property-17
+    text: 'guarantee.linker_sections.vma: ALIGN(16)'
+  - id: generate_link_ld-property-18
+    text: 'guarantee.linker_sections.flags: RW'
+  - id: generate_link_ld-property-19
+    text: 'guarantee.linker_sections.inputs: *(.sbss .sbss.*)'
+  - id: generate_link_ld-property-20
+    text: 'guarantee.linker_sections.inputs: *(.bss .bss.*)'
+  - id: generate_link_ld-property-21
+    text: 'guarantee.linker_sections.inputs: *(COMMON)'
+  - id: generate_link_ld-property-22
+    text: 'guarantee.exported_symbols.name: end'
+  - id: generate_link_ld-property-23
+    text: 'guarantee.exported_symbols.value: current location after .bss'
+  - id: generate_link_ld-property-24
+    text: 'guarantee.exported_symbols.name: stack0'
+  - id: generate_link_ld-property-25
+    text: 'guarantee.exported_symbols.value: end + 4096'
+  - id: generate_link_ld-property-26
+    text: 'guarantee.discarded_sections: *(.eh_frame)'
+  - id: generate_link_ld-property-27
+    text: 'guarantee.discarded_sections: *(.note .note.*)'
+  - id: generate_link_ld-property-28
+    text: 'guarantee.side_effects: kernel/kernel.ld created'
+- name: generate_memlayout_h
+  pre:
+  - kernel/types.h and kernel/riscv.h exist
+  post:
+  - kernel/memlayout.h exists with all layout constants
+  errors: []
+  properties:
+  - id: generate_memlayout_h-property-1
+    text: 'guarantee.declarations.constants.name: KERNBASE'
+  - id: generate_memlayout_h-property-2
+    text: 'guarantee.declarations.constants.value: 0x80000000L'
+  - id: generate_memlayout_h-property-3
+    text: 'guarantee.declarations.constants.name: PHYSTOP'
+  - id: generate_memlayout_h-property-4
+    text: 'guarantee.declarations.constants.value: 0x88000000L'
+  - id: generate_memlayout_h-property-5
+    text: 'guarantee.declarations.constants.name: UART0'
+  - id: generate_memlayout_h-property-6
+    text: 'guarantee.declarations.constants.value: 0x10000000L'
+  - id: generate_memlayout_h-property-7
+    text: 'guarantee.declarations.constants.name: UART0_IRQ'
+  - id: generate_memlayout_h-property-8
+    text: 'guarantee.declarations.constants.value: 10'
+  - id: generate_memlayout_h-property-9
+    text: 'guarantee.declarations.constants.name: VIRTIO0'
+  - id: generate_memlayout_h-property-10
+    text: 'guarantee.declarations.constants.value: 0x10001000L'
+  - id: generate_memlayout_h-property-11
+    text: 'guarantee.declarations.constants.name: VIRTIO0_IRQ'
+  - id: generate_memlayout_h-property-12
+    text: 'guarantee.declarations.constants.value: 1'
+  - id: generate_memlayout_h-property-13
+    text: 'guarantee.declarations.constants.name: CLINT'
+  - id: generate_memlayout_h-property-14
+    text: 'guarantee.declarations.constants.value: 0x02000000L'
+  - id: generate_memlayout_h-property-15
+    text: 'guarantee.declarations.constants.name: CLINT_MTIMECMP'
+  - id: generate_memlayout_h-property-16
+    text: 'guarantee.declarations.constants.value: (CLINT+0x4000)'
+  - id: generate_memlayout_h-property-17
+    text: 'guarantee.declarations.constants.name: CLINT_MTIME'
+  - id: generate_memlayout_h-property-18
+    text: 'guarantee.declarations.constants.value: (CLINT+0xBFF8)'
+  - id: generate_memlayout_h-property-19
+    text: 'guarantee.declarations.constants.name: PLIC'
+  - id: generate_memlayout_h-property-20
+    text: 'guarantee.declarations.constants.value: 0x0C000000L'
+  - id: generate_memlayout_h-property-21
+    text: 'guarantee.declarations.constants.name: PLIC_SCLAIM'
+  - id: generate_memlayout_h-property-22
+    text: 'guarantee.declarations.constants.value: (PLIC+0x201000)'
+  - id: generate_memlayout_h-property-23
+    text: 'guarantee.declarations.constants.name: TRAMPOLINE'
+  - id: generate_memlayout_h-property-24
+    text: 'guarantee.declarations.constants.value: (MAXVA-PGSIZE)'
+  - id: generate_memlayout_h-property-25
+    text: 'guarantee.declarations.constants.name: TRAPFRAME'
+  - id: generate_memlayout_h-property-26
+    text: 'guarantee.declarations.constants.value: (TRAMPOLINE-PGSIZE)'
+  - id: generate_memlayout_h-property-27
+    text: 'guarantee.side_effects: kernel/memlayout.h created'
+- name: generate_param_h
+  pre:
+  - kernel/types.h exists
+  post:
+  - kernel/param.h exists
+  errors: []
+  properties:
+  - id: generate_param_h-property-1
+    text: 'guarantee.declarations.constants.name: NPROC'
+  - id: generate_param_h-property-2
+    text: 'guarantee.declarations.constants.value: 64'
+  - id: generate_param_h-property-3
+    text: 'guarantee.declarations.constants.name: STACK_SIZE'
+  - id: generate_param_h-property-4
+    text: 'guarantee.declarations.constants.value: 4096'
+  - id: generate_param_h-property-5
+    text: 'guarantee.declarations.constants.name: NOFILE'
+  - id: generate_param_h-property-6
+    text: 'guarantee.declarations.constants.value: 16'
+  - id: generate_param_h-property-7
+    text: 'guarantee.declarations.constants.name: MAXARG'
+  - id: generate_param_h-property-8
+    text: 'guarantee.declarations.constants.value: 32'
+  - id: generate_param_h-property-9
+    text: 'guarantee.side_effects: kernel/param.h created'
+- name: generate_proc_h
+  pre:
+  - kernel/types.h, param.h, riscv.h, spinlock.h exist
+  post:
+  - kernel/proc.h exists
+  errors: []
+  properties:
+  - id: generate_proc_h-property-1
+    text: 'guarantee.declarations.enums.name: procstate'
+  - id: generate_proc_h-property-2
+    text: 'guarantee.declarations.enums.values: UNUSED'
+  - id: generate_proc_h-property-3
+    text: 'guarantee.declarations.enums.values: USED'
+  - id: generate_proc_h-property-4
+    text: 'guarantee.declarations.enums.values: SLEEPING'
+  - id: generate_proc_h-property-5
+    text: 'guarantee.declarations.enums.values: RUNNABLE'
+  - id: generate_proc_h-property-6
+    text: 'guarantee.declarations.enums.values: RUNNING'
+  - id: generate_proc_h-property-7
+    text: 'guarantee.declarations.enums.values: ZOMBIE'
+  - id: generate_proc_h-property-8
+    text: 'guarantee.declarations.structs.name: context'
+  - id: generate_proc_h-property-9
+    text: 'guarantee.declarations.structs.comment: callee-saved registers for swtch'
+  - id: generate_proc_h-property-10
+    text: 'guarantee.declarations.structs.fields: ra'
+  - id: generate_proc_h-property-11
+    text: 'guarantee.declarations.structs.fields: sp'
+  - id: generate_proc_h-property-12
+    text: 'guarantee.declarations.structs.fields: s0'
+  - id: generate_proc_h-property-13
+    text: 'guarantee.declarations.structs.fields: s1'
+  - id: generate_proc_h-property-14
+    text: 'guarantee.declarations.structs.fields: s2'
+  - id: generate_proc_h-property-15
+    text: 'guarantee.declarations.structs.fields: s3'
+  - id: generate_proc_h-property-16
+    text: 'guarantee.declarations.structs.fields: s4'
+  - id: generate_proc_h-property-17
+    text: 'guarantee.declarations.structs.fields: s5'
+  - id: generate_proc_h-property-18
+    text: 'guarantee.declarations.structs.fields: s6'
+  - id: generate_proc_h-property-19
+    text: 'guarantee.declarations.structs.fields: s7'
+  - id: generate_proc_h-property-20
+    text: 'guarantee.declarations.structs.fields: s8'
+  - id: generate_proc_h-property-21
+    text: 'guarantee.declarations.structs.fields: s9'
+  - id: generate_proc_h-property-22
+    text: 'guarantee.declarations.structs.fields: s10'
+  - id: generate_proc_h-property-23
+    text: 'guarantee.declarations.structs.fields: s11'
+  - id: generate_proc_h-property-24
+    text: 'guarantee.declarations.structs.types: all uint64'
+  - id: generate_proc_h-property-25
+    text: 'guarantee.declarations.structs.name: trapframe'
+  - id: generate_proc_h-property-26
+    text: 'guarantee.declarations.structs.comment: saved user registers during a trap'
+  - id: generate_proc_h-property-27
+    text: 'guarantee.declarations.structs.fields.metadata: kernel_satp'
+  - id: generate_proc_h-property-28
+    text: 'guarantee.declarations.structs.fields.metadata: kernel_sp'
+  - id: generate_proc_h-property-29
+    text: 'guarantee.declarations.structs.fields.metadata: kernel_trap'
+  - id: generate_proc_h-property-30
+    text: 'guarantee.declarations.structs.fields.metadata: epc'
+  - id: generate_proc_h-property-31
+    text: 'guarantee.declarations.structs.fields.metadata: kernel_hartid'
+  - id: generate_proc_h-property-32
+    text: 'guarantee.declarations.structs.fields.user_regs: ra'
+  - id: generate_proc_h-property-33
+    text: 'guarantee.declarations.structs.fields.user_regs: sp'
+  - id: generate_proc_h-property-34
+    text: 'guarantee.declarations.structs.fields.user_regs: gp'
+  - id: generate_proc_h-property-35
+    text: 'guarantee.declarations.structs.fields.user_regs: tp'
+  - id: generate_proc_h-property-36
+    text: 'guarantee.declarations.structs.fields.user_regs: t0'
+  - id: generate_proc_h-property-37
+    text: 'guarantee.declarations.structs.fields.user_regs: t1'
+  - id: generate_proc_h-property-38
+    text: 'guarantee.declarations.structs.fields.user_regs: t2'
+  - id: generate_proc_h-property-39
+    text: 'guarantee.declarations.structs.fields.user_regs: s0'
+  - id: generate_proc_h-property-40
+    text: 'guarantee.declarations.structs.fields.user_regs: s1'
+  - id: generate_proc_h-property-41
+    text: 'guarantee.declarations.structs.fields.user_regs: a0'
+  - id: generate_proc_h-property-42
+    text: 'guarantee.declarations.structs.fields.user_regs: a1'
+  - id: generate_proc_h-property-43
+    text: 'guarantee.declarations.structs.fields.user_regs: a2'
+  - id: generate_proc_h-property-44
+    text: 'guarantee.declarations.structs.fields.user_regs: a3'
+  - id: generate_proc_h-property-45
+    text: 'guarantee.declarations.structs.fields.user_regs: a4'
+  - id: generate_proc_h-property-46
+    text: 'guarantee.declarations.structs.fields.user_regs: a5'
+  - id: generate_proc_h-property-47
+    text: 'guarantee.declarations.structs.fields.user_regs: a6'
+  - id: generate_proc_h-property-48
+    text: 'guarantee.declarations.structs.fields.user_regs: a7'
+  - id: generate_proc_h-property-49
+    text: 'guarantee.declarations.structs.fields.user_regs: s2'
+  - id: generate_proc_h-property-50
+    text: 'guarantee.declarations.structs.fields.user_regs: s3'
+  - id: generate_proc_h-property-51
+    text: 'guarantee.declarations.structs.fields.user_regs: s4'
+  - id: generate_proc_h-property-52
+    text: 'guarantee.declarations.structs.fields.user_regs: s5'
+  - id: generate_proc_h-property-53
+    text: 'guarantee.declarations.structs.fields.user_regs: s6'
+  - id: generate_proc_h-property-54
+    text: 'guarantee.declarations.structs.fields.user_regs: s7'
+  - id: generate_proc_h-property-55
+    text: 'guarantee.declarations.structs.fields.user_regs: s8'
+  - id: generate_proc_h-property-56
+    text: 'guarantee.declarations.structs.fields.user_regs: s9'
+  - id: generate_proc_h-property-57
+    text: 'guarantee.declarations.structs.fields.user_regs: s10'
+  - id: generate_proc_h-property-58
+    text: 'guarantee.declarations.structs.fields.user_regs: s11'
+  - id: generate_proc_h-property-59
+    text: 'guarantee.declarations.structs.fields.user_regs: t3'
+  - id: generate_proc_h-property-60
+    text: 'guarantee.declarations.structs.fields.user_regs: t4'
+  - id: generate_proc_h-property-61
+    text: 'guarantee.declarations.structs.fields.user_regs: t5'
+  - id: generate_proc_h-property-62
+    text: 'guarantee.declarations.structs.fields.user_regs: t6'
+  - id: generate_proc_h-property-63
+    text: 'guarantee.declarations.structs.all_types: uint64'
+  - id: generate_proc_h-property-64
+    text: 'guarantee.declarations.structs.name: proc'
+  - id: generate_proc_h-property-65
+    text: 'guarantee.declarations.structs.comment: per-process state'
+  - id: generate_proc_h-property-66
+    text: 'guarantee.declarations.structs.fields: struct spinlock lock'
+  - id: generate_proc_h-property-67
+    text: 'guarantee.declarations.structs.fields: enum procstate state'
+  - id: generate_proc_h-property-68
+    text: 'guarantee.declarations.structs.fields: struct proc *parent'
+  - id: generate_proc_h-property-69
+    text: 'guarantee.declarations.structs.fields: void *chan'
+  - id: generate_proc_h-property-70
+    text: 'guarantee.declarations.structs.fields: int killed'
+  - id: generate_proc_h-property-71
+    text: 'guarantee.declarations.structs.fields: int xstate'
+  - id: generate_proc_h-property-72
+    text: 'guarantee.declarations.structs.fields: int pid'
+  - id: generate_proc_h-property-73
+    text: 'guarantee.declarations.structs.fields: uint64 kstack'
+  - id: generate_proc_h-property-74
+    text: 'guarantee.declarations.structs.fields: uint64 sz'
+  - id: generate_proc_h-property-75
+    text: 'guarantee.declarations.structs.fields: pagetable_t pagetable'
+  - id: generate_proc_h-property-76
+    text: 'guarantee.declarations.structs.fields: struct trapframe *trapframe'
+  - id: generate_proc_h-property-77
+    text: 'guarantee.declarations.structs.fields: struct context context'
+  - id: generate_proc_h-property-78
+    text: 'guarantee.declarations.function_declarations: extern struct proc proc[NPROC]'
+  - id: generate_proc_h-property-79
+    text: 'guarantee.declarations.function_declarations: extern struct proc *initproc'
+  - id: generate_proc_h-property-80
+    text: 'guarantee.side_effects: kernel/proc.h created'
+- name: generate_riscv_h
+  pre:
+  - kernel/types.h exists
+  post:
+  - kernel/riscv.h exists with all CSR access macros
+  errors: []
+  properties:
+  - id: generate_riscv_h-property-1
+    text: 'guarantee.declarations.macros.name: PTE_V'
+  - id: generate_riscv_h-property-2
+    text: 'guarantee.declarations.macros.value: (1L << 0)'
+  - id: generate_riscv_h-property-3
+    text: 'guarantee.declarations.macros.name: PTE_R'
+  - id: generate_riscv_h-property-4
+    text: 'guarantee.declarations.macros.value: (1L << 1)'
+  - id: generate_riscv_h-property-5
+    text: 'guarantee.declarations.macros.name: PTE_W'
+  - id: generate_riscv_h-property-6
+    text: 'guarantee.declarations.macros.value: (1L << 2)'
+  - id: generate_riscv_h-property-7
+    text: 'guarantee.declarations.macros.name: PTE_X'
+  - id: generate_riscv_h-property-8
+    text: 'guarantee.declarations.macros.value: (1L << 3)'
+  - id: generate_riscv_h-property-9
+    text: 'guarantee.declarations.macros.name: PTE_U'
+  - id: generate_riscv_h-property-10
+    text: 'guarantee.declarations.macros.value: (1L << 4)'
+  - id: generate_riscv_h-property-11
+    text: 'guarantee.declarations.macros.name: PTE_G'
+  - id: generate_riscv_h-property-12
+    text: 'guarantee.declarations.macros.value: (1L << 5)'
+  - id: generate_riscv_h-property-13
+    text: 'guarantee.declarations.macros.name: PTE_A'
+  - id: generate_riscv_h-property-14
+    text: 'guarantee.declarations.macros.value: (1L << 6)'
+  - id: generate_riscv_h-property-15
+    text: 'guarantee.declarations.macros.name: PTE_D'
+  - id: generate_riscv_h-property-16
+    text: 'guarantee.declarations.macros.value: (1L << 7)'
+  - id: generate_riscv_h-property-17
+    text: 'guarantee.declarations.macros.name: PTE_FLAGS'
+  - id: generate_riscv_h-property-18
+    text: 'guarantee.declarations.macros.value: (PTE_V|PTE_R|PTE_W|PTE_X)'
+  - id: generate_riscv_h-property-19
+    text: 'guarantee.declarations.macros.name: PA2PTE'
+  - id: generate_riscv_h-property-20
+    text: 'guarantee.declarations.macros.value: (pa) (((uint64)(pa)>>12)<<10)'
+  - id: generate_riscv_h-property-21
+    text: 'guarantee.declarations.macros.name: PTE2PA'
+  - id: generate_riscv_h-property-22
+    text: 'guarantee.declarations.macros.value: (pte) (((pte)>>10)<<12)'
+  - id: generate_riscv_h-property-23
+    text: 'guarantee.declarations.macros.name: PXMASK'
+  - id: generate_riscv_h-property-24
+    text: 'guarantee.declarations.macros.value: 0x1FF'
+  - id: generate_riscv_h-property-25
+    text: 'guarantee.declarations.macros.name: PXSHIFT'
+  - id: generate_riscv_h-property-26
+    text: 'guarantee.declarations.macros.value: (level) (PGSHIFT+(9*(level)))'
+  - id: generate_riscv_h-property-27
+    text: 'guarantee.declarations.macros.name: PX'
+  - id: generate_riscv_h-property-28
+    text: 'guarantee.declarations.macros.value: (level,va) (((uint64)(va)>>PXSHIFT(level))&PXMASK)'
+  - id: generate_riscv_h-property-29
+    text: 'guarantee.declarations.macros.name: MAXVA'
+  - id: generate_riscv_h-property-30
+    text: 'guarantee.declarations.macros.value: (1L<<(9+9+9+12-1))'
+  - id: generate_riscv_h-property-31
+    text: 'guarantee.declarations.macros.name: r_scause'
+  - id: generate_riscv_h-property-32
+    text: 'guarantee.declarations.macros.value: read csrr scause (inline asm)'
+  - id: generate_riscv_h-property-33
+    text: 'guarantee.declarations.macros.name: w_stvec'
+  - id: generate_riscv_h-property-34
+    text: 'guarantee.declarations.macros.value: write csrw stvec (inline asm)'
+  - id: generate_riscv_h-property-35
+    text: 'guarantee.declarations.macros.name: r_sstatus'
+  - id: generate_riscv_h-property-36
+    text: 'guarantee.declarations.macros.value: read csrr sstatus (inline asm)'
+  - id: generate_riscv_h-property-37
+    text: 'guarantee.declarations.macros.name: w_sstatus'
+  - id: generate_riscv_h-property-38
+    text: 'guarantee.declarations.macros.value: write csrw sstatus (inline asm)'
+  - id: generate_riscv_h-property-39
+    text: 'guarantee.declarations.macros.name: r_sepc'
+  - id: generate_riscv_h-property-40
+    text: 'guarantee.declarations.macros.value: read csrr sepc (inline asm)'
+  - id: generate_riscv_h-property-41
+    text: 'guarantee.declarations.macros.name: w_sepc'
+  - id: generate_riscv_h-property-42
+    text: 'guarantee.declarations.macros.value: write csrw sepc (inline asm)'
+  - id: generate_riscv_h-property-43
+    text: 'guarantee.declarations.macros.name: r_stval'
+  - id: generate_riscv_h-property-44
+    text: 'guarantee.declarations.macros.value: read csrr stval (inline asm)'
+  - id: generate_riscv_h-property-45
+    text: 'guarantee.declarations.macros.name: r_satp'
+  - id: generate_riscv_h-property-46
+    text: 'guarantee.declarations.macros.value: read csrr satp (inline asm)'
+  - id: generate_riscv_h-property-47
+    text: 'guarantee.declarations.macros.name: w_satp'
+  - id: generate_riscv_h-property-48
+    text: 'guarantee.declarations.macros.value: write csrw satp (inline asm)'
+  - id: generate_riscv_h-property-49
+    text: 'guarantee.declarations.macros.name: sfence_vma'
+  - id: generate_riscv_h-property-50
+    text: 'guarantee.declarations.macros.value: sfence.vma zero,zero'
+  - id: generate_riscv_h-property-51
+    text: 'guarantee.declarations.macros.name: w_sie'
+  - id: generate_riscv_h-property-52
+    text: 'guarantee.declarations.macros.value: write csrw sie (inline asm)'
+  - id: generate_riscv_h-property-53
+    text: 'guarantee.declarations.macros.name: r_sie'
+  - id: generate_riscv_h-property-54
+    text: 'guarantee.declarations.macros.value: read csrr sie (inline asm)'
+  - id: generate_riscv_h-property-55
+    text: 'guarantee.declarations.macros.name: r_tp'
+  - id: generate_riscv_h-property-56
+    text: 'guarantee.declarations.macros.value: read mv tp (inline asm)'
+  - id: generate_riscv_h-property-57
+    text: 'guarantee.declarations.macros.name: w_tp'
+  - id: generate_riscv_h-property-58
+    text: 'guarantee.declarations.macros.value: write mv tp (inline asm)'
+  - id: generate_riscv_h-property-59
+    text: 'guarantee.declarations.macros.name: SSTATUS_SIE'
+  - id: generate_riscv_h-property-60
+    text: 'guarantee.declarations.macros.value: (1L<<1)'
+  - id: generate_riscv_h-property-61
+    text: 'guarantee.declarations.macros.name: SSTATUS_SPP'
+  - id: generate_riscv_h-property-62
+    text: 'guarantee.declarations.macros.value: (1L<<8)'
+  - id: generate_riscv_h-property-63
+    text: 'guarantee.declarations.macros.name: SSTATUS_SPIE'
+  - id: generate_riscv_h-property-64
+    text: 'guarantee.declarations.macros.value: (1L<<5)'
+  - id: generate_riscv_h-property-65
+    text: 'guarantee.declarations.macros.name: SIE_SEIE'
+  - id: generate_riscv_h-property-66
+    text: 'guarantee.declarations.macros.value: (1L<<9)'
+  - id: generate_riscv_h-property-67
+    text: 'guarantee.declarations.macros.name: SIE_STIE'
+  - id: generate_riscv_h-property-68
+    text: 'guarantee.declarations.macros.value: (1L<<5)'
+  - id: generate_riscv_h-property-69
+    text: 'guarantee.declarations.macros.name: SIE_SSIE'
+  - id: generate_riscv_h-property-70
+    text: 'guarantee.declarations.macros.value: (1L<<1)'
+  - id: generate_riscv_h-property-71
+    text: 'guarantee.declarations.macros.name: SATP_SV39'
+  - id: generate_riscv_h-property-72
+    text: 'guarantee.declarations.macros.value: (8L<<60)'
+  - id: generate_riscv_h-property-73
+    text: 'guarantee.declarations.macros.name: MAKE_SATP'
+  - id: generate_riscv_h-property-74
+    text: 'guarantee.declarations.macros.value: (pgtbl) (SATP_SV39|((uint64)(pgtbl)>>12))'
+  - id: generate_riscv_h-property-75
+    text: 'guarantee.declarations.macros.name: intr_on'
+  - id: generate_riscv_h-property-76
+    text: 'guarantee.declarations.macros.value: enable supervisor interrupts'
+  - id: generate_riscv_h-property-77
+    text: 'guarantee.declarations.macros.name: intr_off'
+  - id: generate_riscv_h-property-78
+    text: 'guarantee.declarations.macros.value: disable supervisor interrupts'
+  - id: generate_riscv_h-property-79
+    text: 'guarantee.declarations.macros.name: intr_get'
+  - id: generate_riscv_h-property-80
+    text: 'guarantee.declarations.macros.value: check if supervisor interrupts enabled'
+  - id: generate_riscv_h-property-81
+    text: 'guarantee.side_effects: kernel/riscv.h created'
+- name: generate_spinlock_h
+  pre:
+  - kernel/types.h exists
+  post:
+  - kernel/spinlock.h exists
+  errors: []
+  properties:
+  - id: generate_spinlock_h-property-1
+    text: 'guarantee.declarations.structs.name: spinlock'
+  - id: generate_spinlock_h-property-2
+    text: 'guarantee.declarations.structs.fields: uint locked'
+  - id: generate_spinlock_h-property-3
+    text: 'guarantee.declarations.structs.fields: const char *name'
+  - id: generate_spinlock_h-property-4
+    text: 'guarantee.declarations.structs.fields: struct cpu *cpu'
+  - id: generate_spinlock_h-property-5
+    text: 'guarantee.declarations.function_declarations: void initlock(struct spinlock
+      *lk, const char *name)'
+  - id: generate_spinlock_h-property-6
+    text: 'guarantee.declarations.function_declarations: void acquire(struct spinlock
+      *lk)'
+  - id: generate_spinlock_h-property-7
+    text: 'guarantee.declarations.function_declarations: void release(struct spinlock
+      *lk)'
+  - id: generate_spinlock_h-property-8
+    text: 'guarantee.declarations.function_declarations: int holding(struct spinlock
+      *lk)'
+  - id: generate_spinlock_h-property-9
+    text: 'guarantee.declarations.function_declarations: void push_off(void)'
+  - id: generate_spinlock_h-property-10
+    text: 'guarantee.declarations.function_declarations: void pop_off(void)'
+  - id: generate_spinlock_h-property-11
+    text: 'guarantee.side_effects: kernel/spinlock.h created'
+- name: generate_types_h
+  pre: []
+  post:
+  - kernel/types.h exists and is self-consistent
+  errors: []
+  properties:
+  - id: generate_types_h-property-1
+    text: 'guarantee.declarations.typedefs.uint64: unsigned long long'
+  - id: generate_types_h-property-2
+    text: 'guarantee.declarations.typedefs.int64: long long'
+  - id: generate_types_h-property-3
+    text: 'guarantee.declarations.typedefs.uint32: unsigned int'
+  - id: generate_types_h-property-4
+    text: 'guarantee.declarations.typedefs.int32: int'
+  - id: generate_types_h-property-5
+    text: 'guarantee.declarations.typedefs.uint16: unsigned short'
+  - id: generate_types_h-property-6
+    text: 'guarantee.declarations.typedefs.int16: short'
+  - id: generate_types_h-property-7
+    text: 'guarantee.declarations.typedefs.uint8: unsigned char'
+  - id: generate_types_h-property-8
+    text: 'guarantee.declarations.typedefs.int8: signed char'
+  - id: generate_types_h-property-9
+    text: 'guarantee.declarations.typedefs.uint: unsigned int'
+  - id: generate_types_h-property-10
+    text: 'guarantee.declarations.typedefs.usize: uint64'
+  - id: generate_types_h-property-11
+    text: 'guarantee.declarations.typedefs.pte_t: uint64  // Sv39 page table entry'
+  - id: generate_types_h-property-12
+    text: 'guarantee.declarations.typedefs.pagetable_t: uint64*  // L2 page directory
+      pointer'
+  - id: generate_types_h-property-13
+    text: 'guarantee.declarations.typedefs.spinlock_t: struct spinlock'
+  - id: generate_types_h-property-14
+    text: 'guarantee.declarations.constants.name: PGSIZE'
+  - id: generate_types_h-property-15
+    text: 'guarantee.declarations.constants.value: 4096'
+  - id: generate_types_h-property-16
+    text: 'guarantee.declarations.constants.name: PGSHIFT'
+  - id: generate_types_h-property-17
+    text: 'guarantee.declarations.constants.value: 12'
+  - id: generate_types_h-property-18
+    text: 'guarantee.side_effects: kernel/types.h created with type definitions'

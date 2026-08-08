@@ -1,0 +1,115 @@
+id: kernel/start
+module: kernel/start
+level: 3
+purpose: Machine-mode entry point (start.c). Configures mstatus for S-mode mret, delegates
+  all interrupts/exceptions to S-mode, sets up Physical Memory Protection (PMP), configures
+  timer interrupts, and switches to supervisor mode.
+owns:
+- kernel/start.c
+interface:
+- name: start
+  pre:
+  - hart enters in M-mode via OpenSBI
+  post:
+  - execution continues at main() in S-mode
+  errors:
+  - none (never returns; mret jumps to main)
+  properties:
+  - id: start-property-1
+    text: 'guarantee.returns: void (never returns)'
+  - id: start-property-2
+    text: 'guarantee.side_effects: hart switched to S-mode'
+  - id: start-property-3
+    text: 'guarantee.side_effects: mepc points to main'
+  - id: start-property-4
+    text: 'guarantee.side_effects: all interrupts delegated to S-mode'
+  - id: start-property-5
+    text: 'guarantee.side_effects: PMP configured'
+  - id: start-property-6
+    text: 'guarantee.side_effects: tp holds hartid'
+- name: timerinit
+  pre:
+  - called once per hart during boot
+  post:
+  - hart receives timer interrupts
+  errors:
+  - none
+  properties:
+  - id: timerinit-property-1
+    text: 'guarantee.returns: void'
+  - id: timerinit-property-2
+    text: 'guarantee.side_effects: timer interrupts enabled'
+  - id: timerinit-property-3
+    text: 'guarantee.side_effects: first timer interrupt scheduled'
+properties:
+- id: module-property-1
+  text: machine-mode setup is the most privileged; must correctly configure delegation
+    before switching to S-mode
+- id: module-property-2
+  text: start() runs once per hart at boot; never returns
+- id: module-property-3
+  text: unit tests for all exported functions
+- id: module-property-4
+  text: integration tests with dependent modules
+errors:
+- no error handling; machine-mode entry is expected to succeed
+- none
+- none (never returns; mret jumps to main)
+state:
+  stage: boot
+  owned_state:
+  - stack0[4096 * NCPU] (per-CPU boot stack)
+  resource_lifetime:
+  - start() runs once per hart at boot; never returns
+preconditions:
+- called once per hart during boot
+- hart enters in M-mode via OpenSBI
+postconditions:
+- execution continues at main() in S-mode
+- hart receives timer interrupts
+invariants:
+- id: invariant-1
+  text: mstatus.MPP is set to Supervisor before mret
+- id: invariant-2
+  text: all interrupts and exceptions delegated to S-mode
+- id: invariant-3
+  text: PMP gives S-mode access to all physical memory
+- id: invariant-4
+  text: timer interrupts are configured via sstc extension
+dependencies:
+- kernel/start
+rely:
+- 'module: main (from kernel/boot)'
+- 'start.rely.callable_interfaces: main (from kernel/boot)'
+- 'start.rely.callable_interfaces: timerinit (internal)'
+- 'start.rely.lock_assumptions: none'
+- 'start.rely.resource_assumptions: sufficient resources available'
+- 'timerinit.rely.lock_assumptions: none'
+- 'timerinit.rely.resource_assumptions: sufficient resources available'
+guarantee:
+- 'exported: start'
+- 'exported: timerinit'
+- 'start.guarantee.returns: void (never returns)'
+- 'start.guarantee.side_effects: PMP configured'
+- 'start.guarantee.side_effects: all interrupts delegated to S-mode'
+- 'start.guarantee.side_effects: hart switched to S-mode'
+- 'start.guarantee.side_effects: mepc points to main'
+- 'start.guarantee.side_effects: tp holds hartid'
+- 'timerinit.guarantee.returns: void'
+- 'timerinit.guarantee.side_effects: first timer interrupt scheduled'
+- 'timerinit.guarantee.side_effects: timer interrupts enabled'
+algorithm_intent: Implement the boot stage contract while preserving the declared
+  xv6 module boundaries.
+concurrency:
+  module: {}
+  operations:
+    start:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    timerinit:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
