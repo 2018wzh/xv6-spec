@@ -6,9 +6,19 @@ owns:
 - vos.yaml
 - Makefile
 - tests/generated/toolchain
-interface: []
+interface:
+- name: select_riscv_toolchain
+  pre:
+  - one or more RISC-V compiler prefixes may be present on PATH
+  post:
+  - the selected prefix compiles an empty freestanding RV64 object and provides the matching linker and objdump
+  errors:
+  - no candidate prefix passes the compile capability probe
+  properties:
+  - id: toolchain-capability-probe
+    text: selection tests compilation capability and never relies on command presence or objdump presence alone
 properties:
 - id: toolchain-deterministic
-  text: behavior is deterministic under the published lab checks
+  text: a clean rebuild selects the same capable prefix and reproduces kernel/kernel under the published lab checks
 errors:
 - invalid state fails explicitly
