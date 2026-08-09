@@ -1,0 +1,127 @@
+id: kernel/memory
+module: kernel/memory
+level: 3
+purpose: Manage page-aligned physical memory and establish the Sv39 kernel mappings required by later labs; user processes and demand paging are not in the current lab scope.
+owns:
+- kernel/kalloc.c
+- kernel/vm.c
+- kernel/vm.h
+- kernel/spinlock.c
+- kernel/spinlock.h
+- tests/generated/kernel/memory
+interface:
+- name: kinit
+  pre:
+  - runs once after the linker has fixed the kernel image end
+  post:
+  - every page from the first aligned byte after the kernel through PHYSTOP is on the freelist exactly once
+  errors:
+  - an invalid physical range fails explicitly
+  properties:
+  - id: kinit-covers-free-range
+    text: initialization exposes every complete free page and no kernel-image byte
+- name: kalloc
+  pre:
+  - kinit completed
+  post:
+  - returns one zero-filled 4096-byte-aligned page or null when exhausted
+  errors:
+  - exhaustion returns null without corrupting the freelist
+  properties:
+  - id: kalloc-aligned-zeroed
+    text: memory_allocator_public observes that every successful allocation is page aligned and that kalloc clears any freelist poison before returning a page containing only zero bytes
+- name: kfree
+  pre:
+  - the address is page aligned, above the kernel image, and below PHYSTOP
+  post:
+  - the page is poisoned and returned to the freelist exactly once
+  errors:
+  - an invalid address panics before changing allocator state
+  properties:
+  - id: kfree-validates-range
+    text: alignment and physical bounds are checked before the freelist mutation
+- name: kvminit
+  pre:
+  - physical allocation is available
+  post:
+  - kernel text, data, UART, PLIC, VIRTIO, and trampoline regions have the declared Sv39 mappings and permissions
+  errors:
+  - allocation or mapping failure panics
+  properties:
+  - id: kernel-mapping-permissions
+    text: kernel text is executable but not writable, data is writable but not executable, and device mappings are writable but not executable
+properties:
+- id: page-exclusive-ownership
+  text: memory_freelist_contract observes that a physical page is either allocated or on the freelist, never both
+- id: sv39-three-level-walk
+  text: memory_mapping_trace observes that mapping construction uses the three Sv39 page-table levels and rejects virtual addresses at or above MAXVA
+errors:
+- invalid allocator inputs fail before state mutation
+- mapping conflicts and allocation failures fail explicitly
+state:
+  stage: memory
+  owned_state:
+  - physical page freelist
+  - kernel page table
+  resource_lifetime:
+  - free pages remain on the freelist until allocated and return only through kfree
+preconditions:
+- the boot stage has established supervisor execution
+postconditions:
+- the kernel can allocate and release pages and activate its Sv39 page table
+invariants:
+- id: freelist-integrity
+  text: the freelist is acyclic and contains no duplicate page
+- id: freelist-start-boundary
+  text: the first free address is round_up(end, 4096), so a partially occupied final kernel page is never exposed; PHYSTOP is page aligned and end at or beyond PHYSTOP is invalid
+- id: poison-is-not-observable
+  text: poison bytes may exist only while a page is free and kalloc clears them before transferring ownership
+- id: mapping-isolation
+  text: kernel mappings never set the user-accessible bit
+- id: mapping-publication
+  text: the single boot hart constructs the kernel page table before concurrent execution and treats its Lab 3 mappings as immutable after activation
+dependencies:
+- kernel/boot
+- toolchain
+rely:
+- the linker symbol end and PHYSTOP delimit usable physical memory
+- the boot stage calls initialization before concurrent allocation
+guarantee:
+- allocator mutations hold the allocator spinlock after initialization
+- all installed kernel leaf mappings use the least privilege declared by their region
+algorithm_intent: Use a spinlock-protected singly linked freelist for physical pages and a conventional three-level Sv39 walk for mappings. Zero-fill on every successful allocation is an intentional determinism and isolation tradeoff with one page clear of cost per allocation.
+concurrency:
+  module:
+    module: kernel/memory
+    shared_state:
+    - physical page freelist
+    - kernel page table during initialization
+    lock_types:
+    - spinlock
+    lock_order:
+    - allocator lock only; no nested lock is permitted
+    atomic_sections:
+    - freelist push and pop
+    interrupt_rules:
+    - spinlock acquisition preserves the caller interrupt state
+    rely:
+    - mapping construction is single-hart during this lab
+    guarantee:
+    - concurrent allocation and release serialize every freelist mutation
+    wait_wakeup_rules: []
+    forbidden_patterns:
+    - reading or writing the freelist without the allocator lock after initialization
+    - installing a writable and executable kernel mapping
+  operations:
+    kalloc:
+      atomicity: one locked freelist pop
+      lock_order:
+      - allocator lock
+      interrupt_state: restored after the lock is released
+      wait_wakeup_rules: []
+    kfree:
+      atomicity: validation followed by one locked freelist push
+      lock_order:
+      - allocator lock
+      interrupt_state: restored after the lock is released
+      wait_wakeup_rules: []
