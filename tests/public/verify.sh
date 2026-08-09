@@ -161,6 +161,26 @@ case "$case_id" in
     qemu_log build/qemu_usertests.log 'usertests\n' 900 'ALL TESTS PASSED'
     grep -E 'ALL TESTS PASSED' build/qemu_usertests.log >"$log"
     ;;
+  fuzz_fixed_seed)
+    qemu_log build/qemu_fuzz.log 'fuzzvos 20260809 128\n' 120 'VOS_FUZZ_OK seed=20260809 cases=128'
+    grep -E 'VOS_FUZZ_OK seed=20260809 cases=128' build/qemu_fuzz.log >"$log"
+    if grep -q 'VOS_FUZZ_REPRO' build/qemu_fuzz.log; then
+      printf 'fuzz failure contains a minimal reproduction tuple\n' >&2
+      exit 1
+    fi
+    ;;
+  trace_process_file_oracle)
+    qemu_log build/qemu_trace.log 'tracevos\n' 120 'VOS_TRACE_OK'
+    awk '
+      /VOS_TRACE start/ { if (state != 0) exit 1; state = 1 }
+      /VOS_TRACE pipe/ { if (state != 1) exit 1; state = 2 }
+      /VOS_TRACE file/ { if (state != 2) exit 1; state = 3 }
+      /VOS_TRACE process/ { if (state != 3) exit 1; state = 4 }
+      /VOS_TRACE_OK/ { if (state != 4) exit 1; state = 5 }
+      END { exit state == 5 ? 0 : 1 }
+    ' build/qemu_trace.log
+    grep -E 'VOS_TRACE|VOS_TRACE_OK' build/qemu_trace.log >"$log"
+    ;;
   vf2_platform_contract)
     grep_source 'PLATFORM_VISIONFIVE2|platform_early_init|SBI_EXT_HSM|reserved-memory|hart_start' \
       kernel/platform.c kernel/platform.h kernel/sbi.c kernel/sbi.h kernel/start.c

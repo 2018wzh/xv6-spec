@@ -170,6 +170,8 @@ UPROGS=\
 	$U/_logstress\
 	$U/_forphan\
 	$U/_dorphan\
+	$U/_fuzzvos\
+	$U/_tracevos\
 
 fs.img: mkfs/mkfs XV6-README $(UPROGS)
 	tmp=README; trap 'rm -f $$tmp' EXIT; cp XV6-README $$tmp; mkfs/mkfs fs.img $$tmp $(UPROGS)

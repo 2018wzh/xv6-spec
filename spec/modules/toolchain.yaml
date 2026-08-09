@@ -8,6 +8,7 @@ owns:
 - Makefile
 - tests/public
 - .gitignore
+- tests/generated/toolchain
 interface: []
 properties:
 - id: argv-only

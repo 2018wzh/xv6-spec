@@ -38,11 +38,14 @@ VisionFive 2、USB-UART 与可写 SD 卡，因而没有实体板四核 `usertest
 ## 常用命令
 
 ```sh
-vos spec check
+vos agent ask "How should this Lab divide responsibilities?"
+vos spec lint
+vos agent review all
 vos doctor
 vos build
 vos run qemu
 vos verify
+vos verify --hidden
 vos report
 vos submit
 python3 tools/course_history_audit.py
@@ -73,5 +76,6 @@ U74 hart 和完整 `usertests`，只保存脱敏串口日志及哈希；即使�
 ## 隐私与可追溯性
 
 提交前保持 clean HEAD。`verify`、authoritative hardware evidence 和 `submit` 都受
-clean-tree/current-HEAD 门禁保护。报告只应记录 commit、spec/config hash、检查状态、
+clean-tree/current-HEAD 门禁保护；`submit` 还要求当前提交已通过 `vos verify --hidden`。
+本地 hidden tests 对学生可见，不是保密边界。报告只应记录 commit、spec/config hash、检查状态、
 计数和脱敏诊断；不得提交 `.vos/`、串口名、绝对路径、凭据或原始私有载荷。

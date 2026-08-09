@@ -8,6 +8,8 @@ owns:
 - user/forktest.c
 - user/grind.c
 - user/usertests.c
+- user/fuzzvos.c
+- user/tracevos.c
 - tests/generated/user/tests
 interface:
 - name: generate_forktest_c

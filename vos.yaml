@@ -46,6 +46,7 @@ runners:
     workload: four-hart-usertests
 checks:
   bootstrap_banner_not_null:
+    kind: contract
     program: bash
     args:
     - tests/public/verify.sh
@@ -58,6 +59,7 @@ checks:
     verifies:
     - kernel/boot
   bootstrap_banner_length_positive:
+    kind: contract
     program: bash
     args:
     - tests/public/verify.sh
@@ -70,6 +72,7 @@ checks:
     verifies:
     - kernel/boot
   boot_banner_printable:
+    kind: contract
     program: bash
     args:
     - tests/public/verify.sh
@@ -82,6 +85,7 @@ checks:
     verifies:
     - kernel/boot
   kalloc_exhaustion:
+    kind: contract
     program: bash
     args:
     - tests/public/verify.sh
@@ -94,6 +98,7 @@ checks:
     verifies:
     - kernel/memory
   kalloc_alignment:
+    kind: contract
     program: bash
     args:
     - tests/public/verify.sh
@@ -106,6 +111,7 @@ checks:
     verifies:
     - kernel/memory
   kalloc_kfree_cycle:
+    kind: contract
     program: bash
     args:
     - tests/public/verify.sh
@@ -118,6 +124,7 @@ checks:
     verifies:
     - kernel/memory
   kvmmake_identity_mapping:
+    kind: contract
     program: bash
     args:
     - tests/public/verify.sh
@@ -130,6 +137,7 @@ checks:
     verifies:
     - kernel/memory
   kvmmake_trampoline_mapped:
+    kind: contract
     program: bash
     args:
     - tests/public/verify.sh
@@ -142,6 +150,7 @@ checks:
     verifies:
     - kernel/memory
   trap_init_stvec_set:
+    kind: contract
     program: bash
     args:
     - tests/public/verify.sh
@@ -154,6 +163,7 @@ checks:
     verifies:
     - kernel/trap
   devintr_timer:
+    kind: contract
     program: bash
     args:
     - tests/public/verify.sh
@@ -166,6 +176,7 @@ checks:
     verifies:
     - kernel/trap
   usertrap_timer:
+    kind: contract
     program: bash
     args:
     - tests/public/verify.sh
@@ -178,6 +189,7 @@ checks:
     verifies:
     - kernel/trap
   fork_returns_different_pid:
+    kind: contract
     program: bash
     args:
     - tests/public/verify.sh
@@ -190,6 +202,7 @@ checks:
     verifies:
     - kernel/process
   fork_memory_isolation:
+    kind: contract
     program: bash
     args:
     - tests/public/verify.sh
@@ -202,6 +215,7 @@ checks:
     verifies:
     - kernel/process
   exit_zombie:
+    kind: contract
     program: bash
     args:
     - tests/public/verify.sh
@@ -214,6 +228,7 @@ checks:
     verifies:
     - kernel/process
   wait_reap_child:
+    kind: contract
     program: bash
     args:
     - tests/public/verify.sh
@@ -226,6 +241,7 @@ checks:
     verifies:
     - kernel/process
   syscall_valid_number:
+    kind: contract
     program: bash
     args:
     - tests/public/verify.sh
@@ -238,6 +254,7 @@ checks:
     verifies:
     - kernel/syscall
   syscall_invalid_number:
+    kind: contract
     program: bash
     args:
     - tests/public/verify.sh
@@ -250,6 +267,7 @@ checks:
     verifies:
     - kernel/syscall
   invalid_user_pointer_write:
+    kind: contract
     program: bash
     args:
     - tests/public/verify.sh
@@ -262,6 +280,7 @@ checks:
     verifies:
     - kernel/syscall
   sys_write_basic:
+    kind: contract
     program: bash
     args:
     - tests/public/verify.sh
@@ -275,6 +294,7 @@ checks:
     - kernel/syscall
     - kernel/sysfile
   sys_write_large_buffer:
+    kind: contract
     program: bash
     args:
     - tests/public/verify.sh
@@ -287,6 +307,7 @@ checks:
     verifies:
     - kernel/syscall
   sys_fork_parent_pid:
+    kind: contract
     program: bash
     args:
     - tests/public/verify.sh
@@ -299,6 +320,7 @@ checks:
     verifies:
     - kernel/syscall
   sys_fork_child_zero:
+    kind: contract
     program: bash
     args:
     - tests/public/verify.sh
@@ -311,6 +333,7 @@ checks:
     verifies:
     - kernel/syscall
   sys_sbrk_grow:
+    kind: contract
     program: bash
     args:
     - tests/public/verify.sh
@@ -323,6 +346,7 @@ checks:
     verifies:
     - kernel/syscall
   sys_sbrk_shrink:
+    kind: contract
     program: bash
     args:
     - tests/public/verify.sh
@@ -335,6 +359,7 @@ checks:
     verifies:
     - kernel/syscall
   bread_cache_hit:
+    kind: contract
     program: bash
     args:
     - tests/public/verify.sh
@@ -347,6 +372,7 @@ checks:
     verifies:
     - kernel/bio
   bread_cache_miss:
+    kind: contract
     program: bash
     args:
     - tests/public/verify.sh
@@ -359,6 +385,7 @@ checks:
     verifies:
     - kernel/bio
   bwrite_verify:
+    kind: contract
     program: bash
     args:
     - tests/public/verify.sh
@@ -371,6 +398,7 @@ checks:
     verifies:
     - kernel/bio
   log_recovery_committed:
+    kind: contract
     program: bash
     args:
     - tests/public/verify.sh
@@ -383,6 +411,7 @@ checks:
     verifies:
     - kernel/log
   log_recovery_empty:
+    kind: contract
     program: bash
     args:
     - tests/public/verify.sh
@@ -395,6 +424,7 @@ checks:
     verifies:
     - kernel/log
   inode_alloc_free_cycle:
+    kind: contract
     program: bash
     args:
     - tests/public/verify.sh
@@ -407,6 +437,7 @@ checks:
     verifies:
     - kernel/fs
   inode_ref_count:
+    kind: contract
     program: bash
     args:
     - tests/public/verify.sh
@@ -419,6 +450,7 @@ checks:
     verifies:
     - kernel/fs
   fd_alloc_close_cycle:
+    kind: contract
     program: bash
     args:
     - tests/public/verify.sh
@@ -432,6 +464,7 @@ checks:
     - kernel/file
     - kernel/sysfile
   fd_ref_count:
+    kind: contract
     program: bash
     args:
     - tests/public/verify.sh
@@ -444,6 +477,7 @@ checks:
     verifies:
     - kernel/file
   exec_valid_elf:
+    kind: contract
     program: bash
     args:
     - tests/public/verify.sh
@@ -456,6 +490,7 @@ checks:
     verifies:
     - kernel/exec
   exec_invalid_elf:
+    kind: contract
     program: bash
     args:
     - tests/public/verify.sh
@@ -468,6 +503,7 @@ checks:
     verifies:
     - kernel/exec
   exec_argv_passing:
+    kind: contract
     program: bash
     args:
     - tests/public/verify.sh
@@ -480,6 +516,7 @@ checks:
     verifies:
     - kernel/exec
   pipe_read_write_cycle:
+    kind: contract
     program: bash
     args:
     - tests/public/verify.sh
@@ -492,6 +529,7 @@ checks:
     verifies:
     - kernel/pipe
   pipe_blocking_full:
+    kind: contract
     program: bash
     args:
     - tests/public/verify.sh
@@ -504,6 +542,7 @@ checks:
     verifies:
     - kernel/pipe
   pipe_close_wakeup:
+    kind: contract
     program: bash
     args:
     - tests/public/verify.sh
@@ -517,6 +556,7 @@ checks:
     - kernel/pipe
     - kernel/sysfile
   uart_boot_output:
+    kind: contract
     program: bash
     args:
     - tests/public/verify.sh
@@ -529,6 +569,7 @@ checks:
     verifies:
     - kernel/uart
   uart_echo:
+    kind: contract
     program: bash
     args:
     - tests/public/verify.sh
@@ -541,6 +582,7 @@ checks:
     verifies:
     - kernel/uart
   disk_read_write:
+    kind: contract
     program: bash
     args:
     - tests/public/verify.sh
@@ -553,6 +595,7 @@ checks:
     verifies:
     - kernel/virtio
   disk_init:
+    kind: contract
     program: bash
     args:
     - tests/public/verify.sh
@@ -565,6 +608,7 @@ checks:
     verifies:
     - kernel/virtio
   open_read_write_close:
+    kind: contract
     program: bash
     args:
     - tests/public/verify.sh
@@ -577,6 +621,7 @@ checks:
     verifies:
     - kernel/sysfile
   dup_functional:
+    kind: contract
     program: bash
     args:
     - tests/public/verify.sh
@@ -589,6 +634,7 @@ checks:
     verifies:
     - kernel/sysfile
   link_unlink:
+    kind: contract
     program: bash
     args:
     - tests/public/verify.sh
@@ -601,6 +647,7 @@ checks:
     verifies:
     - kernel/sysfile
   sys_pipe_create:
+    kind: contract
     program: bash
     args:
     - tests/public/verify.sh
@@ -613,6 +660,7 @@ checks:
     verifies:
     - kernel/pipe
   sys_pipe_read_write:
+    kind: contract
     program: bash
     args:
     - tests/public/verify.sh
@@ -625,6 +673,7 @@ checks:
     verifies:
     - kernel/pipe
   shell_boots:
+    kind: public
     program: bash
     args:
     - tests/public/verify.sh
@@ -637,6 +686,7 @@ checks:
     verifies:
     - user/tests
   shell_executes_echo:
+    kind: public
     program: bash
     args:
     - tests/public/verify.sh
@@ -651,6 +701,7 @@ checks:
     - kernel/uart
     - user/tests
   usertests_all_pass:
+    kind: public
     program: bash
     args:
     - tests/public/verify.sh
@@ -663,6 +714,7 @@ checks:
     verifies:
     - user/tests
   vf2_platform_contract:
+    kind: contract
     program: bash
     args:
     - tests/public/verify.sh
@@ -675,6 +727,7 @@ checks:
     - kernel/platform
     - kernel/sbi
   vf2_image_tools:
+    kind: contract
     program: bash
     args:
     - tests/public/verify.sh
@@ -687,3 +740,45 @@ checks:
     - kernel/block-device
     - kernel/sd
     - kernel/gpt
+  fuzz_fixed_seed:
+    kind: fuzz
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - fuzz_fixed_seed
+    cwd: .
+    env:
+    - PATH
+    - TOOLPREFIX
+    timeout: 120000
+    verifies:
+    - user/tests
+    - kernel/memory
+    - kernel/pipe
+    - kernel/fs
+    artifacts:
+    - build/qemu_fuzz.log
+    seed: 20260809
+    cases: 128
+    reproduction_artifact: build/qemu_fuzz.log
+  trace_process_file_oracle:
+    kind: trace
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - trace_process_file_oracle
+    cwd: .
+    env:
+    - PATH
+    - TOOLPREFIX
+    timeout: 120000
+    verifies:
+    - kernel/process
+    - kernel/pipe
+    - kernel/fs
+    - user/tests
+    artifacts:
+    - build/qemu_trace.log
+    - build/public/trace_process_file_oracle.log
+    workload: tracevos process-pipe-file sequence
+    oracle: ordered VOS_TRACE markers end in VOS_TRACE_OK without VOS_TRACE_FAIL
