@@ -22,12 +22,13 @@ interface:
   - the boot hart has entered supervisor mode with the linked image accessible through the configured PMP entry
   post:
   - returns an immutable printable banner containing XV6_BOOT_OK
-  errors: []
+  errors:
+  - stage-transition faults occur before boot_banner can be called
   properties:
   - id: boot-banner-check-binding
     text: bootstrap_banner_not_null observes the XV6_BOOT_OK banner
   - id: boot-pmp-before-mret
-    text: start configures a physical-memory PMP entry before mret so bootstrap_banner_not_null can observe supervisor execution
+    text: start configures one unlocked NAPOT PMP entry for the physical address space with supervisor read write and execute permissions before mret so bootstrap_banner_not_null can observe supervisor execution; PMP locking is outside Lab 2 scope
 properties:
 - id: kernel-boot-deterministic
   text: the single boot hart reaches boot_banner deterministically under bootstrap_banner_not_null
@@ -49,6 +50,6 @@ invariants:
 - id: lab2-single-boot-hart
   text: exactly one boot hart reaches the current Lab 2 target
 - id: lab2-supervisor-pmp-access
-  text: when QEMU runs with -bios none, machine mode grants supervisor read write and execute access before mret
+  text: when QEMU runs with -bios none, machine mode writes the maximal pmpaddr0 NAPOT region and pmpcfg0 read write execute permissions before mret
 dependencies:
 - toolchain

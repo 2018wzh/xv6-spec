@@ -10,7 +10,7 @@ vos_lab2_capture_serial() {
   output="${1:?serial output path required}"
   vos_lab2_build
   status=0
-  timeout 5 qemu-system-riscv64 \
+  timeout "${VOS_LAB2_BOOT_TIMEOUT:-2}" qemu-system-riscv64 \
     -machine virt \
     -bios none \
     -kernel kernel/kernel \
