@@ -18,18 +18,22 @@ owns:
 - tests/generated/kernel/boot
 interface:
 - name: boot_banner
-  pre: []
+  pre:
+  - the boot hart has entered supervisor mode with the linked image accessible through the configured PMP entry
   post:
   - returns an immutable printable banner containing XV6_BOOT_OK
   errors: []
   properties:
   - id: boot-banner-check-binding
     text: bootstrap_banner_not_null observes the XV6_BOOT_OK banner
+  - id: boot-pmp-before-mret
+    text: start configures a physical-memory PMP entry before mret so bootstrap_banner_not_null can observe supervisor execution
 properties:
 - id: kernel-boot-deterministic
   text: the single boot hart reaches boot_banner deterministically under bootstrap_banner_not_null
 errors:
 - invalid state fails explicitly
+- entering supervisor mode without PMP access causes an instruction access fault
 state:
   stage: early-boot
   owned_state:
@@ -40,8 +44,11 @@ preconditions:
 - QEMU enters the linked machine-mode entry point with interrupts disabled
 postconditions:
 - supervisor execution reaches main and publishes XV6_BOOT_OK once
+- supervisor mode can fetch and access the linked kernel image after mret
 invariants:
 - id: lab2-single-boot-hart
   text: exactly one boot hart reaches the current Lab 2 target
+- id: lab2-supervisor-pmp-access
+  text: when QEMU runs with -bios none, machine mode grants supervisor read write and execute access before mret
 dependencies:
 - toolchain
