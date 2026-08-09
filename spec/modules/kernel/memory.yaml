@@ -1,0 +1,13 @@
+id: kernel/memory
+module: kernel/memory
+level: 2
+purpose: physical allocation and Sv39 kernel mappings.
+owns:
+- kernel/kalloc.c
+- kernel/vm.c
+interface: []
+properties:
+- id: kernel-memory-deterministic
+  text: behavior is deterministic under the published lab checks
+errors:
+- invalid state fails explicitly
