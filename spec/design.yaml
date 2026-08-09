@@ -19,9 +19,8 @@ required_mechanisms:
 - process scheduling
 - system calls
 - filesystem
-- file descriptions
-- pipes
-- command shell
+- resource ABI
+- complete upstream behavior oracle
 composition_invariants:
 - every published check is deterministic and scoped to the current lab
 non_goals:
