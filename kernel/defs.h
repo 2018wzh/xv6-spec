@@ -74,6 +74,12 @@ void            log_write(struct buf*);
 void            begin_op(void);
 void            end_op(void);
 
+// pipe.c
+int             pipealloc(struct file**, struct file**);
+void            pipeclose(struct pipe*, int);
+int             piperead(struct pipe*, uint64, int);
+int             pipewrite(struct pipe*, uint64, int);
+
 // printk.c
 int             printk(char*, ...) __attribute__ ((format (printf, 1, 2)));
 void            panic(char*) __attribute__((noreturn));
@@ -182,6 +188,5 @@ void            virtio_disk_init(void);
 void            virtio_disk_rw(struct buf *, int);
 void            virtio_disk_intr(void);
 
-
 // number of elements in fixed-size array
-#define NELEM(x) (sizeof(x)/sizeof((x)[0]))
+#define NELEM(x) (sizeof(x) / sizeof((x)[0]))
