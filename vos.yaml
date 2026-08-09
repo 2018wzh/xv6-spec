@@ -139,3 +139,25 @@ checks:
     timeout: 120000
     verifies:
       - kernel/boot
+  toolchain_capability_probe:
+    program: sh
+    args:
+      - tests/public/verify.sh
+      - toolchain_capability_probe
+    cwd: .
+    env:
+      - PATH
+    timeout: 30000
+    verifies:
+      - toolchain
+  toolchain_clean_rebuild:
+    program: sh
+    args:
+      - tests/public/verify.sh
+      - toolchain_clean_rebuild
+    cwd: .
+    env:
+      - PATH
+    timeout: 120000
+    verifies:
+      - toolchain

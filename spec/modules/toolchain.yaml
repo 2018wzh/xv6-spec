@@ -1,7 +1,7 @@
 id: toolchain
 module: toolchain
 level: 2
-purpose: Build and run the Linux and freestanding RISC-V CTF readers with reproducible host commands and serial-only QEMU evidence.
+purpose: Reproducibly build and run the Lab 1 CTF readers and Lab 2 kernel image through VOS structured commands with a capability-probed RISC-V toolchain.
 owns:
 - vos.yaml
 - Makefile
@@ -31,30 +31,41 @@ interface:
 - name: select_riscv_toolchain
   pre:
   - one or more RISC-V compiler prefixes may be present on PATH
+  - every build or test target that launches host tools includes PATH in its env allowlist
   post:
   - the selected prefix compiles an empty freestanding RV64 object and provides the matching linker and objdump
   errors:
   - no candidate prefix passes the compile capability probe
   properties:
   - id: toolchain-capability-probe
-    text: selection tests compilation capability and never relies on command presence or objdump presence alone
+    text: selection tests basic freestanding RV64 compilation capability and never relies on command presence or objdump presence alone; the full kernel build and kernel/boot checks remain the behavioral gate
+  - id: toolchain-path-allowlist
+    text: VOS structured commands expose PATH explicitly so build scripts and test helpers resolve the same host tools as the capability probe
 properties:
 - id: toolchain-deterministic
-  text: a clean rebuild selects the same capable prefix and reproduces the declared Lab 1 artifacts and kernel/kernel under the published lab checks
+  text: under an unchanged PATH prefix set, two clean builds select the same capable prefix and reproduce the declared Lab 1 artifacts and kernel/kernel content hash
 errors:
 - missing tools, failed compilation, invalid images, and QEMU failures are reported without fallback artifacts
 state:
-  stage: lab1-ctf-warmup
+  stage: lab2-kernel-bootstrap
   owned_state:
   - structured build and QEMU commands plus their declared artifacts
+  - the capable RISC-V tool prefix selected for one build invocation
   resource_lifetime:
   - build outputs are disposable and never replace tracked source or Spec files
+  - toolchain selection is recomputed from the current PATH for each independent build
 preconditions:
 - PATH is explicitly allowed for build and QEMU targets
 - the selected RISC-V compiler records its version, target triple, RV64GC ISA, LP64 ABI, and matching binutils identity in check evidence
+- generated capability and clean-rebuild checks are present before validation
 postconditions:
 - vos build and vos run qemu execute only the declared argv projections
+- published toolchain checks exercise capability selection and reproducible clean rebuilds
 invariants:
 - id: ctf-toolchain-argv
   text: program and arguments remain separate fields and every cwd and artifact path stays inside the repository
+- id: lab2-toolchain-probe-binding
+  text: toolchain_capability_probe invokes the generated probe and rejects a prefix that cannot compile a freestanding RV64 object
+- id: lab2-toolchain-clean-rebuild
+  text: toolchain_clean_rebuild performs two clean builds under the unchanged PATH allowlist and compares both the selected prefix and kernel/kernel content hash; QEMU behavior is verified by kernel/boot checks
 dependencies: []
