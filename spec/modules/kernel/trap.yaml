@@ -46,6 +46,8 @@ properties:
   text: kernel_trap_frame_fuzz observes that kernelvec saves and restores every register it changes in symmetric stack slots
 - id: interrupt-enable-order
   text: kernel_trap_boot_public observes that PLIC and UART initialization precede setting supervisor interrupt enable bits and that the Lab 2 banner survives the boot-to-console handoff
+- id: trap-frame-fuzz-build
+  text: kernel_trap_frame_fuzz compiles its harness with warnings enabled before executing every fixed-seed case; unused or undeclared harness state is a failing result
 - id: uart-stage-handoff
   text: boot owns only its direct polling banner publication; trap-stage uartinit then idempotently re-establishes the same divisor and 8-bit line control before enabling FIFO receive interrupts, after which console and printk own ordinary output
 - id: virtio-interrupt-deferred
