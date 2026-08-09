@@ -1,0 +1,37 @@
+id: kernel/platform
+module: kernel/platform
+level: 2
+purpose: Strictly select qemu-virt or parse the pinned VisionFive 2 device tree.
+owns:
+- kernel/platform.c
+- kernel/platform.h
+- kernel/memlayout.h
+- tests/generated/kernel/platform
+interface: []
+properties:
+- id: platform-dtb-required
+  text: VisionFive 2 requires compatible RAM reserved-memory UART PLIC SDIO and four U74 nodes
+errors:
+- unknown compatible strings and malformed or missing nodes panic
+state:
+  stage: platform
+  owned_state:
+  - immutable platform_info after early initialization
+  resource_lifetime:
+  - platform_info exists for the kernel lifetime
+preconditions:
+- a0 contains hartid and a1 contains DTB on firmware entry
+postconditions:
+- all platform consumers use validated platform_info values
+invariants:
+- id: platform-no-address-fallback
+  text: hardware discovery never falls back to QEMU addresses
+dependencies:
+- kernel/start
+rely: []
+guarantee:
+- 'exported: platform_get'
+algorithm_intent: Validate once during early boot and expose immutable typed values.
+concurrency:
+  module: {}
+  operations: {}

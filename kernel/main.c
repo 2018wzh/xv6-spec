@@ -13,10 +13,7 @@ main()
   if (cpuid() == 0) {
     consoleinit();
     printkinit();
-    printk("\n");
-    printk("xv6 kernel is booting\n");
-    printk("XV6_BOOT_OK\n");
-    printk("\n");
+    printk("%s", boot_banner());
     kinit();            // physical page allocator
     kvminit();          // create kernel page table
     kvminithart();      // turn on paging
@@ -28,7 +25,7 @@ main()
     binit();            // buffer cache
     iinit();            // inode table
     fileinit();         // file table
-    virtio_disk_init(); // emulated hard disk
+    disk_init();        // platform block device
     userinit();         // first user process
     __atomic_thread_fence(__ATOMIC_SEQ_CST);
     started = 1;

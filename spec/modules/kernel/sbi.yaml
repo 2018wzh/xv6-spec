@@ -1,0 +1,34 @@
+id: kernel/sbi
+module: kernel/sbi
+level: 2
+purpose: Typed SBI v0.2 calls for timer, capability probing, HSM and reset.
+owns:
+- kernel/sbi.c
+- kernel/sbi.h
+- tests/generated/kernel/sbi
+interface: []
+properties:
+- id: sbi-required-extensions
+  text: TIME IPI RFENCE HSM and SRST are probed before hardware startup
+errors:
+- missing required extensions prevent boot
+state:
+  stage: platform
+  owned_state: []
+  resource_lifetime: []
+preconditions:
+- OpenSBI implements the SBI v0.2 calling convention
+postconditions:
+- SBI errors are returned or converted to explicit boot failures
+invariants:
+- id: sbi-error-visible
+  text: no SBI error is treated as success
+dependencies:
+- kernel/platform
+rely: []
+guarantee:
+- 'exported: sbi_call'
+algorithm_intent: Keep extension IDs and register convention in one implementation.
+concurrency:
+  module: {}
+  operations: {}

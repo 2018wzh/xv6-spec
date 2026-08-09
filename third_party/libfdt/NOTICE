@@ -1,0 +1,8 @@
+libfdt 1.7.2
+
+Source: https://github.com/dgibson/dtc.git
+Revision: 2d10aa2afe35527728db30b35ec491ecb6959e5c
+License: BSD-2-Clause OR GPL-2.0-or-later
+
+This project uses libfdt under the BSD-2-Clause option. The unmodified source
+files and license text are retained in this directory.

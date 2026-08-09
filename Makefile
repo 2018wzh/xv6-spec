@@ -4,6 +4,8 @@ U=user
 OBJS = \
   $K/entry.o \
   $K/boot.o \
+  $K/platform.o \
+  $K/sbi.o \
   $K/start.o \
   $K/console.o \
   $K/printk.o \
@@ -29,7 +31,18 @@ OBJS = \
   $K/sysfile.o \
   $K/kernelvec.o \
   $K/plic.o \
+  $K/blockdev.o \
+  $K/sd.o \
+  $K/gpt.o \
   $K/virtio_disk.o
+
+PLATFORM ?= qemu-virt
+KERNEL_LDSCRIPT = $K/kernel.ld
+ifeq ($(PLATFORM),visionfive2)
+PLATFORM_CFLAGS = -DPLATFORM_VISIONFIVE2
+OBJS += third_party/libfdt/fdt.o third_party/libfdt/fdt_ro.o
+KERNEL_LDSCRIPT = $K/kernel-vf2.ld
+endif
 
 # riscv64-unknown-elf- or riscv64-linux-gnu-
 # perhaps in /opt/riscv/bin
@@ -75,7 +88,8 @@ CFLAGS += -fno-builtin-strchr -fno-builtin-exit -fno-builtin-malloc -fno-builtin
 CFLAGS += -fno-builtin-free
 CFLAGS += -fno-builtin-memcpy -Wno-main
 CFLAGS += -fno-builtin-printf -fno-builtin-fprintf -fno-builtin-vprintf
-CFLAGS += -I.
+CFLAGS += -I. -Ithird_party/libfdt
+CFLAGS += $(PLATFORM_CFLAGS)
 CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
 
 # Disable PIE when possible (for Ubuntu 16.10 toolchain)
@@ -88,13 +102,22 @@ endif
 
 LDFLAGS = -z max-page-size=4096
 
-$K/kernel: $(OBJS) $K/kernel.ld
-	$(LD) $(LDFLAGS) -T $K/kernel.ld -o $K/kernel $(OBJS) 
+PLATFORM_STAMP = build/.platform-$(PLATFORM)
+
+$(PLATFORM_STAMP): | build
+	rm -f build/.platform-* kernel/*.o kernel/*.d third_party/libfdt/*.o \
+	  third_party/libfdt/*.d
+	touch $@
+
+$(OBJS): $(PLATFORM_STAMP)
+
+$K/kernel: $(OBJS) $(KERNEL_LDSCRIPT)
+	$(LD) $(LDFLAGS) -T $(KERNEL_LDSCRIPT) -o $K/kernel $(OBJS)
 	$(OBJDUMP) -S $K/kernel > $K/kernel.asm
 	$(OBJDUMP) -t $K/kernel | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $K/kernel.sym
 
 $K/%.o: $K/%.S
-	$(CC) -march=rv64gc -g -c -o $@ $<
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 tags: $(OBJS)
 	etags kernel/*.S kernel/*.c
@@ -153,6 +176,23 @@ fs.img: mkfs/mkfs XV6-README $(UPROGS)
 
 all: build/kernel.elf build/kernel.bin build/kernel.asm fs.img
 
+vf2-kernel:
+	$(MAKE) clean
+	$(MAKE) PLATFORM=visionfive2 build/kernel.bin fs.img
+	python3 tools/fetch_vf2_assets.py
+
+vf2-fit: vf2-kernel
+	command -v mkimage >/dev/null || { echo "ERROR: mkimage is required" >&2; exit 1; }
+	mkimage -f hardware/visionfive2/xv6.its build/xv6.itb
+
+vf2-image: vf2-fit
+	python3 tools/vf2_image.py build --fit build/xv6.itb --fs fs.img \
+	  --output build/visionfive2-sd.img
+
+vf2-image-check:
+	python3 tools/vf2_image.py inspect --image build/visionfive2-sd.img \
+	  --fit build/xv6.itb
+
 build:
 	mkdir -p build
 
@@ -172,6 +212,9 @@ clean:
 	*/*.o */*.d */*.asm */*.sym \
 	$K/kernel fs.img \
 	build/kernel.elf build/kernel.bin build/kernel.asm \
+	build/visionfive2.dtb build/xv6.itb build/visionfive2-sd.img \
+	build/.platform-* \
+	third_party/libfdt/*.o third_party/libfdt/*.d \
 	mkfs/mkfs .gdbinit \
         $U/usys.S \
 	$(UPROGS)
@@ -211,6 +254,6 @@ check-qemu-version:
 		exit 1; \
 	fi
 
-.PHONY: fmt
+.PHONY: fmt vf2-kernel vf2-fit vf2-image vf2-image-check
 fmt:
 	clang-format -i $(wildcard kernel/*.[ch] user/*.[ch] mkfs/*.c)

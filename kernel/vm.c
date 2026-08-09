@@ -7,6 +7,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "fs.h"
+#include "platform.h"
 
 /*
  * the kernel's page table.
@@ -26,20 +27,25 @@ kvmmake(void)
   kpgtbl = (pagetable_t)kalloc();
   memset(kpgtbl, 0, PGSIZE);
 
+  const struct platform_info *p = platform_get();
+
   // uart registers
-  kvmmap(kpgtbl, UART0, UART0, PGSIZE, PTE_R | PTE_W);
+  kvmmap(kpgtbl, PGROUNDDOWN(p->uart_base), PGROUNDDOWN(p->uart_base),
+         PGSIZE, PTE_R | PTE_W);
 
   // virtio mmio disk interface
-  kvmmap(kpgtbl, VIRTIO0, VIRTIO0, PGSIZE, PTE_R | PTE_W);
+  kvmmap(kpgtbl, PGROUNDDOWN(p->block_base), PGROUNDDOWN(p->block_base),
+         PGSIZE, PTE_R | PTE_W);
 
   // PLIC
-  kvmmap(kpgtbl, PLIC, PLIC, 0x4000000, PTE_R | PTE_W);
+  kvmmap(kpgtbl, p->plic_base, p->plic_base, 0x4000000, PTE_R | PTE_W);
 
   // map kernel text executable and read-only.
   kvmmap(kpgtbl, KERNBASE, KERNBASE, (uint64)etext - KERNBASE, PTE_R | PTE_X);
 
   // map kernel data and the physical RAM we'll make use of.
-  kvmmap(kpgtbl, (uint64)etext, (uint64)etext, PHYSTOP - (uint64)etext,
+  kvmmap(kpgtbl, (uint64)etext, (uint64)etext,
+         p->ram_end - (uint64)etext,
          PTE_R | PTE_W);
 
   // map the trampoline for trap entry/exit to
@@ -404,18 +410,25 @@ copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
   return 0;
 }
 
-
+// Validate that every page in a user range can be read. Resolve legitimate
+// lazy allocations before a caller starts an operation with external side
+// effects, such as allocating filesystem blocks. Return -1 without changing
+// those external resources when the range is not readable.
 int
 copyincheck(pagetable_t pagetable, uint64 srcva, uint64 len)
 {
+  uint64 va0;
+
   if (len == 0)
     return 0;
   if (srcva >= MAXVA || len > MAXVA - srcva)
     return -1;
+
   while (len > 0) {
-    uint64 va0 = PGROUNDDOWN(srcva);
+    va0 = PGROUNDDOWN(srcva);
     if (walkaddr(pagetable, va0) == 0 && vmfault(pagetable, va0, 0) == 0)
       return -1;
+
     uint64 n = PGSIZE - (srcva - va0);
     if (n > len)
       n = len;

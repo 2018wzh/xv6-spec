@@ -9,14 +9,41 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "platform.h"
 
 // the UART control registers are memory-mapped
 // at address UART0. this macro returns the
 // address of one of the registers.
-#define Reg(reg) ((volatile unsigned char *)(UART0 + (reg)))
+static uint32
+readreg(uint32 reg)
+{
+  const struct platform_info *p = platform_get();
+  uint64 address = p->uart_base + ((uint64)reg << p->uart_reg_shift);
+  if (p->uart_reg_width == 1)
+    return *(volatile uchar *)address;
+  if (p->uart_reg_width == 4)
+    return *(volatile uint32 *)address;
+  panic("uart: unsupported register width");
+}
 
-#define ReadReg(reg)     (*(Reg(reg)))
-#define WriteReg(reg, v) (*(Reg(reg)) = (v))
+static void
+writereg(uint32 reg, uint32 value)
+{
+  const struct platform_info *p = platform_get();
+  uint64 address = p->uart_base + ((uint64)reg << p->uart_reg_shift);
+  if (p->uart_reg_width == 1) {
+    *(volatile uchar *)address = value;
+    return;
+  }
+  if (p->uart_reg_width == 4) {
+    *(volatile uint32 *)address = value;
+    return;
+  }
+  panic("uart: unsupported register width");
+}
+
+#define ReadReg(reg) readreg(reg)
+#define WriteReg(reg, value) writereg((reg), (value))
 
 // the UART control registers.
 // some have different meanings for read vs write.
