@@ -5,6 +5,7 @@
 #include "defs.h"
 
 void main();
+void timerinit();
 
 // entry.S needs one stack per CPU.
 __attribute__((aligned(16))) char stack0[4096 * NCPU];
@@ -26,10 +27,18 @@ start()
   // disable paging for now.
   w_satp(0);
 
+  // delegate all interrupts and exceptions to supervisor mode.
+  w_medeleg(0xffff);
+  w_mideleg(0xffff);
+  w_sie(r_sie() | SIE_SEIE | SIE_STIE);
+
   // configure Physical Memory Protection to give supervisor mode
   // access to all of physical memory.
   w_pmpaddr0(0x3fffffffffffffull);
   w_pmpcfg0(0xf);
+
+  // ask for clock interrupts.
+  timerinit();
 
   // keep each CPU's hartid in its tp register, for cpuid().
   int id = r_mhartid();
@@ -37,4 +46,18 @@ start()
 
   // switch to supervisor mode and jump to main().
   asm volatile("mret");
+}
+
+// ask each hart to generate timer interrupts.
+void
+timerinit()
+{
+  // enable the sstc extension (i.e. stimecmp).
+  w_menvcfg(r_menvcfg() | (1L << 63));
+
+  // allow supervisor to use stimecmp and time.
+  w_mcounteren(r_mcounteren() | 2);
+
+  // ask for the very first timer interrupt.
+  w_stimecmp(r_time() + 1000000);
 }
