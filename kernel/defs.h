@@ -17,15 +17,62 @@ void            console_write(const char*, int);
 void            shutdown(void);
 void            kernel_main(void);
 
+// bio.c
+void            binit(void);
+struct buf*     bread(uint, uint);
+void            brelse(struct buf*);
+void            bwrite(struct buf*);
+void            bpin(struct buf*);
+void            bunpin(struct buf*);
+
 // console.c
 void            consoleinit(void);
 void            consoleintr(int);
 void            consputc(int);
 
+// exec.c
+int             kexec(char*, char**);
+
+// file.c
+struct file*    filealloc(void);
+void            fileclose(struct file*);
+struct file*    filedup(struct file*);
+void            fileinit(void);
+int             fileread(struct file*, uint64, int n);
+int             filestat(struct file*, uint64 addr);
+int             filewrite(struct file*, uint64, int n);
+
+// fs.c
+void            fsinit(int);
+int             dirlink(struct inode*, char*, uint);
+struct inode*   dirlookup(struct inode*, char*, uint*);
+struct inode*   ialloc(uint, short);
+struct inode*   idup(struct inode*);
+void            iinit();
+void            ilock(struct inode*);
+void            iput(struct inode*);
+void            iunlock(struct inode*);
+void            iunlockput(struct inode*);
+void            iupdate(struct inode*);
+int             namecmp(const char*, const char*);
+struct inode*   namei(char*);
+struct inode*   nameiparent(char*, char*);
+int             readi(struct inode*, int, uint64, uint, uint);
+void            stati(struct inode*, struct stat*);
+int             writei(struct inode*, int, uint64, uint, uint);
+void            itrunc(struct inode*);
+void            ireclaim(int);
+
 // kalloc.c
 void*           kalloc(void);
 void            kfree(void *);
 void            kinit(void);
+
+// log.c
+void            initlog(int, struct superblock*);
+void            log_write(struct buf*);
+void            begin_op(void);
+void            end_op(void);
 
 // printk.c
 int             printk(char*, ...) __attribute__ ((format (printf, 1, 2)));
@@ -67,6 +114,12 @@ void            initlock(struct spinlock*, char*);
 void            release(struct spinlock*);
 void            push_off(void);
 void            pop_off(void);
+
+// sleeplock.c
+void            acquiresleep(struct sleeplock*);
+void            releasesleep(struct sleeplock*);
+int             holdingsleep(struct sleeplock*);
+void            initsleeplock(struct sleeplock*, char*);
 
 // string.c
 int             memcmp(const void*, const void*, uint);
@@ -123,6 +176,11 @@ void            plicinit(void);
 void            plicinithart(void);
 int             plic_claim(void);
 void            plic_complete(int);
+
+// virtio_disk.c
+void            virtio_disk_init(void);
+void            virtio_disk_rw(struct buf *, int);
+void            virtio_disk_intr(void);
 
 
 // number of elements in fixed-size array

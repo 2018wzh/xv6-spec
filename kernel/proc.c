@@ -224,7 +224,7 @@ userinit(void)
   p = allocproc();
   initproc = p;
 
-  p->cwd = 0;
+  p->cwd = namei("/");
 
   p->state = RUNNABLE;
 
@@ -259,7 +259,7 @@ growproc(int n)
 int
 kfork(void)
 {
-  int pid;
+  int i, pid;
   struct proc *np;
   struct proc *p = myproc();
 
@@ -282,6 +282,11 @@ kfork(void)
   // Cause fork to return 0 in the child.
   np->trapframe->a0 = 0;
 
+  // increment reference counts on open file descriptors.
+  for (i = 0; i < NOFILE; i++)
+    if (p->ofile[i])
+      np->ofile[i] = filedup(p->ofile[i]);
+  np->cwd = idup(p->cwd);
 
   safestrcpy(np->name, p->name, sizeof(p->name));
 
@@ -326,6 +331,19 @@ kexit(int status)
   if (p == initproc)
     panic("init exiting");
 
+  // Close all open files.
+  for (int fd = 0; fd < NOFILE; fd++) {
+    if (p->ofile[fd]) {
+      struct file *f = p->ofile[fd];
+      fileclose(f);
+      p->ofile[fd] = 0;
+    }
+  }
+
+  begin_op();
+  iput(p->cwd);
+  end_op();
+  p->cwd = 0;
 
   acquire(&wait_lock);
 
@@ -488,11 +506,29 @@ void
 forkret(void)
 {
   extern char userret[];
+  static int first = 1;
   struct proc *p = myproc();
 
   // Still holding p->lock from scheduler.
   release(&p->lock);
 
+  if (first) {
+    // File system initialization must be run in the context of a
+    // regular process (e.g., because it calls sleep), and thus cannot
+    // be run from main().
+    fsinit(ROOTDEV);
+
+    first = 0;
+    // ensure other cores see first=0.
+    __atomic_thread_fence(__ATOMIC_SEQ_CST);
+
+    // We can invoke kexec() now that file system is initialized.
+    // Put the return value (argc) of kexec into a0.
+    p->trapframe->a0 = kexec("/init", (char *[]){"/init", 0});
+    if (p->trapframe->a0 == -1) {
+      panic("exec");
+    }
+  }
 
   // return to user space, mimicing usertrap()'s return.
   prepare_return();
