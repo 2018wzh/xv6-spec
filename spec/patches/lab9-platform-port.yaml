@@ -1,0 +1,18 @@
+id: lab9-platform-port
+reason: Lab 9 replaces fixed device addresses with strict platform discovery and adds the
+  VisionFive 2 storage and boot chain.
+changes:
+- kernel/platform
+- kernel/sbi
+- kernel/trap
+- kernel/memory
+- kernel/plic
+- kernel/uart
+- kernel/block-device
+- kernel/sd
+- kernel/gpt
+new_invariants:
+- Platform-specific addresses and interrupts originate only from qemu-virt defaults or a
+  validated VisionFive 2 DTB.
+- SBI TIME, IPI, RFENCE, HSM and SRST are mandatory on VisionFive 2.
+- The native SD backend exposes only the GPT partition named xv6fs to the filesystem.
