@@ -1,0 +1,14 @@
+id: kernel/process
+module: kernel/process
+level: 2
+purpose: process lifecycle and scheduling.
+owns:
+- kernel/proc.c
+- kernel/swtch.S
+- tests/generated/kernel/process
+interface: []
+properties:
+- id: kernel-process-deterministic
+  text: behavior is deterministic under the published lab checks
+errors:
+- invalid state fails explicitly

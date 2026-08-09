@@ -1,0 +1,14 @@
+id: kernel/syscall
+module: kernel/syscall
+level: 2
+purpose: system call dispatch.
+owns:
+- kernel/syscall.c
+- kernel/sysproc.c
+- tests/generated/kernel/syscall
+interface: []
+properties:
+- id: kernel-syscall-deterministic
+  text: behavior is deterministic under the published lab checks
+errors:
+- invalid state fails explicitly

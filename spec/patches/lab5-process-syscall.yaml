@@ -1,0 +1,4 @@
+id: lab5-process-syscall
+reason: process state crosses the trap boundary
+changes: [kernel/trap, kernel/process, kernel/syscall]
+new_invariants: [trap-frame state belongs to one process]
