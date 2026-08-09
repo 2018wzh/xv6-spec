@@ -28,9 +28,19 @@ interface:
   properties:
   - id: ctf-toolchain-qemu
     text: the runner binds the functional ctf-baremetal-public property to serial evidence, accepts only the complete CTF_BAREMETAL_OK marker, and preserves failure, missing, and timeout outcomes
+- name: select_riscv_toolchain
+  pre:
+  - one or more RISC-V compiler prefixes may be present on PATH
+  post:
+  - the selected prefix compiles an empty freestanding RV64 object and provides the matching linker and objdump
+  errors:
+  - no candidate prefix passes the compile capability probe
+  properties:
+  - id: toolchain-capability-probe
+    text: selection tests compilation capability and never relies on command presence or objdump presence alone
 properties:
 - id: toolchain-deterministic
-  text: unchanged sources and compiler identities reproduce the declared artifacts and fixture layout
+  text: a clean rebuild selects the same capable prefix and reproduces the declared Lab 1 artifacts and kernel/kernel under the published lab checks
 errors:
 - missing tools, failed compilation, invalid images, and QEMU failures are reported without fallback artifacts
 state:
