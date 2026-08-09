@@ -9,12 +9,14 @@ machine:
 kernel:
   organization: monolithic teaching kernel
   execution: single boot hart reaches the current lab target
-  protection: machine entry establishes supervisor execution
+  protection: Sv39 page tables isolate mapped regions
   communication: serial boot output only
-  resource_model: static boot memory only
+  resource_model: explicit ownership for resources introduced through this lab
 required_mechanisms:
 - deterministic early entry
 - serial boot output
+- physical page allocation
+- Sv39 mappings
 composition_invariants:
 - every published check is deterministic and scoped to the current lab
 non_goals:
