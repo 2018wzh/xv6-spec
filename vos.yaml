@@ -29,3 +29,10 @@ checks:
     env: []
     timeout: 120000
     verifies: [kernel/boot]
+  bootstrap_qemu_single_banner:
+    program: sh
+    args: [tests/public/verify.sh, bootstrap_qemu_single_banner]
+    cwd: .
+    env: []
+    timeout: 120000
+    verifies: [kernel/boot]
