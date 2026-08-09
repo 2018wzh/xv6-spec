@@ -1,0 +1,12 @@
+id: interface/resource
+name: kernel resource ABI
+boundary: abi
+module: kernel/pipe
+operations:
+- name: current_lab_contract
+  pre: []
+  post:
+  - the current lab boundary is preserved
+  errors:
+  - invalid state fails explicitly
+  properties: []

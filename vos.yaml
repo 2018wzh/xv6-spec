@@ -99,3 +99,24 @@ checks:
     env: []
     timeout: 120000
     verifies: [kernel/fs]
+  fd_alloc_close_cycle:
+    program: sh
+    args: [tests/public/verify.sh, fd_alloc_close_cycle]
+    cwd: .
+    env: []
+    timeout: 120000
+    verifies: [kernel/pipe]
+  pipe_read_write_cycle:
+    program: sh
+    args: [tests/public/verify.sh, pipe_read_write_cycle]
+    cwd: .
+    env: []
+    timeout: 120000
+    verifies: [kernel/pipe]
+  shell_boots:
+    program: sh
+    args: [tests/public/verify.sh, shell_boots]
+    cwd: .
+    env: []
+    timeout: 120000
+    verifies: [kernel/pipe]
