@@ -3,7 +3,7 @@ build:
   program: make
   args: []
   cwd: .
-  env: []
+  env: [PATH]
   timeout: 120000
   artifacts: [kernel/kernel]
 runners:
@@ -11,14 +11,14 @@ runners:
     program: make
     args: [qemu]
     cwd: .
-    env: []
+    env: [PATH]
     timeout: 120000
     artifacts: []
   hardware:
     program: sh
     args: [-c, 'exit 2']
     cwd: .
-    env: []
+    env: [PATH]
     timeout: 1000
     artifacts: []
 checks:
@@ -26,13 +26,27 @@ checks:
     program: sh
     args: [tests/public/verify.sh, bootstrap_banner_not_null]
     cwd: .
-    env: []
+    env: [PATH]
     timeout: 120000
     verifies: [kernel/boot]
   bootstrap_qemu_single_banner:
     program: sh
     args: [tests/public/verify.sh, bootstrap_qemu_single_banner]
     cwd: .
-    env: []
+    env: [PATH]
     timeout: 120000
     verifies: [kernel/boot]
+  toolchain_capability_probe:
+    program: sh
+    args: [tests/public/verify.sh, toolchain_capability_probe]
+    cwd: .
+    env: [PATH]
+    timeout: 30000
+    verifies: [toolchain]
+  toolchain_clean_rebuild:
+    program: sh
+    args: [tests/public/verify.sh, toolchain_clean_rebuild]
+    cwd: .
+    env: [PATH]
+    timeout: 120000
+    verifies: [toolchain]

@@ -17,6 +17,7 @@ required_mechanisms:
 - serial boot output
 composition_invariants:
 - every published check is deterministic and scoped to the current lab
+- under an unchanged PATH prefix set, the toolchain and kernel bootstrap compose to reproduce the kernel/kernel content hash across clean builds
 non_goals:
 - mechanisms assigned to later labs
 hardware_port:

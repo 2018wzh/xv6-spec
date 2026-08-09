@@ -1,7 +1,7 @@
 id: toolchain
 module: toolchain
 level: 2
-purpose: student project commands.
+purpose: Select a capable RISC-V compiler prefix and reproducibly build the Lab 2 kernel image through VOS structured commands.
 owns:
 - vos.yaml
 - Makefile
@@ -10,15 +10,37 @@ interface:
 - name: select_riscv_toolchain
   pre:
   - one or more RISC-V compiler prefixes may be present on PATH
+  - every build or test target that launches host tools includes PATH in its env allowlist
   post:
   - the selected prefix compiles an empty freestanding RV64 object and provides the matching linker and objdump
   errors:
   - no candidate prefix passes the compile capability probe
   properties:
   - id: toolchain-capability-probe
-    text: selection tests compilation capability and never relies on command presence or objdump presence alone
+    text: selection tests basic freestanding RV64 compilation capability and never relies on command presence or objdump presence alone; the full kernel build and kernel/boot checks remain the behavioral gate
+  - id: toolchain-path-allowlist
+    text: VOS structured commands expose PATH explicitly so build scripts and test helpers resolve the same host tools as the capability probe
 properties:
 - id: toolchain-deterministic
-  text: a clean rebuild selects the same capable prefix and reproduces kernel/kernel under the published lab checks
+  text: under an unchanged PATH prefix set, two clean builds select the same capable prefix and reproduce the kernel/kernel content hash
 errors:
 - invalid state fails explicitly
+state:
+  stage: build
+  owned_state:
+  - the capable RISC-V tool prefix selected for one build invocation
+  resource_lifetime:
+  - selection is recomputed from the current PATH for each independent build
+preconditions:
+- PATH is explicitly allowed by each structured build or test target
+- generated capability and clean-rebuild checks are present before validation
+postconditions:
+- Makefile builds kernel/kernel with the prefix accepted by select_riscv_toolchain
+- published toolchain checks exercise both capability selection and a clean rebuild
+- generated toolchain checks are proposed by vos agent implement for the committed Lab 2 SpecPatch and atomically projected by VOS
+invariants:
+- id: lab2-toolchain-probe-binding
+  text: toolchain_capability_probe invokes the generated probe and rejects a prefix that cannot compile a freestanding RV64 object
+- id: lab2-toolchain-clean-rebuild
+  text: toolchain_clean_rebuild performs two clean builds under the unchanged PATH allowlist and compares both the selected prefix and kernel/kernel content hash; QEMU behavior is verified by kernel/boot checks
+dependencies: []
