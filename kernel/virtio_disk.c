@@ -15,9 +15,10 @@
 #include "fs.h"
 #include "buf.h"
 #include "virtio.h"
+#include "platform.h"
 
 // the address of virtio mmio register r.
-#define R(r) ((volatile uint32 *)(VIRTIO0 + (r)))
+#define R(r) ((volatile uint32 *)(platform_get()->block_base + (r)))
 
 static struct disk {
   // a set (not a ring) of DMA descriptors, with which the

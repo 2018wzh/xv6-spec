@@ -1,0 +1,32 @@
+id: kernel/gpt
+module: kernel/gpt
+level: 3
+purpose: Validate GPT metadata and locate the unique Linux-data partition named xv6fs.
+owns:
+- kernel/gpt.c
+interface: []
+properties:
+- id: gpt-crc-required
+  text: protective MBR header CRC and entry-array CRC must all validate
+errors:
+- malformed duplicate missing or out-of-range xv6fs entries panic
+state:
+  stage: device
+  owned_state: []
+  resource_lifetime: []
+preconditions:
+- raw 512-byte sector reads are available
+postconditions:
+- returns the first LBA of exactly one valid xv6fs partition
+invariants:
+- id: gpt-no-fixed-lba
+  text: filesystem placement is derived from GUID and name
+dependencies:
+- kernel/sd
+rely: []
+guarantee:
+- 'exported: gpt_find_xv6fs'
+algorithm_intent: Reject corrupt metadata before exposing any partition offset.
+concurrency:
+  module: {}
+  operations: {}

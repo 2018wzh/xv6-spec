@@ -12,10 +12,6 @@ struct superblock;
 
 // boot.c
 const char*     boot_banner(void);
-void            console_putchar(int);
-void            console_write(const char*, int);
-void            shutdown(void);
-void            kernel_main(void);
 
 // bio.c
 void            binit(void);
@@ -130,11 +126,15 @@ void            initsleeplock(struct sleeplock*, char*);
 // string.c
 int             memcmp(const void*, const void*, uint);
 void*           memmove(void*, const void*, uint);
+void*           memcpy(void*, const void*, uint);
 void*           memset(void*, int, uint);
+void*           memchr(const void*, int, uint);
+uint            strnlen(const char*, uint);
 char*           safestrcpy(char*, const char*, int);
 int             strlen(const char*);
 int             strncmp(const char*, const char*, uint);
 char*           strncpy(char*, const char*, int);
+char*           strrchr(const char*, char);
 
 // syscall.c
 void            argint(int, int*);
@@ -188,6 +188,16 @@ void            plic_complete(int);
 void            virtio_disk_init(void);
 void            virtio_disk_rw(struct buf *, int);
 void            virtio_disk_intr(void);
+
+// blockdev.c
+void            disk_init(void);
+void            disk_rw(struct buf *, int);
+void            disk_intr(void);
+
+// sd.c
+void            jh7110_sd_init(void);
+void            jh7110_sd_rw(struct buf *, int);
+void            jh7110_sd_intr(void);
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x) / sizeof((x)[0]))

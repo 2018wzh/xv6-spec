@@ -1,0 +1,36 @@
+id: kernel/block-device
+module: kernel/block-device
+level: 3
+purpose: Route the filesystem block contract to exactly one validated platform backend.
+owns:
+- kernel/blockdev.c
+interface: []
+properties:
+- id: block-device-selection
+  text: qemu-virt uses virtio and VisionFive 2 uses JH7110 SDIO
+errors:
+- unknown backend selection panics
+state:
+  stage: device
+  owned_state: []
+  resource_lifetime: []
+preconditions:
+- platform discovery has completed
+postconditions:
+- all block I/O uses the selected backend
+invariants:
+- id: block-device-one-backend
+  text: only one backend handles a request
+dependencies:
+- kernel/platform
+- kernel/virtio
+- kernel/sd
+rely: []
+guarantee:
+- 'exported: disk_init'
+- 'exported: disk_rw'
+- 'exported: disk_intr'
+algorithm_intent: Preserve the xv6 buffer contract while isolating platform drivers.
+concurrency:
+  module: {}
+  operations: {}

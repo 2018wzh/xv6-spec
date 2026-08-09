@@ -1,0 +1,25 @@
+id: interface/block-device
+name: platform block-device boundary
+boundary: driver
+module: kernel/block-device
+operations:
+- name: disk_init
+  pre:
+  - platform discovery completed successfully
+  post:
+  - exactly one platform backend is ready
+  errors:
+  - unsupported backends or initialization failures panic
+  properties:
+  - id: block-device-no-fallback
+    text: qemu-virt selects virtio and VisionFive 2 selects native SDIO with no fallback
+- name: disk_rw
+  pre:
+  - the buffer is locked by the caller
+  post:
+  - one xv6 block is transferred relative to the discovered filesystem partition
+  errors:
+  - controller, timeout and media errors panic with a bounded diagnostic
+  properties:
+  - id: block-device-partition-relative
+    text: callers never depend on a physical LBA

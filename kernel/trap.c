@@ -5,6 +5,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "platform.h"
 
 struct spinlock tickslock;
 uint ticks;
@@ -176,7 +177,7 @@ clockintr()
   // ask for the next timer interrupt. this also clears
   // the interrupt request. 1000000 is about a tenth
   // of a second.
-  w_stimecmp(r_time() + 1000000);
+  platform_set_timer(r_time() + platform_get()->timebase_frequency / 10);
 }
 
 // check if it's an external interrupt or software interrupt,
@@ -195,10 +196,10 @@ devintr()
     // irq indicates which device interrupted.
     int irq = plic_claim();
 
-    if (irq == UART0_IRQ) {
+    if (irq == (int)platform_get()->uart_irq) {
       uartintr();
-    } else if (irq == VIRTIO0_IRQ) {
-      virtio_disk_intr();
+    } else if (irq == (int)platform_get()->block_irq) {
+      disk_intr();
     } else if (irq) {
       printk("unexpected interrupt irq=%d\n", irq);
     }
