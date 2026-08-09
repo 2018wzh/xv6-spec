@@ -1,16 +1,47 @@
 id: kernel/boot
 module: kernel/boot
 level: 2
-purpose: early boot and deterministic banner.
+purpose: Enter on the boot hart, establish supervisor execution, and publish the Lab 2 deterministic serial banner; board-specific boot, interrupts, and multiprocessor startup remain outside this lab.
 owns:
+- kernel/defs.h
+- kernel/elf.h
 - kernel/entry.S
+- kernel/kernel.ld
+- kernel/memlayout.h
+- kernel/param.h
+- kernel/riscv.h
 - kernel/start.c
+- kernel/string.c
+- kernel/types.h
 - kernel/boot.c
 - kernel/main.c
 - tests/generated/kernel/boot
-interface: []
+interface:
+- name: boot_banner
+  pre: []
+  post:
+  - returns an immutable printable banner containing XV6_BOOT_OK
+  errors: []
+  properties:
+  - id: boot-banner-check-binding
+    text: bootstrap_banner_not_null observes the XV6_BOOT_OK banner
 properties:
 - id: kernel-boot-deterministic
-  text: behavior is deterministic under the published lab checks
+  text: the single boot hart reaches boot_banner deterministically under bootstrap_banner_not_null
 errors:
 - invalid state fails explicitly
+state:
+  stage: early-boot
+  owned_state:
+  - one early stack for the boot hart
+  resource_lifetime:
+  - early stack exists for the kernel lifetime
+preconditions:
+- QEMU enters the linked machine-mode entry point with interrupts disabled
+postconditions:
+- supervisor execution reaches main and publishes XV6_BOOT_OK once
+invariants:
+- id: lab2-single-boot-hart
+  text: exactly one boot hart reaches the current Lab 2 target
+dependencies:
+- toolchain
