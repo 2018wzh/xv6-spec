@@ -247,3 +247,73 @@ checks:
     verifies:
       - kernel/memory
     workload: bounded QEMU virt serial capture of the booted Lab 3 kernel via vos_lab2_capture_serial
+  kernel_trap_boot_public:
+    kind: public
+    program: sh
+    args:
+      - tests/generated/kernel/trap/public_trap_boot.sh
+    cwd: .
+    env:
+      - PATH
+    timeout: 120000
+    verifies:
+      - kernel/trap
+    artifacts:
+      - kernel/kernel
+  kernel_trap_vector_contract:
+    kind: contract
+    program: sh
+    args:
+      - tests/generated/kernel/trap/contract_vector.sh
+    cwd: .
+    env:
+      - PATH
+    timeout: 30000
+    verifies:
+      - kernel/trap
+    artifacts: []
+  kernel_trap_device_contract:
+    kind: contract
+    program: sh
+    args:
+      - tests/generated/kernel/trap/contract_device.sh
+    cwd: .
+    env:
+      - PATH
+    timeout: 30000
+    verifies:
+      - kernel/trap
+    artifacts: []
+  kernel_trap_frame_fuzz:
+    kind: fuzz
+    program: sh
+    args:
+      - tests/generated/kernel/trap/fuzz_frame.sh
+      - "42"
+      - "500"
+      - tests/generated/kernel/trap/repro/kernel_trap_frame_fuzz.repro
+    cwd: .
+    env:
+      - PATH
+    timeout: 30000
+    verifies:
+      - kernel/trap
+    artifacts: []
+    seed: 42
+    cases: 500
+    reproduction_artifact: tests/generated/kernel/trap/repro/kernel_trap_frame_fuzz.repro
+  kernel_trap_roundtrip_trace:
+    kind: trace
+    program: sh
+    args:
+      - tests/generated/kernel/trap/trace_roundtrip.sh
+    cwd: .
+    env:
+      - PATH
+    timeout: 120000
+    verifies:
+      - kernel/trap
+    artifacts:
+      - kernel/kernel
+    workload: bounded QEMU virt serial capture of the booted Lab 4 kernel via vos_lab2_capture_serial
+    oracle: captured serial must contain exactly one canonical XV6_BOOT_OK banner line and kernel/main.c must wire trapinit before intr_on() so the vector is installed before supervisor interrupts are enabled

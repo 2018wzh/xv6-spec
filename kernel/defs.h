@@ -37,8 +37,39 @@ void     kfree(void*);
 void     kvminit(void);
 void     kvminithart(void);
 
+// trap.c
+void     trapinit(void);
+void     kerneltrap(struct trapframe *);
+int      devintr(void);
+extern void kernelvec(void);
+
+// plic.c
+void     plicinit(void);
+void     plicinithart(void);
+int      plic_claim(void);
+void     plic_complete(int);
+
+// uart.c
+void     uartinit(void);
+void     uartputc_sync(int);
+int      uartgetc(void);
+void     uartintr(void);
+
+// console.c
+void     consoleinit(void);
+void     consoleputc(int);
+void     consoleintr(int);
+
+// printk.c
+void     printf(char *, ...);
+
 // string.c
 void     panic(char*);
+
+// riscv.h interrupt helpers
+void     intr_on(void);
+void     intr_off(void);
+int      intr_get(void);
 
 // physical memory delimiters
 extern char end[];

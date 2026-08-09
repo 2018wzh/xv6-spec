@@ -11,6 +11,9 @@
 // qemu -machine virt first virtio mmio disk interface.
 #define VIRTIO0 0x10001000L
 
+// qemu -machine virt UART interrupt source number delivered via the PLIC.
+#define UART0_IRQ 10
+
 // qemu -machine virt with 128M RAM ranges up to this physical address.
 #define PHYSTOP 0x80000000L + 128L * 1024L * 1024L
 
