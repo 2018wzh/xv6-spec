@@ -1,0 +1,130 @@
+id: kernel/process
+module: kernel/process
+level: 3
+purpose: Own the fixed process table, per-process address spaces and trap frames, first user process, lifecycle transitions, and round-robin context switching on the single Lab 5 hart.
+owns:
+- kernel/proc.c
+- kernel/proc.h
+- kernel/swtch.S
+- tests/generated/kernel/process
+interface:
+- name: procinit
+  pre:
+  - memory and kernel mappings are active
+  post:
+  - every process slot and lock has a deterministic UNUSED state and a unique kernel stack mapping
+  errors:
+  - kernel-stack allocation or mapping failure panics before scheduling
+  properties:
+  - id: process-init-public
+    text: kernel_process_boot_public observes process-table initialization before the first user process becomes RUNNABLE
+- name: allocproc
+  pre:
+  - called with no process lock held
+  post:
+  - returns one USED slot with unique pid, trap frame, empty user page table, and initialized context, or null without leaking resources
+  errors:
+  - allocation failure rolls back the slot to UNUSED
+  properties:
+  - id: allocation-rollback-contract
+    text: kernel_process_lifecycle_contract observes complete rollback on every allocation failure path
+- name: scheduler
+  pre:
+  - per-hart scheduler context is active with interrupts enabled between scans
+  post:
+  - each RUNNABLE process may transition to RUNNING only while its lock is held and returns through sched
+  errors:
+  - illegal lock, interrupt, or state conditions panic with evidence
+  properties:
+  - id: scheduler-first-user-trace
+    text: kernel_process_scheduler_trace observes the bounded first-user RUNNABLE to RUNNING transition
+  - id: scheduler-state-edge-fuzz
+    text: kernel_process_state_fuzz rejects invalid edges among the lifecycle states reachable in Lab 5
+- name: sleep_wakeup
+  pre:
+  - sleep receives a channel and a held caller lock
+  post:
+  - the lock handoff prevents a lost wakeup and the caller reacquires its lock after rescheduling
+  errors:
+  - invalid lock ownership panics
+  properties:
+  - id: sleep-state-fuzz
+    text: kernel_process_state_fuzz exercises fixed-seed valid and invalid SLEEPING and RUNNABLE transitions
+  - id: no-lost-wakeup-contract
+    text: kernel_process_wakeup_contract observes the caller-lock handoff and a wakeup after SLEEPING publication
+properties:
+- id: process-slot-exclusivity
+  text: each process slot has exactly one lifecycle state and its mutable fields are protected by that slot's lock
+- id: address-space-ownership
+  text: each live process exclusively owns its trap frame and user page table; freeproc releases both exactly once
+- id: swtch-save-symmetry
+  text: kernel_process_context_contract validates symmetric save and restore slots for sp and every RISC-V callee-saved register
+errors:
+- process-table exhaustion returns failure without corrupting existing slots
+- illegal scheduler and lock state transitions panic
+state:
+  stage: process
+  owned_state:
+  - fixed process table and next pid
+  - per-hart current-process and scheduler context
+  - init process identity
+  resource_lifetime:
+  - allocproc acquires and freeproc releases trap-frame and page-table resources
+preconditions:
+- memory and supervisor traps are initialized
+postconditions:
+- a first user process is RUNNABLE and the scheduler can switch contexts without leaking privileged state
+invariants:
+- id: process-lock-state
+  text: every Lab 5 transition involving RUNNING, RUNNABLE, or SLEEPING holds the process lock; ZOMBIE enters scope only with a later exit and wait patch
+- id: one-running-process
+  text: the single Lab 5 hart has at most one RUNNING process
+dependencies:
+- kernel/boot
+- kernel/memory
+- kernel/trap
+- toolchain
+rely:
+- memory provides page allocation and per-process page-table helpers
+- trap provides the mapped trap-frame ABI and supervisor return path
+guarantee:
+- context switching preserves every RISC-V callee-saved register and stack pointer
+- lifecycle failure paths leave no allocated trap frame, page table, or stale state
+algorithm_intent: Use a fixed locked process table, per-process kernel stacks, and a round-robin scan; use swtch to exchange only the RISC-V callee-saved context.
+concurrency:
+  module:
+    module: kernel/process
+    shared_state:
+    - process table
+    - next pid
+    lock_types:
+    - spinlock
+    lock_order:
+    - process lock before scheduler context switch
+    atomic_sections:
+    - lifecycle state transition under the process lock
+    interrupt_rules:
+    - sched requires interrupts disabled and exactly one process lock held
+    rely:
+    - Lab 5 runs one hart but preserves per-hart interfaces
+    guarantee:
+    - sleep atomically transfers from the caller lock to the process lock before blocking
+    wait_wakeup_rules:
+    - wakeup marks matching SLEEPING processes RUNNABLE while holding their locks
+    forbidden_patterns:
+    - sleeping while holding an unrelated process lock
+    - changing lifecycle state without the owning process lock
+  operations:
+    scheduler:
+      atomicity: one locked RUNNABLE to RUNNING transition per dispatch
+      lock_order:
+      - process lock
+      interrupt_state: enabled while scanning and disabled across swtch
+      wait_wakeup_rules: []
+    sleep_wakeup:
+      atomicity: caller-lock release and SLEEPING publication are protected by the process lock
+      lock_order:
+      - caller lock then process lock handoff
+      interrupt_state: managed by spinlocks
+      wait_wakeup_rules:
+      - a wakeup after SLEEPING publication changes the process to RUNNABLE

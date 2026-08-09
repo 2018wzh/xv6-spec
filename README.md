@@ -1,3 +1,3 @@
-# xv6-spec Lab 4
+# xv6-spec Lab 5
 
-This slice adds supervisor trap entry and the UART/PLIC device boundaries to the working bootstrap and memory system. `kernel/trap` owns the vector, dispatcher, drivers, console, and generated module tests. User-mode trap return and processes remain outside the Lab 4 boundary.
+This slice adds the process table, first user process, context switching, user trap-frame ABI, and validated minimal syscall path. `kernel/process` owns lifecycle and scheduling; `kernel/syscall` owns dispatch and the trampoline. Filesystem and persistent user programs remain later-lab work.

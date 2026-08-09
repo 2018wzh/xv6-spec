@@ -10,20 +10,21 @@ machine:
     status: not in current lab scope
 kernel:
   organization: monolithic teaching kernel
-  execution: single boot hart reaches the current lab target
-  protection: machine entry establishes supervisor execution
-  communication: byte-addressed UART console with PLIC-routed receive interrupts
-  resource_model: a locked physical-page freelist and Sv39 kernel page table
+  execution: single boot hart schedules the first user process
+  protection: per-process Sv39 page tables and a trap-frame privilege boundary
+  communication: validated system calls plus the UART console
+  resource_model: locked physical memory, process table, and per-process address spaces
 required_mechanisms:
 - deterministic early entry
 - serial boot output
 - page-aligned physical allocation and release
 - deterministic Sv39 kernel mappings
 - supervisor trap-vector installation and external-interrupt dispatch
+- process lifecycle, context switching, user traps, and syscall dispatch
 composition_invariants:
 - every published check is deterministic and scoped to the current lab
 - under an unchanged PATH prefix set, the toolchain and kernel bootstrap compose to reproduce the kernel/kernel content hash across clean builds
-- boot initializes memory before its consumers, then installs the trap vector and device routing before enabling supervisor interrupts
+- boot initializes memory and traps before the process table; user execution crosses privilege only through its mapped trap frame and validated syscall dispatch
 non_goals:
 - mechanisms assigned to later labs
 hardware_port:

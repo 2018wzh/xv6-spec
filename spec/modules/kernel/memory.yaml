@@ -1,7 +1,7 @@
 id: kernel/memory
 module: kernel/memory
 level: 3
-purpose: Manage page-aligned physical memory and establish the Sv39 kernel mappings required by later labs; user processes and demand paging are not in the current lab scope.
+purpose: Manage page-aligned physical memory, Sv39 kernel and process page tables, and validated user-memory copies; demand paging is not in the current lab scope.
 owns:
 - kernel/kalloc.c
 - kernel/vm.c
@@ -50,6 +50,36 @@ interface:
   properties:
   - id: kernel-mapping-permissions
     text: kernel text is executable but not writable, data is writable but not executable, and device mappings are writable but not executable
+- name: copyin
+  pre:
+  - the source range belongs to the current user page table
+  post:
+  - copies the complete validated user range into a kernel buffer
+  errors:
+  - an unmapped or overflowing range returns failure before an invalid memory access
+  properties:
+  - id: copyin-range-validation
+    text: kernel_syscall_argument_fuzz observes rejection of unmapped and overflowing source ranges
+- name: copyout
+  pre:
+  - the destination range belongs to the current user page table
+  post:
+  - copies the complete kernel buffer into validated user pages
+  errors:
+  - an unmapped or overflowing range returns failure without writing outside validated pages
+  properties:
+  - id: copyout-range-validation
+    text: kernel_syscall_argument_fuzz observes rejection of unmapped and overflowing destination ranges
+- name: copyinstr
+  pre:
+  - the source address belongs to the current user page table and a finite destination bound is supplied
+  post:
+  - copies through the first NUL byte within the validated bound
+  errors:
+  - an unmapped page or missing terminator returns failure without overrunning the destination
+  properties:
+  - id: copyinstr-bound-validation
+    text: kernel_syscall_argument_fuzz observes page-boundary and unterminated-string failures
 properties:
 - id: page-exclusive-ownership
   text: memory_freelist_contract observes that a physical page is either allocated or on the freelist, never both
