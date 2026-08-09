@@ -161,3 +161,61 @@ checks:
     timeout: 120000
     verifies:
       - toolchain
+  kernel_boot_banner_public:
+    kind: public
+    program: sh
+    args:
+      - tests/generated/kernel/boot/public_banner.sh
+    cwd: .
+    env:
+      - PATH
+    timeout: 120000
+    verifies:
+      - kernel/boot
+    artifacts:
+      - kernel/kernel
+  kernel_boot_uart_abi_contract:
+    kind: contract
+    program: sh
+    args:
+      - tests/generated/kernel/boot/contract_uart_abi.sh
+    cwd: .
+    env:
+      - PATH
+    timeout: 30000
+    verifies:
+      - kernel/boot
+    artifacts: []
+  kernel_boot_banner_fuzz:
+    kind: fuzz
+    program: sh
+    args:
+      - tests/generated/kernel/boot/fuzz_banner.sh
+      - "42"
+      - "500"
+      - tests/generated/kernel/boot/repro/kernel_boot_banner_fuzz.repro
+    cwd: .
+    env:
+      - PATH
+    timeout: 30000
+    verifies:
+      - kernel/boot
+    artifacts: []
+    seed: 42
+    cases: 500
+    reproduction_artifact: tests/generated/kernel/boot/repro/kernel_boot_banner_fuzz.repro
+  kernel_boot_banner_trace:
+    kind: trace
+    program: sh
+    args:
+      - tests/generated/kernel/boot/trace_banner.sh
+    cwd: .
+    env:
+      - PATH
+    timeout: 120000
+    verifies:
+      - kernel/boot
+    artifacts:
+      - kernel/kernel
+    workload: bounded QEMU virt serial capture of the booted Lab 2 kernel via vos_lab2_capture_serial
+    oracle: captured serial must contain exactly one XV6_BOOT_OK banner

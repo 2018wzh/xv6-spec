@@ -1,59 +1,87 @@
-CC ?= gcc
-CFLAGS ?= -O2 -Wall -Wextra -std=gnu11
+# Makefile - cumulative Lab 1 CTF and Lab 2 kernel build projection.
 
-RISCV_CC ?= riscv64-linux-gnu-gcc
-RISCV_OBJCOPY ?= riscv64-linux-gnu-objcopy
-RISCV_CFLAGS ?= -O2 -Wall -Wextra -march=rv64gc -mabi=lp64 -mcmodel=medany -static -nostdlib -nostartfiles -ffreestanding
-
+K := kernel
+LAB1_BUILD := lab1/build
 BUN ?= bun
+HOST_CC ?= gcc
+HOST_CFLAGS ?= -O2 -Wall -Wextra -std=gnu11
+SEED ?= 0x5eed0001
 
-BUILD := lab1/build
-SEED := 0x5eed0001
+LAB1_LINUX_SRCS := lab1/linux/flag-reader.c lab1/linux/sha256.c
+LAB1_BAREMETAL_SRCS := lab1/baremetal/start.S lab1/baremetal/uart.c lab1/baremetal/sha256.c lab1/baremetal/support.c lab1/baremetal/main.c
 
-LINUX_SRCS := lab1/linux/flag-reader.c lab1/linux/sha256.c
-BM_SRCS := lab1/baremetal/start.S lab1/baremetal/uart.c lab1/baremetal/sha256.c lab1/baremetal/support.c lab1/baremetal/main.c
+# Probe candidate prefixes and select the first compiler that can build a
+# freestanding RV64 object. Selection is recomputed from the current PATH.
+TOOLCHAIN := $(shell sh tests/generated/toolchain/select_toolchain.sh)
+ifeq ($(strip $(TOOLCHAIN)),)
+$(error no capable RISC-V toolchain found on PATH; run toolchain_capability_probe)
+endif
 
-.PHONY: all qemu clean gen-fixture
+RISCV_CC := $(TOOLCHAIN)gcc
+RISCV_LD := $(TOOLCHAIN)ld
+RISCV_OBJCOPY := $(TOOLCHAIN)objcopy
+RISCV_CFLAGS := -Wall -Werror -O -fno-omit-frame-pointer -ggdb \
+  -gdwarf-2 -MD -mcmodel=medany -ffreestanding -fno-common \
+  -nostdlib -fno-pic -mno-relax -fno-stack-protector -march=rv64gc -mabi=lp64
+RISCV_LDFLAGS := -z max-page-size=4096
 
-all: $(BUILD)/flag-reader $(BUILD)/ctf-baremetal.elf
+KERNEL_OBJS := \
+  $(K)/entry.o \
+  $(K)/start.o \
+  $(K)/boot.o \
+  $(K)/main.o \
+  $(K)/string.o
 
-$(BUILD):
-	mkdir -p $(BUILD)
+.PHONY: all clean qemu ctf-qemu gen-fixture toolchain-probe
 
-$(BUILD)/.dir-stamp: | $(BUILD)
+all: kernel/kernel
+
+kernel/kernel: $(KERNEL_OBJS) $(K)/kernel.ld
+	$(RISCV_LD) $(RISCV_LDFLAGS) -T $(K)/kernel.ld -o $@ $(KERNEL_OBJS)
+	@echo "+ $@"
+
+$(K)/%.o: $(K)/%.c
+	$(RISCV_CC) $(RISCV_CFLAGS) -c $< -o $@
+
+$(K)/%.o: $(K)/%.S
+	$(RISCV_CC) $(RISCV_CFLAGS) -c $< -o $@
+
+$(LAB1_BUILD):
+	mkdir -p $(LAB1_BUILD)
+
+$(LAB1_BUILD)/.dir-stamp: | $(LAB1_BUILD)
 	@touch $@
 
-# Generate the deterministic non-secret fixture into a held directory.
-gen-fixture: | $(BUILD)/.dir-stamp
-	$(BUN) tests/public/ctf-fixture.ts generate $(BUILD)/fixture $(SEED)
-	test -f $(BUILD)/fixture/flags.img
-	test -f $(BUILD)/fixture/metadata.json
+gen-fixture: | $(LAB1_BUILD)/.dir-stamp
+	$(BUN) tests/public/ctf-fixture.ts generate $(LAB1_BUILD)/fixture $(SEED)
+	test -f $(LAB1_BUILD)/fixture/flags.img
+	test -f $(LAB1_BUILD)/fixture/metadata.json
 
-$(BUILD)/flag-reader: $(LINUX_SRCS) lab1/linux/sha256.h | $(BUILD)/.dir-stamp
-	$(CC) $(CFLAGS) -I lab1/linux -o $@ lab1/linux/flag-reader.c lab1/linux/sha256.c
+$(LAB1_BUILD)/flag-reader: $(LAB1_LINUX_SRCS) lab1/linux/sha256.h | $(LAB1_BUILD)/.dir-stamp
+	$(HOST_CC) $(HOST_CFLAGS) -I lab1/linux -o $@ $(LAB1_LINUX_SRCS)
 
-$(BUILD)/flags.img: gen-fixture
-	cp $(BUILD)/fixture/flags.img $@
+$(LAB1_BUILD)/flags.img: gen-fixture
+	cp $(LAB1_BUILD)/fixture/flags.img $@
 
-$(BUILD)/flags_img.o: $(BUILD)/flags.img
-	cd $(BUILD) && $(RISCV_OBJCOPY) -I binary -O elf64-littleriscv -B riscv flags.img flags_img.o
+$(LAB1_BUILD)/flags_img.o: $(LAB1_BUILD)/flags.img
+	cd $(LAB1_BUILD) && $(RISCV_OBJCOPY) -I binary -O elf64-littleriscv -B riscv flags.img flags_img.o
 
-$(BUILD)/ctf-baremetal.elf: $(BM_SRCS) lab1/baremetal/sha256.h lab1/baremetal/uart.h lab1/baremetal/linker.ld $(BUILD)/flags_img.o | $(BUILD)/.dir-stamp
+$(LAB1_BUILD)/ctf-baremetal.elf: $(LAB1_BAREMETAL_SRCS) lab1/baremetal/sha256.h lab1/baremetal/uart.h lab1/baremetal/linker.ld $(LAB1_BUILD)/flags_img.o | $(LAB1_BUILD)/.dir-stamp
 	$(RISCV_CC) $(RISCV_CFLAGS) -I lab1/baremetal -T lab1/baremetal/linker.ld \
-		$(BM_SRCS) $(BUILD)/flags_img.o -o $@
+		$(LAB1_BAREMETAL_SRCS) $(LAB1_BUILD)/flags_img.o -o $@
 
-qemu: $(BUILD)/ctf-baremetal.elf
-	@mkdir -p $(BUILD)
+toolchain-probe:
+	sh tests/generated/toolchain/probe_test.sh
+
+qemu: kernel/kernel
+	qemu-system-riscv64 -machine virt -bios none -kernel kernel/kernel -m 128M -smp 1 -nographic </dev/null
+
+ctf-qemu: $(LAB1_BUILD)/ctf-baremetal.elf
 	@set -o pipefail; \
 	qemu-system-riscv64 -machine virt -m 128M -nographic -no-reboot -bios none \
-		-kernel $(BUILD)/ctf-baremetal.elf 2>&1 | tee $(BUILD)/baremetal.log; \
-	if grep -q 'CTF_BAREMETAL_OK' $(BUILD)/baremetal.log; then \
-		echo "qemu: completion marker observed"; \
-	else \
-		echo "qemu: missing CTF_BAREMETAL_OK marker" >&2; \
-		exit 1; \
-	fi
+		-kernel $(LAB1_BUILD)/ctf-baremetal.elf 2>&1 | tee $(LAB1_BUILD)/baremetal.log; \
+	grep -q 'CTF_BAREMETAL_OK' $(LAB1_BUILD)/baremetal.log
 
 clean:
-	rm -rf $(BUILD)
-	rm -f dir-stamp
+	rm -f $(K)/*.o $(K)/*.d kernel/kernel
+	rm -rf $(LAB1_BUILD)
