@@ -10,17 +10,18 @@ kernel:
   organization: monolithic teaching kernel
   execution: single boot hart reaches the current lab target
   protection: machine entry establishes supervisor execution
-  communication: serial boot output only
+  communication: byte-addressed UART console with PLIC-routed receive interrupts
   resource_model: a locked physical-page freelist and Sv39 kernel page table
 required_mechanisms:
 - deterministic early entry
 - serial boot output
 - page-aligned physical allocation and release
 - deterministic Sv39 kernel mappings
+- supervisor trap-vector installation and external-interrupt dispatch
 composition_invariants:
 - every published check is deterministic and scoped to the current lab
 - under an unchanged PATH prefix set, the toolchain and kernel bootstrap compose to reproduce the kernel/kernel content hash across clean builds
-- the boot stage initializes memory before any page allocation or virtual-memory consumer runs
+- boot initializes memory before its consumers, then installs the trap vector and device routing before enabling supervisor interrupts
 non_goals:
 - mechanisms assigned to later labs
 hardware_port:

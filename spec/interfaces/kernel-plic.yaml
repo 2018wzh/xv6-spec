@@ -1,0 +1,25 @@
+id: interface/kernel-plic
+name: kernel PLIC driver boundary
+boundary: driver
+module: kernel/trap
+operations:
+- name: plicinit
+  pre:
+  - device MMIO mappings are active
+  post:
+  - UART priority and the boot-hart supervisor enable mask are configured before interrupts are enabled
+  errors:
+  - invalid MMIO behavior is reported by the trap-stage QEMU oracle
+  properties:
+  - id: plic-boot-hart-routing
+    text: UART IRQ 10 is enabled for supervisor context 1 on hart 0
+- name: plic_claim_complete
+  pre:
+  - called from supervisor external-interrupt dispatch
+  post:
+  - returns the claimed IRQ and writes the same nonzero IRQ to completion after dispatch
+  errors:
+  - claim zero means no pending interrupt and requires no completion write
+  properties:
+  - id: plic-completion-matches-claim
+    text: every nonzero claim is completed with the identical IRQ number
