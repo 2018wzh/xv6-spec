@@ -2,7 +2,7 @@
     set -eu
     case_id="${1:?public test id required}"
     case "$case_id" in
-      bootstrap_banner_not_null|kalloc_alignment|kvmmake_identity_mapping|trap_init_stvec_set|devintr_timer|uart_boot_output|fork_returns_different_pid|syscall_valid_number|bread_cache_hit|log_recovery_committed|exec_valid_elf|fd_alloc_close_cycle|pipe_read_write_cycle|shell_boots) ;;
+      bootstrap_banner_not_null|kalloc_alignment|kvmmake_identity_mapping|trap_init_stvec_set|devintr_timer|uart_boot_output|fork_returns_different_pid|syscall_valid_number|bread_cache_hit|log_recovery_committed|exec_valid_elf|fd_alloc_close_cycle|pipe_read_write_cycle|shell_boots|usertests_all_pass) ;;
       *) echo "unknown current-lab check: $case_id" >&2; exit 2 ;;
     esac
     test -f vos.yaml
@@ -22,4 +22,5 @@
     fd_alloc_close_cycle) grep -q 'filealloc' kernel/file.c ;;
     pipe_read_write_cycle) grep -q 'pipewrite' kernel/pipe.c ;;
     shell_boots) grep -q 'runcmd' user/sh.c ;;
+    usertests_all_pass) grep -q 'usertests' user/usertests.c && grep -q 'ALL TESTS PASSED' user/usertests.c ;;
     esac
