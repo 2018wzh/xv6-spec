@@ -29,6 +29,17 @@ interface:
     text: bootstrap_banner_not_null observes the XV6_BOOT_OK banner
   - id: boot-pmp-before-mret
     text: start configures one unlocked NAPOT PMP entry for the physical address space with supervisor read write and execute permissions before mret so bootstrap_banner_not_null can observe supervisor execution; PMP locking is outside Lab 2 scope
+- name: publish_boot_banner
+  pre:
+  - QEMU virt exposes an ns16550a UART at physical address 0x10000000
+  - supervisor execution has access to the UART MMIO range
+  post:
+  - initializes the UART for 8-bit output and writes boot_banner exactly once
+  errors:
+  - polling the wrong register width or offset cannot observe transmitter readiness
+  properties:
+  - id: boot-uart-byte-registers
+    text: the ns16550a is accessed as byte-addressed MMIO; THR is byte offset 0 and LSR is byte offset 5 with transmitter-ready bit 5
 properties:
 - id: kernel-boot-deterministic
   text: the single boot hart reaches boot_banner deterministically under bootstrap_banner_not_null
@@ -51,5 +62,7 @@ invariants:
   text: exactly one boot hart reaches the current Lab 2 target
 - id: lab2-supervisor-pmp-access
   text: when QEMU runs with -bios none, machine mode writes the maximal pmpaddr0 NAPOT region and pmpcfg0 read write execute permissions before mret
+- id: lab2-uart-abi
+  text: serial publication uses the QEMU virt ns16550a byte-register ABI and never scales register offsets by a C word size
 dependencies:
 - toolchain
