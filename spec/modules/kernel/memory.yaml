@@ -1,14 +1,854 @@
 id: kernel/memory
 module: kernel/memory
-level: 2
-purpose: physical allocation and Sv39 kernel mappings.
+level: 3
+purpose: Physical page allocator with freelist, Sv39 page table construction, kernel
+  virtual address mapping, and user page table management.
 owns:
 - kernel/kalloc.c
 - kernel/vm.c
 - tests/generated/kernel/memory
-interface: []
+interface:
+- name: copyin
+  pre:
+  - dst points to valid kernel buffer of at least len bytes
+  - srcva is a user virtual address in current process
+  post:
+  - dst contains len bytes from srcva (on success)
+  errors:
+  - returns -1 if walkaddr returns 0 for any page in range
+  properties:
+  - id: copyin-property-1
+    text: kernel is never corrupted by invalid user addresses
+  - id: copyin-property-2
+    text: 'guarantee.returns: 0 on success'
+  - id: copyin-property-3
+    text: 'guarantee.returns: -1 on invalid user address'
+  - id: copyin-property-4
+    text: 'guarantee.side_effects: dst populated with len bytes from user memory'
+  - id: copyin-property-5
+    text: 'guarantee.emitted_events: none'
+- name: copyinstr
+  pre:
+  - srcva is a user virtual address in current process
+  - dst points to valid kernel buffer
+  - max bytes specifies maximum copy length
+  post:
+  - dst contains null-terminated string (on success)
+  - no more than max bytes copied
+  errors:
+  - returns -1 if any page in the string range is invalid
+  - returns -1 if no null terminator found within max bytes
+  properties:
+  - id: copyinstr-property-1
+    text: kernel never overruns kernel buffer
+  - id: copyinstr-property-2
+    text: kernel never dereferences raw user pointers
+  - id: copyinstr-property-3
+    text: 'guarantee.returns: string length (including null terminator) on success'
+  - id: copyinstr-property-4
+    text: 'guarantee.returns: -1 on invalid user address or if max bytes exceeded'
+  - id: copyinstr-property-5
+    text: 'guarantee.side_effects: dst populated with null-terminated string from
+      user memory'
+  - id: copyinstr-property-6
+    text: 'guarantee.emitted_events: none'
+- name: copyout
+  pre:
+  - src points to valid kernel buffer of at least len bytes
+  - dstva is a user virtual address
+  post:
+  - dstva contains len bytes from src (on success)
+  errors:
+  - returns -1 if walkaddr returns 0 for any page in range
+  properties:
+  - id: copyout-property-1
+    text: kernel memory is never disclosed via invalid copyout
+  - id: copyout-property-2
+    text: 'guarantee.returns: 0 on success'
+  - id: copyout-property-3
+    text: 'guarantee.returns: -1 on invalid user address'
+  - id: copyout-property-4
+    text: 'guarantee.side_effects: user memory at dstva written with len bytes'
+  - id: copyout-property-5
+    text: 'guarantee.emitted_events: none'
+- name: kalloc
+  pre:
+  - kernel is initialized past kinit
+  post:
+  - returned page is 4096-byte aligned and zeroed
+  errors:
+  - returns NULL when freelist is empty
+  properties:
+  - id: kalloc-property-1
+    text: freelist integrity (no double-links)
+  - id: kalloc-property-2
+    text: 'guarantee.returns: void * to a 4096-byte zeroed page on success'
+  - id: kalloc-property-3
+    text: 'guarantee.returns: NULL on exhaustion'
+  - id: kalloc-property-4
+    text: 'guarantee.side_effects: page is removed from freelist'
+  - id: kalloc-property-5
+    text: 'guarantee.side_effects: page content is zeroed'
+  - id: kalloc-property-6
+    text: 'guarantee.emitted_events: none'
+- name: kfree
+  pre:
+  - pointer is 4096-byte aligned
+  - pointer points to a valid physical page in range
+  post:
+  - page is on freelist
+  errors:
+  - caller is responsible for valid pointer
+  - double-free may corrupt freelist (undefined)
+  properties:
+  - id: kfree-property-1
+    text: freelist integrity
+  - id: kfree-property-2
+    text: no page appears twice on freelist
+  - id: kfree-property-3
+    text: 'guarantee.returns: void'
+  - id: kfree-property-4
+    text: 'guarantee.side_effects: page is re-linked to freelist head'
+  - id: kfree-property-5
+    text: 'guarantee.side_effects: page content is zeroed'
+  - id: kfree-property-6
+    text: 'guarantee.emitted_events: none'
+- name: kinit
+  pre:
+  - called exactly once during early kernel init
+  - page allocator is not yet in use
+  post:
+  - freelist is non-empty (at least one page)
+  - kmem.lock is initialized
+  errors:
+  - panics if end >= PHYSTOP (no free memory)
+  properties:
+  - id: kinit-property-1
+    text: freelist pages are 4096-byte aligned
+  - id: kinit-property-2
+    text: 'guarantee.returns: void'
+  - id: kinit-property-3
+    text: 'guarantee.side_effects: freelist is populated with all free physical pages'
+  - id: kinit-property-4
+    text: 'guarantee.side_effects: each page is zeroed via memset'
+  - id: kinit-property-5
+    text: 'guarantee.emitted_events: none'
+- name: kvmmake
+  pre:
+  - called once during kernel init, after kinit
+  post:
+  - kernel_pagetable maps all kernel text/data/device regions
+  errors:
+  - panics if kalloc fails during page table construction
+  properties:
+  - id: kvmmake-property-1
+    text: PTEs have U-bit == 0
+  - id: kvmmake-property-2
+    text: 'guarantee.returns: pagetable_t (pointer to L2 page directory)'
+  - id: kvmmake-property-3
+    text: 'guarantee.side_effects: kernel_pagetable is populated'
+  - id: kvmmake-property-4
+    text: 'guarantee.side_effects: trampoline code mapped at (TRAMPOLINE, MAXVA-PGSIZE]'
+  - id: kvmmake-property-5
+    text: 'guarantee.side_effects: UART, PLIC, VIRTIO mapped (optional)'
+  - id: kvmmake-property-6
+    text: 'guarantee.emitted_events: none'
+- name: kvmmap
+  pre:
+  - va and pa are page-aligned
+  - size is a multiple of PGSIZE
+  post:
+  - va..va+size maps to pa..pa+size with given perm
+  errors:
+  - panics if kalloc fails for intermediate PT page
+  properties:
+  - id: kvmmap-property-1
+    text: no PTE is overwritten without explicit intent
+  - id: kvmmap-property-2
+    text: 'guarantee.returns: void'
+  - id: kvmmap-property-3
+    text: 'guarantee.side_effects: PTE(s) installed in target pagetable'
+  - id: kvmmap-property-4
+    text: 'guarantee.side_effects: intermediate page table pages allocated if needed'
+  - id: kvmmap-property-5
+    text: 'guarantee.emitted_events: none'
+- name: uvmalloc
+  pre:
+  - oldsz and newsz are page-aligned
+  - newsz > oldsz
+  post:
+  - address range [oldsz, newsz) is mapped and accessible
+  errors:
+  - returns oldsz if kalloc fails (no partial mapping)
+  - previously mapped pages are unaffected
+  properties:
+  - id: uvmalloc-property-1
+    text: user page table integrity
+  - id: uvmalloc-property-2
+    text: new pages have PTE_U and PTE_W set
+  - id: uvmalloc-property-3
+    text: 'guarantee.returns: newsz on success'
+  - id: uvmalloc-property-4
+    text: 'guarantee.returns: oldsz on failure (no partial growth)'
+  - id: uvmalloc-property-5
+    text: 'guarantee.side_effects: new pages allocated and mapped from oldsz to newsz'
+  - id: uvmalloc-property-6
+    text: 'guarantee.side_effects: each new page is zeroed'
+  - id: uvmalloc-property-7
+    text: 'guarantee.emitted_events: none'
+- name: uvmcopy
+  pre:
+  - old is a valid pagetable
+  - size specifies the range [0, size) to copy
+  post:
+  - child has identical but independent memory
+  errors:
+  - on kalloc failure, frees partial copy and returns 0
+  properties:
+  - id: uvmcopy-property-1
+    text: no page is shared between parent and child
+  - id: uvmcopy-property-2
+    text: 'guarantee.returns: pagetable_t on success (complete copy)'
+  - id: uvmcopy-property-3
+    text: 'guarantee.returns: 0 on failure (partial mappings unmapped)'
+  - id: uvmcopy-property-4
+    text: 'guarantee.side_effects: all old pages are duplicated'
+  - id: uvmcopy-property-5
+    text: 'guarantee.side_effects: PTE_W is cleared in both old and new PTEs'
+  - id: uvmcopy-property-6
+    text: 'guarantee.emitted_events: none'
+- name: uvmcreate
+  pre:
+  - called from kernel context
+  post:
+  - returned page table has all entries zero
+  errors:
+  - returns 0 if kalloc fails
+  properties:
+  - id: uvmcreate-property-1
+    text: no kernel mappings in user page table
+  - id: uvmcreate-property-2
+    text: 'guarantee.returns: pagetable_t (new user page table) on success'
+  - id: uvmcreate-property-3
+    text: 'guarantee.returns: 0 on kalloc failure'
+  - id: uvmcreate-property-4
+    text: 'guarantee.side_effects: one page allocated, zeroed'
+  - id: uvmcreate-property-5
+    text: 'guarantee.emitted_events: none'
+- name: uvmdealloc
+  pre:
+  - oldsz > newsz
+  - newsz >= 0
+  post:
+  - address space size reduced to newsz
+  errors:
+  - returns oldsz (no-op) if newsz >= oldsz
+  properties:
+  - id: uvmdealloc-property-1
+    text: no dangling page mappings
+  - id: uvmdealloc-property-2
+    text: 'guarantee.returns: newsz on success'
+  - id: uvmdealloc-property-3
+    text: 'guarantee.returns: oldsz if newsz >= oldsz (no-op)'
+  - id: uvmdealloc-property-4
+    text: 'guarantee.side_effects: pages in [newsz, oldsz) unmapped and freed'
+  - id: uvmdealloc-property-5
+    text: 'guarantee.side_effects: process->sz updated to newsz'
+  - id: uvmdealloc-property-6
+    text: 'guarantee.emitted_events: none'
+- name: uvmfree
+  pre:
+  - pagetable is a valid root page directory
+  - process is exiting or fork has failed
+  post:
+  - all memory associated with pagetable is released
+  errors:
+  - none (always succeeds)
+  properties:
+  - id: uvmfree-property-1
+    text: no memory leak
+  - id: uvmfree-property-2
+    text: 'guarantee.returns: void'
+  - id: uvmfree-property-3
+    text: 'guarantee.side_effects: all leaf pages freed via kfree'
+  - id: uvmfree-property-4
+    text: 'guarantee.side_effects: all page-table pages freed via kfree'
+  - id: uvmfree-property-5
+    text: 'guarantee.side_effects: pagetable root page freed'
+  - id: uvmfree-property-6
+    text: 'guarantee.emitted_events: none'
+- name: uvminit
+  pre:
+  - pagetable is a newly created empty page table
+  post:
+  - user page table has trampoline and trapframe mappings
+  errors:
+  - panics if kalloc fails for trapframe
+  properties:
+  - id: uvminit-property-1
+    text: TRAMPOLINE mapping is identical in all user page tables
+  - id: uvminit-property-2
+    text: 'guarantee.returns: void'
+  - id: uvminit-property-3
+    text: 'guarantee.side_effects: trampoline page mapped at TRAMPOLINE (read+execute)'
+  - id: uvminit-property-4
+    text: 'guarantee.side_effects: trapframe page allocated and mapped at TRAPFRAME
+      (read+write)'
+  - id: uvminit-property-5
+    text: 'guarantee.emitted_events: none'
+- name: uvmunmap
+  pre:
+  - va is page-aligned
+  - npages > 0
+  post:
+  - '[va, va+npages*PGSIZE) has no valid mappings'
+  errors:
+  - panics if a PTE is missing (inconsistent state)
+  properties:
+  - id: uvmunmap-property-1
+    text: page table consistency
+  - id: uvmunmap-property-2
+    text: 'guarantee.returns: void'
+  - id: uvmunmap-property-3
+    text: 'guarantee.side_effects: npages unmapped from pagetable'
+  - id: uvmunmap-property-4
+    text: 'guarantee.side_effects: physical pages freed if do_free'
+  - id: uvmunmap-property-5
+    text: 'guarantee.emitted_events: none'
+- name: walk
+  pre:
+  - pagetable is page-aligned
+  - va is a canonical Sv39 address (bits 63:39 sign-extended)
+  post:
+  - returned PTE is valid and writable
+  errors:
+  - returns NULL on missing levels (alloc==0)
+  - panics if va is not canonical
+  properties:
+  - id: walk-property-1
+    text: Sv39 structure integrity
+  - id: walk-property-2
+    text: 'guarantee.returns: pte_t * to the L0 PTE on success'
+  - id: walk-property-3
+    text: 'guarantee.returns: NULL if alloc==0 and a level is missing'
+  - id: walk-property-4
+    text: 'guarantee.returns: NULL if alloc!=0 and kalloc fails'
+  - id: walk-property-5
+    text: 'guarantee.side_effects: intermediate PT pages allocated when alloc != 0'
+  - id: walk-property-6
+    text: 'guarantee.emitted_events: none'
+- name: walkaddr
+  pre:
+  - va is a valid virtual address
+  post:
+  - returned PA is page-aligned (lower 12 bits from va)
+  errors:
+  - returns 0 for invalid va or kernel-only mappings
+  properties:
+  - id: walkaddr-property-1
+    text: no page table mutation
+  - id: walkaddr-property-2
+    text: 'guarantee.returns: uint64 physical address on valid user mapping'
+  - id: walkaddr-property-3
+    text: 'guarantee.returns: 0 on missing/invalid PTE or non-user mapping'
+  - id: walkaddr-property-4
+    text: 'guarantee.side_effects: none'
+  - id: walkaddr-property-5
+    text: 'guarantee.emitted_events: none'
 properties:
-- id: kernel-memory-deterministic
-  text: behavior is deterministic under the published lab checks
+- id: module-property-1
+  text: kernel page table entries have U-bit clear
+- id: module-property-2
+  text: copyin/copyout validate user addresses via walkaddr
+- id: module-property-3
+  text: user page tables never map kernel pages
+- id: module-property-4
+  text: allocated pages are freed back to freelist via kfree
+- id: module-property-5
+  text: page tables are freed recursively (3-level walk)
+- id: module-property-6
+  text: alloc-free cycle coverage
+- id: module-property-7
+  text: page table walk correctness
+- id: module-property-8
+  text: copyin/copyout boundary checks
+- id: module-property-9
+  text: kalloc_exhaustion
+- id: module-property-10
+  text: kalloc_alignment
+- id: module-property-11
+  text: kalloc_zeroed
+- id: module-property-12
+  text: kfree_valid
+- id: module-property-13
+  text: kalloc_kfree_cycle
+- id: module-property-14
+  text: kfree_double_free_detection
+- id: module-property-15
+  text: kvmmake_identity_mapping
+- id: module-property-16
+  text: kvmmake_trampoline_mapped
+- id: module-property-17
+  text: kvmmake_page_table_depth
+- id: module-property-18
+  text: walk_valid_mapping
+- id: module-property-19
+  text: walk_invalid_virtual_address
+- id: module-property-20
+  text: walkaddr_u_bit_check
+- id: module-property-21
+  text: uvmcopy_isolation
+- id: module-property-22
+  text: copyin_valid_address
+- id: module-property-23
+  text: copyin_invalid_address
+- id: module-property-24
+  text: copyin_boundary_crossing
+- id: module-property-25
+  text: copyout_valid_address
+- id: module-property-26
+  text: copyout_readonly_page
+- id: module-property-27
+  text: kalloc_exhaustion
+- id: module-property-28
+  text: kalloc_alignment
+- id: module-property-29
+  text: kalloc_zeroed
+- id: module-property-30
+  text: kalloc_kfree_cycle
+- id: module-property-31
+  text: kvmmake_identity_mapping
+- id: module-property-32
+  text: kvmmake_trampoline_mapped
+- id: module-property-33
+  text: walkaddr_u_bit_check
+- id: module-property-34
+  text: copyin_invalid_address
+- id: module-property-35
+  text: copyout_readonly_page
 errors:
-- invalid state fails explicitly
+- caller is responsible for valid pointer
+- double-free may corrupt freelist (undefined)
+- kalloc returns NULL when freelist is exhausted
+- none (always succeeds)
+- on kalloc failure, frees partial copy and returns 0
+- panics if a PTE is missing (inconsistent state)
+- panics if end >= PHYSTOP (no free memory)
+- panics if kalloc fails during page table construction
+- panics if kalloc fails for intermediate PT page
+- panics if kalloc fails for trapframe
+- panics if va is not canonical
+- previously mapped pages are unaffected
+- returns -1 if any page in the string range is invalid
+- returns -1 if no null terminator found within max bytes
+- returns -1 if walkaddr returns 0 for any page in range
+- returns 0 for invalid va or kernel-only mappings
+- returns 0 if kalloc fails
+- returns NULL on missing levels (alloc==0)
+- returns NULL when freelist is empty
+- returns oldsz (no-op) if newsz >= oldsz
+- returns oldsz if kalloc fails (no partial mapping)
+- uvmunmap panics on missing mappings
+- walk returns NULL for invalid virtual addresses
+state:
+  stage: memory
+  owned_state:
+  - physical page freelist
+  - kernel page table (kernel_pagetable)
+  - physical memory layout bounds
+  resource_lifetime:
+  - allocated pages are freed back to freelist via kfree
+  - page tables are freed recursively (3-level walk)
+preconditions:
+- called exactly once during early kernel init
+- called from kernel context
+- called once during kernel init, after kinit
+- dst points to valid kernel buffer
+- dst points to valid kernel buffer of at least len bytes
+- dstva is a user virtual address
+- kernel is initialized past kinit
+- max bytes specifies maximum copy length
+- newsz > oldsz
+- newsz >= 0
+- npages > 0
+- old is a valid pagetable
+- oldsz > newsz
+- oldsz and newsz are page-aligned
+- page allocator is not yet in use
+- pagetable is a newly created empty page table
+- pagetable is a valid root page directory
+- pagetable is page-aligned
+- pointer is 4096-byte aligned
+- pointer points to a valid physical page in range
+- process is exiting or fork has failed
+- size is a multiple of PGSIZE
+- size specifies the range [0, size) to copy
+- src points to valid kernel buffer of at least len bytes
+- srcva is a user virtual address in current process
+- va and pa are page-aligned
+- va is a canonical Sv39 address (bits 63:39 sign-extended)
+- va is a valid virtual address
+- va is page-aligned
+postconditions:
+- '[va, va+npages*PGSIZE) has no valid mappings'
+- address range [oldsz, newsz) is mapped and accessible
+- address space size reduced to newsz
+- all memory associated with pagetable is released
+- child has identical but independent memory
+- dst contains len bytes from srcva (on success)
+- dst contains null-terminated string (on success)
+- dstva contains len bytes from src (on success)
+- freelist is non-empty (at least one page)
+- kernel_pagetable maps all kernel text/data/device regions
+- kmem.lock is initialized
+- no more than max bytes copied
+- page is on freelist
+- returned PA is page-aligned (lower 12 bits from va)
+- returned PTE is valid and writable
+- returned page is 4096-byte aligned and zeroed
+- returned page table has all entries zero
+- user page table has trampoline and trapframe mappings
+- va..va+size maps to pa..pa+size with given perm
+invariants:
+- id: invariant-1
+  text: every allocated page is 4096-byte aligned
+- id: invariant-2
+  text: freelist is a singly-linked list of free pages
+- id: invariant-3
+  text: a page is either on the freelist OR allocated, never both
+- id: invariant-4
+  text: kernel_pagetable provides identity mapping 0x80000000..0x88000000
+- id: invariant-5
+  text: Sv39 PTEs use DAG-extension permissions (R/W/X bits)
+- id: copyin-invariant-1
+  text: kernel is never corrupted by invalid user addresses
+- id: copyinstr-invariant-1
+  text: kernel never overruns kernel buffer
+- id: copyinstr-invariant-2
+  text: kernel never dereferences raw user pointers
+- id: copyout-invariant-1
+  text: kernel memory is never disclosed via invalid copyout
+- id: kalloc-invariant-1
+  text: freelist integrity (no double-links)
+- id: kfree-invariant-1
+  text: freelist integrity
+- id: kfree-invariant-2
+  text: no page appears twice on freelist
+- id: kinit-invariant-1
+  text: freelist pages are 4096-byte aligned
+- id: kvmmake-invariant-1
+  text: PTEs have U-bit == 0
+- id: kvmmap-invariant-1
+  text: no PTE is overwritten without explicit intent
+- id: uvmalloc-invariant-1
+  text: user page table integrity
+- id: uvmalloc-invariant-2
+  text: new pages have PTE_U and PTE_W set
+- id: uvmcopy-invariant-1
+  text: no page is shared between parent and child
+- id: uvmcreate-invariant-1
+  text: no kernel mappings in user page table
+- id: uvmdealloc-invariant-1
+  text: no dangling page mappings
+- id: uvmfree-invariant-1
+  text: no memory leak
+- id: uvminit-invariant-1
+  text: TRAMPOLINE mapping is identical in all user page tables
+- id: uvmunmap-invariant-1
+  text: page table consistency
+- id: walk-invariant-1
+  text: Sv39 structure integrity
+- id: walkaddr-invariant-1
+  text: no page table mutation
+dependencies:
+- kernel/boot
+- kernel/headers
+- kernel/memory
+rely:
+- 'copyin.rely.callable_interfaces: walkaddr, memmove'
+- 'copyin.rely.lock_assumptions: none'
+- 'copyin.rely.resource_assumptions: dst buffer is valid kernel memory'
+- 'copyin.rely.state_assumptions: current process pagetable is valid'
+- 'copyinstr.rely.callable_interfaces: walkaddr'
+- 'copyinstr.rely.lock_assumptions: none'
+- 'copyinstr.rely.resource_assumptions: dst buffer is valid kernel memory of at least
+  max bytes'
+- 'copyinstr.rely.state_assumptions: current process pagetable is valid'
+- 'copyout.rely.callable_interfaces: walkaddr, memmove'
+- 'copyout.rely.lock_assumptions: none'
+- 'copyout.rely.resource_assumptions: src buffer is valid kernel memory'
+- 'copyout.rely.state_assumptions: current process pagetable is valid'
+- 'kalloc.rely.callable_interfaces: kmem.freelist (global)'
+- 'kalloc.rely.lock_assumptions: acquires kmem.lock'
+- 'kalloc.rely.resource_assumptions: at least one free page exists (or NULL is returned)'
+- 'kalloc.rely.state_assumptions: freelist has been initialized by kinit'
+- 'kfree.rely.callable_interfaces: kmem.freelist (global)'
+- 'kfree.rely.lock_assumptions: acquires kmem.lock'
+- 'kfree.rely.resource_assumptions: the page was previously obtained from kalloc'
+- 'kfree.rely.state_assumptions: freelist has been initialized by kinit'
+- 'kinit.rely.callable_interfaces: end (linker symbol)'
+- 'kinit.rely.lock_assumptions: no locks required (single-hart init)'
+- 'kinit.rely.resource_assumptions: physical memory is contiguous from end to PHYSTOP'
+- 'kinit.rely.state_assumptions: end is defined by the linker script'
+- 'kinit.rely.state_assumptions: kernel image occupies [0x80000000 .. end)'
+- 'kvmmake.rely.callable_interfaces: kalloc (to allocate page table pages)'
+- 'kvmmake.rely.callable_interfaces: kvmmap (to install mappings)'
+- 'kvmmake.rely.lock_assumptions: none (init only)'
+- 'kvmmake.rely.resource_assumptions: sufficient free pages for 3-level page table'
+- 'kvmmake.rely.state_assumptions: physical memory is accessible from 0x80000000'
+- 'kvmmap.rely.callable_interfaces: walk (to locate PTE slot)'
+- 'kvmmap.rely.lock_assumptions: none'
+- 'kvmmap.rely.resource_assumptions: physical pages for intermediate PT levels are
+  allocated'
+- 'kvmmap.rely.state_assumptions: target pagetable is valid (allocated)'
+- physical memory range is provided by boot stage
+- 'uvmalloc.rely.callable_interfaces: kalloc, kvmmap, walk'
+- 'uvmalloc.rely.lock_assumptions: none'
+- 'uvmalloc.rely.resource_assumptions: free pages available for new PTEs and data
+  pages'
+- 'uvmalloc.rely.state_assumptions: pagetable is a valid user page table'
+- 'uvmcopy.rely.callable_interfaces: kalloc, walk, memmove'
+- 'uvmcopy.rely.lock_assumptions: none'
+- 'uvmcopy.rely.resource_assumptions: enough free pages to copy all mappings'
+- 'uvmcopy.rely.state_assumptions: old pagetable is a valid user page table'
+- 'uvmcreate.rely.callable_interfaces: kalloc'
+- 'uvmcreate.rely.lock_assumptions: none'
+- 'uvmcreate.rely.resource_assumptions: one free page available'
+- 'uvmcreate.rely.state_assumptions: kalloc is available'
+- 'uvmdealloc.rely.callable_interfaces: uvmunmap'
+- 'uvmdealloc.rely.lock_assumptions: none'
+- 'uvmdealloc.rely.resource_assumptions: none'
+- 'uvmdealloc.rely.state_assumptions: pages in [newsz, oldsz) are mapped'
+- 'uvmdealloc.rely.state_assumptions: pagetable is valid'
+- 'uvmfree.rely.callable_interfaces: uvmunmap, kfree'
+- 'uvmfree.rely.lock_assumptions: none'
+- 'uvmfree.rely.resource_assumptions: none'
+- 'uvmfree.rely.state_assumptions: no other references to the page table exist'
+- 'uvmfree.rely.state_assumptions: pagetable is a valid user page table'
+- 'uvminit.rely.callable_interfaces: kalloc, kvmmap'
+- 'uvminit.rely.lock_assumptions: none'
+- 'uvminit.rely.resource_assumptions: free pages available for trapframe'
+- 'uvminit.rely.state_assumptions: pagetable is empty (just allocated via uvmcreate)'
+- 'uvmunmap.rely.callable_interfaces: walk, kfree'
+- 'uvmunmap.rely.lock_assumptions: none'
+- 'uvmunmap.rely.resource_assumptions: none'
+- 'uvmunmap.rely.state_assumptions: pagetable is valid'
+- 'uvmunmap.rely.state_assumptions: va is page-aligned'
+- 'walk.rely.callable_interfaces: kalloc (when alloc != 0)'
+- 'walk.rely.lock_assumptions: none'
+- 'walk.rely.resource_assumptions: free pages available if alloc != 0'
+- 'walk.rely.state_assumptions: pagetable is a valid L2 directory'
+- 'walkaddr.rely.callable_interfaces: walk (alloc=0)'
+- 'walkaddr.rely.lock_assumptions: none'
+- 'walkaddr.rely.resource_assumptions: none'
+- 'walkaddr.rely.state_assumptions: pagetable is valid'
+guarantee:
+- 'copyin.guarantee.emitted_events: none'
+- 'copyin.guarantee.returns: -1 on invalid user address'
+- 'copyin.guarantee.returns: 0 on success'
+- 'copyin.guarantee.side_effects: dst populated with len bytes from user memory'
+- 'copyinstr.guarantee.emitted_events: none'
+- 'copyinstr.guarantee.returns: -1 on invalid user address or if max bytes exceeded'
+- 'copyinstr.guarantee.returns: string length (including null terminator) on success'
+- 'copyinstr.guarantee.side_effects: dst populated with null-terminated string from
+  user memory'
+- 'copyout.guarantee.emitted_events: none'
+- 'copyout.guarantee.returns: -1 on invalid user address'
+- 'copyout.guarantee.returns: 0 on success'
+- 'copyout.guarantee.side_effects: user memory at dstva written with len bytes'
+- every allocated page is 4096-byte aligned and zeroed
+- 'exported: copyin'
+- 'exported: copyinstr'
+- 'exported: copyout'
+- 'exported: kalloc'
+- 'exported: kfree'
+- 'exported: kinit'
+- 'exported: kvmmake'
+- 'exported: kvmmap'
+- 'exported: uvmalloc'
+- 'exported: uvmcopy'
+- 'exported: uvmcreate'
+- 'exported: uvmfree'
+- 'exported: uvminit'
+- 'exported: uvmunmap'
+- 'exported: walk'
+- 'exported: walkaddr'
+- 'kalloc.guarantee.emitted_events: none'
+- 'kalloc.guarantee.returns: NULL on exhaustion'
+- 'kalloc.guarantee.returns: void * to a 4096-byte zeroed page on success'
+- 'kalloc.guarantee.side_effects: page content is zeroed'
+- 'kalloc.guarantee.side_effects: page is removed from freelist'
+- 'kfree.guarantee.emitted_events: none'
+- 'kfree.guarantee.returns: void'
+- 'kfree.guarantee.side_effects: page content is zeroed'
+- 'kfree.guarantee.side_effects: page is re-linked to freelist head'
+- 'kinit.guarantee.emitted_events: none'
+- 'kinit.guarantee.returns: void'
+- 'kinit.guarantee.side_effects: each page is zeroed via memset'
+- 'kinit.guarantee.side_effects: freelist is populated with all free physical pages'
+- 'kvmmake.guarantee.emitted_events: none'
+- 'kvmmake.guarantee.returns: pagetable_t (pointer to L2 page directory)'
+- 'kvmmake.guarantee.side_effects: UART, PLIC, VIRTIO mapped (optional)'
+- 'kvmmake.guarantee.side_effects: kernel_pagetable is populated'
+- 'kvmmake.guarantee.side_effects: trampoline code mapped at (TRAMPOLINE, MAXVA-PGSIZE]'
+- 'kvmmap.guarantee.emitted_events: none'
+- 'kvmmap.guarantee.returns: void'
+- 'kvmmap.guarantee.side_effects: PTE(s) installed in target pagetable'
+- 'kvmmap.guarantee.side_effects: intermediate page table pages allocated if needed'
+- no page is simultaneously allocated and on freelist
+- 'uvmalloc.guarantee.emitted_events: none'
+- 'uvmalloc.guarantee.returns: newsz on success'
+- 'uvmalloc.guarantee.returns: oldsz on failure (no partial growth)'
+- 'uvmalloc.guarantee.side_effects: each new page is zeroed'
+- 'uvmalloc.guarantee.side_effects: new pages allocated and mapped from oldsz to newsz'
+- 'uvmcopy.guarantee.emitted_events: none'
+- 'uvmcopy.guarantee.returns: 0 on failure (partial mappings unmapped)'
+- 'uvmcopy.guarantee.returns: pagetable_t on success (complete copy)'
+- 'uvmcopy.guarantee.side_effects: PTE_W is cleared in both old and new PTEs'
+- 'uvmcopy.guarantee.side_effects: all old pages are duplicated'
+- 'uvmcreate.guarantee.emitted_events: none'
+- 'uvmcreate.guarantee.returns: 0 on kalloc failure'
+- 'uvmcreate.guarantee.returns: pagetable_t (new user page table) on success'
+- 'uvmcreate.guarantee.side_effects: one page allocated, zeroed'
+- 'uvmdealloc.guarantee.emitted_events: none'
+- 'uvmdealloc.guarantee.returns: newsz on success'
+- 'uvmdealloc.guarantee.returns: oldsz if newsz >= oldsz (no-op)'
+- 'uvmdealloc.guarantee.side_effects: pages in [newsz, oldsz) unmapped and freed'
+- 'uvmdealloc.guarantee.side_effects: process->sz updated to newsz'
+- 'uvmfree.guarantee.emitted_events: none'
+- 'uvmfree.guarantee.returns: void'
+- 'uvmfree.guarantee.side_effects: all leaf pages freed via kfree'
+- 'uvmfree.guarantee.side_effects: all page-table pages freed via kfree'
+- 'uvmfree.guarantee.side_effects: pagetable root page freed'
+- 'uvminit.guarantee.emitted_events: none'
+- 'uvminit.guarantee.returns: void'
+- 'uvminit.guarantee.side_effects: trampoline page mapped at TRAMPOLINE (read+execute)'
+- 'uvminit.guarantee.side_effects: trapframe page allocated and mapped at TRAPFRAME
+  (read+write)'
+- 'uvmunmap.guarantee.emitted_events: none'
+- 'uvmunmap.guarantee.returns: void'
+- 'uvmunmap.guarantee.side_effects: npages unmapped from pagetable'
+- 'uvmunmap.guarantee.side_effects: physical pages freed if do_free'
+- 'walk.guarantee.emitted_events: none'
+- 'walk.guarantee.returns: NULL if alloc!=0 and kalloc fails'
+- 'walk.guarantee.returns: NULL if alloc==0 and a level is missing'
+- 'walk.guarantee.returns: pte_t * to the L0 PTE on success'
+- 'walk.guarantee.side_effects: intermediate PT pages allocated when alloc != 0'
+- 'walkaddr.guarantee.emitted_events: none'
+- 'walkaddr.guarantee.returns: 0 on missing/invalid PTE or non-user mapping'
+- 'walkaddr.guarantee.returns: uint64 physical address on valid user mapping'
+- 'walkaddr.guarantee.side_effects: none'
+algorithm_intent: Implement the memory stage contract while preserving the declared
+  xv6 module boundaries.
+concurrency:
+  module:
+    module: kernel/memory
+    shared_state:
+    - physical page freelist (kmem.freelist)
+    - allocation counter
+    lock_types:
+    - spinlock (kmem.lock)
+    lock_order:
+    - kmem.lock (single lock, no nesting)
+    atomic_sections:
+    - freelist push/pop under kmem.lock
+    interrupt_rules:
+    - push_off/pop_off around freelist mutations
+    rely:
+    - physical memory range is provided by boot stage
+    guarantee:
+    - every allocated page is 4096-byte aligned and zeroed
+    - no page is simultaneously allocated and on freelist
+    wait_wakeup_rules: []
+    forbidden_patterns:
+    - accessing freelist without holding kmem.lock
+    - allocating or freeing pages before kinit
+    - using pages returned by kfree after the call
+  operations:
+    copyin:
+      atomicity: per-page copy
+      lock_order: []
+      interrupt_state: interrupts enabled
+      wait_wakeup_rules: []
+    copyinstr:
+      atomicity: per-byte copy after address validation
+      lock_order: []
+      interrupt_state: interrupts enabled
+      wait_wakeup_rules: []
+    copyout:
+      atomicity: per-page copy
+      lock_order: []
+      interrupt_state: interrupts enabled
+      wait_wakeup_rules: []
+    kalloc:
+      atomicity: freelist pop under spinlock
+      lock_order:
+      - kmem.lock
+      interrupt_state: lock is push_off / pop_off
+      wait_wakeup_rules: []
+    kfree:
+      atomicity: freelist push under spinlock
+      lock_order:
+      - kmem.lock
+      interrupt_state: lock is push_off / pop_off
+      wait_wakeup_rules: []
+    kinit:
+      atomicity: init runs single-threaded
+      lock_order: []
+      interrupt_state: interrupts disabled during init
+      wait_wakeup_rules: []
+    kvmmake:
+      atomicity: init only
+      lock_order: []
+      interrupt_state: disabled
+      wait_wakeup_rules: []
+    kvmmap:
+      atomicity: single-threaded
+      lock_order: []
+      interrupt_state: irrelevant
+      wait_wakeup_rules: []
+    uvmalloc:
+      atomicity: non-atomic across page allocations
+      lock_order: []
+      interrupt_state: interrupts enabled
+      wait_wakeup_rules: []
+    uvmcopy:
+      atomicity: not atomic (may be rescheduled during copy)
+      lock_order: []
+      interrupt_state: interrupts enabled during copy
+      wait_wakeup_rules: []
+    uvmcreate:
+      atomicity: single allocation
+      lock_order: []
+      interrupt_state: irrelevant
+      wait_wakeup_rules: []
+    uvmdealloc:
+      atomicity: non-atomic
+      lock_order: []
+      interrupt_state: interrupts enabled
+      wait_wakeup_rules: []
+    uvmfree:
+      atomicity: non-atomic
+      lock_order: []
+      interrupt_state: interrupts enabled
+      wait_wakeup_rules: []
+    uvminit:
+      atomicity: init only
+      lock_order: []
+      interrupt_state: disabled
+      wait_wakeup_rules: []
+    uvmunmap:
+      atomicity: per-page operations
+      lock_order: []
+      interrupt_state: interrupts enabled
+      wait_wakeup_rules: []
+    walk:
+      atomicity: single read-path; alloc path not atomic
+      lock_order: []
+      interrupt_state: irrelevant
+      wait_wakeup_rules: []
+    walkaddr:
+      atomicity: read-only
+      lock_order: []
+      interrupt_state: irrelevant
+      wait_wakeup_rules: []

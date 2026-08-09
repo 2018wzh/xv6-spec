@@ -1,0 +1,5 @@
+STARFIVE_BSP_TAG=VF2_v3.8.2
+DTB_URL=https://github.com/starfive-tech/VisionFive2/releases/download/VF2_v3.8.2/jh7110-visionfive-v2.dtb
+DTB_SHA256=76d638a042a909101d8a5e247880222b2405ab2373fe44462c3e9e7f445085f1
+LIBFDT_VERSION=v1.7.2
+LIBFDT_REVISION=2d10aa2afe35527728db30b35ec491ecb6959e5c

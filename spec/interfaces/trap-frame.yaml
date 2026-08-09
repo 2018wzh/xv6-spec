@@ -1,12 +1,15 @@
 id: interface/trap-frame
-name: user register handoff
+name: user trap-frame ABI
 boundary: abi
 module: kernel/trap
 operations:
-- name: current_lab_contract
-  pre: []
+- name: uservec_userret
+  pre:
+  - the process owns a mapped TRAPFRAME page
   post:
-  - the current lab boundary is preserved
+  - all user registers cross privilege boundaries only through that page
   errors:
-  - invalid state fails explicitly
-  properties: []
+  - unexpected privilege state panics in the kernel trap path
+  properties:
+  - id: trap-frame-register-ownership
+    text: trap-frame registers belong to exactly one process while it is runnable

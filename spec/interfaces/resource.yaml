@@ -1,12 +1,15 @@
 id: interface/resource
-name: kernel resource ABI
+name: kernel resource ownership ABI
 boundary: abi
-module: kernel/pipe
+module: kernel/file
 operations:
-- name: current_lab_contract
-  pre: []
+- name: resource_acquire_release
+  pre:
+  - the caller holds or obtains a valid reference
   post:
-  - the current lab boundary is preserved
+  - the last release reclaims the owned kernel resource
   errors:
-  - invalid state fails explicitly
-  properties: []
+  - invalid or exhausted resource allocation fails explicitly
+  properties:
+  - id: resource-single-reclamation
+    text: pages, inodes, file descriptions and pipe endpoints are reclaimed exactly once

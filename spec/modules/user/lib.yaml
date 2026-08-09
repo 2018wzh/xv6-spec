@@ -1,0 +1,326 @@
+id: user/lib
+module: user/lib
+level: 3
+purpose: User-space C library providing system call wrappers, string utilities, formatted
+  printf, and memory allocation (malloc/free). Linked into every user program.
+owns:
+- user/printf.c
+- user/ulib.c
+- user/umalloc.c
+- tests/generated/user/lib
+interface:
+- name: atoi
+  pre: []
+  post: []
+  errors:
+  - none
+  properties:
+  - id: atoi-property-1
+    text: 'guarantee.returns.int: parsed integer value'
+  - id: atoi-property-2
+    text: 'guarantee.side_effects: none'
+- name: fprintf
+  pre:
+  - fd is open for writing
+  post:
+  - output written
+  errors:
+  - none
+  properties:
+  - id: fprintf-property-1
+    text: 'guarantee.returns: void'
+  - id: fprintf-property-2
+    text: 'guarantee.side_effects: formatted output written to fd'
+- name: free
+  pre:
+  - ptr != 0
+  - ptr was returned by malloc
+  post:
+  - memory is available for future malloc
+  errors:
+  - none
+  properties:
+  - id: free-property-1
+    text: 'guarantee.returns: void'
+  - id: free-property-2
+    text: 'guarantee.side_effects: block added to free list'
+  - id: free-property-3
+    text: 'guarantee.side_effects: adjacent free blocks coalesced'
+- name: gets
+  pre: []
+  post:
+  - buf contains the input line without trailing newline
+  errors:
+  - returns 0 on EOF
+  properties:
+  - id: gets-property-1
+    text: 'guarantee.returns: char* (buf) on success'
+  - id: gets-property-2
+    text: 'guarantee.returns: 0 on EOF'
+  - id: gets-property-3
+    text: 'guarantee.side_effects: line read from stdin'
+  - id: gets-property-4
+    text: 'guarantee.side_effects: buf NUL-terminated'
+- name: malloc
+  pre: []
+  post:
+  - returned memory is zeroed
+  - pointer is 16-byte aligned
+  errors:
+  - returns 0 if sbrk fails
+  properties:
+  - id: malloc-property-1
+    text: 'guarantee.returns.void*: 16-byte aligned pointer to n bytes'
+  - id: malloc-property-2
+    text: 'guarantee.returns: 0 on failure'
+  - id: malloc-property-3
+    text: 'guarantee.side_effects: free list updated'
+  - id: malloc-property-4
+    text: 'guarantee.side_effects: heap may be extended'
+- name: printf
+  pre: []
+  post:
+  - output visible on stdout
+  errors:
+  - none
+  properties:
+  - id: printf-property-1
+    text: 'guarantee.returns: void'
+  - id: printf-property-2
+    text: 'guarantee.side_effects: formatted output written to fd 1'
+- name: sbrk
+  pre: []
+  post:
+  - memory is zeroed
+  errors:
+  - returns (char*)-1 on failure
+  properties:
+  - id: sbrk-property-1
+    text: 'guarantee.returns.void*: pointer to allocated memory'
+  - id: sbrk-property-2
+    text: 'guarantee.returns: (char*)-1 on failure'
+  - id: sbrk-property-3
+    text: 'guarantee.side_effects: heap extended by n bytes'
+- name: stat
+  pre:
+  - path is valid
+  post: []
+  errors:
+  - returns -1 if open or fstat fails
+  properties:
+  - id: stat-property-1
+    text: 'guarantee.returns.int: 0 on success'
+  - id: stat-property-2
+    text: 'guarantee.returns: -1 on failure'
+  - id: stat-property-3
+    text: 'guarantee.side_effects: stat structure populated'
+- name: strchr
+  pre: []
+  post: []
+  errors:
+  - none
+  properties:
+  - id: strchr-property-1
+    text: 'guarantee.returns: char* to match, or 0'
+  - id: strchr-property-2
+    text: 'guarantee.side_effects: none (read-only)'
+- name: strcmp
+  pre: []
+  post: []
+  errors:
+  - none
+  properties:
+  - id: strcmp-property-1
+    text: 'guarantee.returns.int: comparison result'
+  - id: strcmp-property-2
+    text: 'guarantee.side_effects: none'
+- name: strcpy
+  pre: []
+  post:
+  - s is NUL-terminated
+  errors:
+  - none
+  properties:
+  - id: strcpy-property-1
+    text: 'guarantee.returns: char* (s)'
+  - id: strcpy-property-2
+    text: 'guarantee.side_effects: s contains a copy of t'
+properties:
+- id: module-property-1
+  text: user-space only; no kernel data access
+- id: module-property-2
+  text: malloc'd memory must be freed via free
+- id: module-property-3
+  text: free list is a singly-linked list of free blocks
+- id: module-property-4
+  text: malloc/free cycle
+- id: module-property-5
+  text: printf format coverage
+- id: module-property-6
+  text: string function correctness
+errors:
+- gets returns 0 on EOF
+- malloc returns 0 on exhaustion
+- none
+- returns (char*)-1 on failure
+- returns -1 if open or fstat fails
+- returns 0 if sbrk fails
+- returns 0 on EOF
+state:
+  stage: full-syscall
+  owned_state:
+  - malloc free list (user-space heap)
+  - printf state (per-call)
+  resource_lifetime:
+  - malloc'd memory must be freed via free
+  - free list is a singly-linked list of free blocks
+preconditions:
+- fd is open for writing
+- path is valid
+- ptr != 0
+- ptr was returned by malloc
+postconditions:
+- buf contains the input line without trailing newline
+- memory is available for future malloc
+- memory is zeroed
+- output visible on stdout
+- output written
+- pointer is 16-byte aligned
+- returned memory is zeroed
+- s is NUL-terminated
+invariants:
+- id: invariant-1
+  text: malloc returns 16-byte aligned pointers
+- id: invariant-2
+  text: printf format specifiers match kernel printk subset
+- id: invariant-3
+  text: string functions are freestanding (no libc dependency)
+dependencies:
+- user/lib
+rely:
+- 'atoi.rely.lock_assumptions: none'
+- 'atoi.rely.resource_assumptions: sufficient resources available'
+- 'fprintf.rely.callable_interfaces: write (syscall)'
+- 'fprintf.rely.lock_assumptions: none'
+- 'fprintf.rely.resource_assumptions: sufficient resources available'
+- 'free.rely.lock_assumptions: none'
+- 'free.rely.resource_assumptions: sufficient resources available'
+- 'free.rely.state_assumptions: ptr was previously returned by malloc'
+- 'gets.rely.lock_assumptions: none'
+- 'gets.rely.resource_assumptions: sufficient resources available'
+- 'malloc.rely.callable_interfaces: memset (from user/lib)'
+- 'malloc.rely.callable_interfaces: sbrk (internal)'
+- 'malloc.rely.lock_assumptions: none'
+- 'malloc.rely.resource_assumptions: sufficient resources available'
+- 'malloc.rely.state_assumptions: free list is initialized'
+- 'module: syscall stubs (from user/stubs)'
+- 'printf.rely.callable_interfaces: fprintf (internal)'
+- 'printf.rely.callable_interfaces: write (syscall)'
+- 'printf.rely.lock_assumptions: none'
+- 'printf.rely.resource_assumptions: sufficient resources available'
+- 'sbrk.rely.callable_interfaces: sys_sbrk (syscall)'
+- 'sbrk.rely.lock_assumptions: none'
+- 'sbrk.rely.resource_assumptions: sufficient resources available'
+- 'stat.rely.callable_interfaces: open/fstat/close syscalls'
+- 'stat.rely.lock_assumptions: none'
+- 'stat.rely.resource_assumptions: sufficient resources available'
+- 'strchr.rely.lock_assumptions: none'
+- 'strchr.rely.resource_assumptions: sufficient resources available'
+- 'strcmp.rely.lock_assumptions: none'
+- 'strcmp.rely.resource_assumptions: sufficient resources available'
+- 'strcpy.rely.lock_assumptions: none'
+- 'strcpy.rely.resource_assumptions: sufficient resources available'
+guarantee:
+- 'atoi.guarantee.returns.int: parsed integer value'
+- 'atoi.guarantee.side_effects: none'
+- 'exported: fprintf, printf'
+- 'exported: malloc, free'
+- 'exported: strcpy, memmove, strchr, strcmp, gets, strlen, memset, atoi, memcmp,
+  memcpy, sbrk, stat'
+- 'fprintf.guarantee.returns: void'
+- 'fprintf.guarantee.side_effects: formatted output written to fd'
+- 'free.guarantee.returns: void'
+- 'free.guarantee.side_effects: adjacent free blocks coalesced'
+- 'free.guarantee.side_effects: block added to free list'
+- 'gets.guarantee.returns: 0 on EOF'
+- 'gets.guarantee.returns: char* (buf) on success'
+- 'gets.guarantee.side_effects: buf NUL-terminated'
+- 'gets.guarantee.side_effects: line read from stdin'
+- 'malloc.guarantee.returns.void*: 16-byte aligned pointer to n bytes'
+- 'malloc.guarantee.returns: 0 on failure'
+- 'malloc.guarantee.side_effects: free list updated'
+- 'malloc.guarantee.side_effects: heap may be extended'
+- 'printf.guarantee.returns: void'
+- 'printf.guarantee.side_effects: formatted output written to fd 1'
+- 'sbrk.guarantee.returns.void*: pointer to allocated memory'
+- 'sbrk.guarantee.returns: (char*)-1 on failure'
+- 'sbrk.guarantee.side_effects: heap extended by n bytes'
+- 'stat.guarantee.returns.int: 0 on success'
+- 'stat.guarantee.returns: -1 on failure'
+- 'stat.guarantee.side_effects: stat structure populated'
+- 'strchr.guarantee.returns: char* to match, or 0'
+- 'strchr.guarantee.side_effects: none (read-only)'
+- 'strcmp.guarantee.returns.int: comparison result'
+- 'strcmp.guarantee.side_effects: none'
+- 'strcpy.guarantee.returns: char* (s)'
+- 'strcpy.guarantee.side_effects: s contains a copy of t'
+algorithm_intent: Implement the full-syscall stage contract while preserving the declared
+  xv6 module boundaries.
+concurrency:
+  module: {}
+  operations:
+    atoi:
+      atomicity: user-space only
+      lock_order: []
+      interrupt_state: enabled (user mode)
+      wait_wakeup_rules: []
+    fprintf:
+      atomicity: user-space only
+      lock_order: []
+      interrupt_state: enabled (user mode)
+      wait_wakeup_rules: []
+    free:
+      atomicity: user-space only
+      lock_order: []
+      interrupt_state: enabled (user mode)
+      wait_wakeup_rules: []
+    gets:
+      atomicity: user-space only
+      lock_order: []
+      interrupt_state: enabled (user mode)
+      wait_wakeup_rules: []
+    malloc:
+      atomicity: user-space only
+      lock_order: []
+      interrupt_state: enabled (user mode)
+      wait_wakeup_rules: []
+    printf:
+      atomicity: user-space only
+      lock_order: []
+      interrupt_state: enabled (user mode)
+      wait_wakeup_rules: []
+    sbrk:
+      atomicity: user-space only
+      lock_order: []
+      interrupt_state: enabled (user mode)
+      wait_wakeup_rules: []
+    stat:
+      atomicity: user-space only
+      lock_order: []
+      interrupt_state: enabled (user mode)
+      wait_wakeup_rules: []
+    strchr:
+      atomicity: user-space only
+      lock_order: []
+      interrupt_state: enabled (user mode)
+      wait_wakeup_rules: []
+    strcmp:
+      atomicity: user-space only
+      lock_order: []
+      interrupt_state: enabled (user mode)
+      wait_wakeup_rules: []
+    strcpy:
+      atomicity: user-space only
+      lock_order: []
+      interrupt_state: enabled (user mode)
+      wait_wakeup_rules: []

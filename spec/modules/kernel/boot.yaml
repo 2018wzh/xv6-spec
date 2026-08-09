@@ -1,16 +1,64 @@
 id: kernel/boot
 module: kernel/boot
-level: 2
-purpose: early boot and deterministic banner.
+level: 3
+purpose: Enter on a per-hart stack, establish the platform execution mode and publish
+  the deterministic boot banner before subsystem initialization.
 owns:
 - kernel/entry.S
 - kernel/start.c
 - kernel/boot.c
-- kernel/main.c
+- kernel/kernel.ld
+- kernel/kernel-vf2.ld
 - tests/generated/kernel/boot
-interface: []
+interface:
+- name: boot_banner
+  pre: []
+  post:
+  - returns an immutable printable banner containing XV6_BOOT_OK
+  errors: []
+  properties:
+  - id: boot-banner-deterministic
+    text: the banner is identical on qemu-virt and VisionFive 2
 properties:
-- id: kernel-boot-deterministic
-  text: behavior is deterministic under the published lab checks
+- id: boot-entry-convention
+  text: firmware entry preserves a0 hartid and a1 DTB until platform initialization
 errors:
-- invalid state fails explicitly
+- invalid platform state prevents entry into main
+state:
+  stage: boot
+  owned_state:
+  - one 4096-byte early stack per supported CPU
+  resource_lifetime:
+  - early stacks exist for the kernel lifetime
+preconditions:
+- QEMU enters M-mode or U-Boot enters S-mode at the linked address
+postconditions:
+- logical CPU index is stored in tp and main is entered once per released hart
+invariants:
+- id: ordered-boot
+  text: only the validated boot hart performs global initialization
+dependencies:
+- kernel/platform
+- kernel/sbi
+rely: []
+guarantee:
+- 'exported: boot_banner'
+algorithm_intent: Keep firmware entry differences isolated before common kernel main.
+concurrency:
+  module:
+    module: kernel/boot
+    shared_state:
+    - platform readiness and main started flags
+    lock_types: []
+    lock_order: []
+    atomic_sections:
+    - release/acquire publication of initialized platform state
+    interrupt_rules:
+    - interrupts are enabled only after per-hart identity and timer setup
+    rely: []
+    guarantee:
+    - secondary harts do not execute global initialization
+    wait_wakeup_rules: []
+    forbidden_patterns:
+    - firmware-released unordered secondary harts
+  operations: {}

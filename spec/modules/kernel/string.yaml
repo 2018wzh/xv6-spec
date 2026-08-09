@@ -1,0 +1,221 @@
+id: kernel/string
+module: kernel/string
+level: 3
+purpose: 'Kernel string and memory utility functions: memset, memmove, memcpy, memcmp,
+  strncmp, strncpy, safestrcpy, strlen. Freestanding implementations with no libc
+  dependency.'
+owns:
+- kernel/string.c
+- tests/generated/kernel/string
+interface:
+- name: memcmp
+  pre: []
+  post: []
+  errors:
+  - none
+  properties:
+  - id: memcmp-property-1
+    text: 'guarantee.returns.int: 0 (equal), negative (v1<v2), positive (v1>v2)'
+  - id: memcmp-property-2
+    text: 'guarantee.side_effects: none (read-only)'
+- name: memcpy
+  pre: []
+  post:
+  - same as memmove
+  errors:
+  - none
+  properties:
+  - id: memcpy-property-1
+    text: 'guarantee.returns: void* (dst)'
+  - id: memcpy-property-2
+    text: 'guarantee.side_effects: n bytes copied'
+- name: memmove
+  pre: []
+  post:
+  - dst[0..n-1] == src[0..n-1] (even with overlap)
+  errors:
+  - none
+  properties:
+  - id: memmove-property-1
+    text: 'guarantee.returns: void* (dst)'
+  - id: memmove-property-2
+    text: 'guarantee.side_effects: n bytes copied from src to dst'
+- name: memset
+  pre: []
+  post:
+  - dst[0..n-1] == c
+  errors:
+  - none
+  properties:
+  - id: memset-property-1
+    text: 'guarantee.returns: void* (dst)'
+  - id: memset-property-2
+    text: 'guarantee.side_effects: first n bytes of dst set to c'
+- name: safestrcpy
+  pre: []
+  post:
+  - s is always NUL-terminated
+  errors:
+  - none
+  properties:
+  - id: safestrcpy-property-1
+    text: 'guarantee.returns: char* (s)'
+  - id: safestrcpy-property-2
+    text: 'guarantee.side_effects: s contains a NUL-terminated copy of t (truncated
+      if needed)'
+- name: strlen
+  pre: []
+  post: []
+  errors:
+  - none
+  properties:
+  - id: strlen-property-1
+    text: 'guarantee.returns.int: length of s'
+  - id: strlen-property-2
+    text: 'guarantee.side_effects: none (read-only)'
+- name: strncmp
+  pre: []
+  post: []
+  errors:
+  - none
+  properties:
+  - id: strncmp-property-1
+    text: 'guarantee.returns.int: comparison result'
+  - id: strncmp-property-2
+    text: 'guarantee.side_effects: none (read-only)'
+- name: strncpy
+  pre: []
+  post:
+  - s is NUL-terminated only if strlen(t) < n
+  errors:
+  - none
+  properties:
+  - id: strncpy-property-1
+    text: 'guarantee.returns: char* (s)'
+  - id: strncpy-property-2
+    text: 'guarantee.side_effects: s[0..n-1] populated from t, padded with NULs'
+properties:
+- id: module-property-1
+  text: caller is responsible for buffer sizes; safestrcpy takes explicit size parameter
+- id: module-property-2
+  text: no resources owned; pure functions
+- id: module-property-3
+  text: unit tests for all exported functions
+- id: module-property-4
+  text: integration tests with dependent modules
+errors:
+- none
+- none (these functions are infallible)
+state:
+  stage: boot
+  owned_state:
+  - none (pure functions, no global state)
+  resource_lifetime:
+  - no resources owned; pure functions
+preconditions: []
+postconditions:
+- dst[0..n-1] == c
+- dst[0..n-1] == src[0..n-1] (even with overlap)
+- s is NUL-terminated only if strlen(t) < n
+- s is always NUL-terminated
+- same as memmove
+invariants:
+- id: invariant-1
+  text: memmove handles overlapping regions correctly
+- id: invariant-2
+  text: safestrcpy always NUL-terminates
+- id: invariant-3
+  text: strlen does not read past the NUL terminator
+- id: invariant-4
+  text: memcpy is an alias for memmove
+dependencies:
+- kernel/string
+rely:
+- 'memcmp.rely.lock_assumptions: none'
+- 'memcmp.rely.resource_assumptions: sufficient resources available'
+- 'memcpy.rely.callable_interfaces: memmove (internal)'
+- 'memcpy.rely.lock_assumptions: none'
+- 'memcpy.rely.resource_assumptions: sufficient resources available'
+- 'memmove.rely.lock_assumptions: none'
+- 'memmove.rely.resource_assumptions: sufficient resources available'
+- 'memset.rely.lock_assumptions: none'
+- 'memset.rely.resource_assumptions: sufficient resources available'
+- 'safestrcpy.rely.lock_assumptions: none'
+- 'safestrcpy.rely.resource_assumptions: sufficient resources available'
+- 'strlen.rely.lock_assumptions: none'
+- 'strlen.rely.resource_assumptions: sufficient resources available'
+- 'strncmp.rely.lock_assumptions: none'
+- 'strncmp.rely.resource_assumptions: sufficient resources available'
+- 'strncpy.rely.lock_assumptions: none'
+- 'strncpy.rely.resource_assumptions: sufficient resources available'
+guarantee:
+- 'exported: memcmp'
+- 'exported: memcpy'
+- 'exported: memmove'
+- 'exported: memset'
+- 'exported: safestrcpy'
+- 'exported: strlen'
+- 'exported: strncmp'
+- 'exported: strncpy'
+- 'memcmp.guarantee.returns.int: 0 (equal), negative (v1<v2), positive (v1>v2)'
+- 'memcmp.guarantee.side_effects: none (read-only)'
+- 'memcpy.guarantee.returns: void* (dst)'
+- 'memcpy.guarantee.side_effects: n bytes copied'
+- 'memmove.guarantee.returns: void* (dst)'
+- 'memmove.guarantee.side_effects: n bytes copied from src to dst'
+- 'memset.guarantee.returns: void* (dst)'
+- 'memset.guarantee.side_effects: first n bytes of dst set to c'
+- 'safestrcpy.guarantee.returns: char* (s)'
+- 'safestrcpy.guarantee.side_effects: s contains a NUL-terminated copy of t (truncated
+  if needed)'
+- 'strlen.guarantee.returns.int: length of s'
+- 'strlen.guarantee.side_effects: none (read-only)'
+- 'strncmp.guarantee.returns.int: comparison result'
+- 'strncmp.guarantee.side_effects: none (read-only)'
+- 'strncpy.guarantee.returns: char* (s)'
+- 'strncpy.guarantee.side_effects: s[0..n-1] populated from t, padded with NULs'
+algorithm_intent: Implement the boot stage contract while preserving the declared
+  xv6 module boundaries.
+concurrency:
+  module: {}
+  operations:
+    memcmp:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    memcpy:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    memmove:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    memset:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    safestrcpy:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    strlen:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    strncmp:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    strncpy:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []

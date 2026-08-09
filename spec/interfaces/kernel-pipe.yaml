@@ -1,0 +1,69 @@
+id: interface/kernel-pipe
+name: kernel/pipe ipc boundary
+boundary: ipc
+module: kernel/pipe
+operations:
+- name: pipealloc
+  pre:
+  - neither file descriptor is in use
+  post:
+  - 'on success: *f0 is the read end, *f1 is the write end'
+  errors:
+  - returns -1 on allocation failure; cleans up partial allocations
+  properties:
+  - id: pipealloc-property-1
+    text: 'guarantee.returns.int: 0 on success'
+  - id: pipealloc-property-2
+    text: 'guarantee.returns: -1 on failure'
+  - id: pipealloc-property-3
+    text: 'guarantee.side_effects: pipe allocated'
+  - id: pipealloc-property-4
+    text: 'guarantee.side_effects: two file descriptors created'
+  - id: pipealloc-property-5
+    text: 'guarantee.side_effects: pipe initialized (nread=0, nwrite=0, readopen=1,
+      writeopen=1)'
+- name: pipeclose
+  pre: []
+  post: []
+  errors:
+  - none
+  properties:
+  - id: pipeclose-property-1
+    text: 'guarantee.returns: void'
+  - id: pipeclose-property-2
+    text: 'guarantee.side_effects: readopen or writeopen set to 0'
+  - id: pipeclose-property-3
+    text: 'guarantee.side_effects: blocked readers/writers woken'
+  - id: pipeclose-property-4
+    text: 'guarantee.side_effects: pipe freed if both ends closed'
+- name: piperead
+  pre: []
+  post:
+  - bytes are in user buffer
+  errors:
+  - returns -1 if write end is closed and pipe is empty, or process is killed
+  properties:
+  - id: piperead-property-1
+    text: 'guarantee.returns.int: number of bytes read, or -1 on error'
+  - id: piperead-property-2
+    text: 'guarantee.side_effects: data copied to user buffer'
+  - id: piperead-property-3
+    text: 'guarantee.side_effects: nread advanced'
+  - id: piperead-property-4
+    text: 'guarantee.side_effects: writers woken'
+- name: pipewrite
+  pre:
+  - pipe read end is open
+  post:
+  - bytes are in the pipe buffer
+  errors:
+  - returns -1 if read end is closed or process is killed
+  properties:
+  - id: pipewrite-property-1
+    text: 'guarantee.returns.int: number of bytes written, or -1 on error'
+  - id: pipewrite-property-2
+    text: 'guarantee.side_effects: data copied to pipe buffer'
+  - id: pipewrite-property-3
+    text: 'guarantee.side_effects: nwrite advanced'
+  - id: pipewrite-property-4
+    text: 'guarantee.side_effects: readers woken'

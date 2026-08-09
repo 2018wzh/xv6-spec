@@ -1,0 +1,509 @@
+id: kernel/sysfile
+module: kernel/sysfile
+level: 3
+purpose: 'File-system system call implementations: sys_open, sys_close, sys_read,
+  sys_write, sys_dup, sys_fstat, sys_link, sys_unlink, sys_mkdir, sys_mknod, sys_chdir,
+  sys_pipe. Each validates user arguments and calls the appropriate file-system or
+  file-table function.'
+owns:
+- kernel/sysfile.c
+- tests/generated/kernel/sysfile
+interface:
+- name: argfd
+  pre: []
+  post:
+  - '*pf points to a valid struct file with ref>=1'
+  errors:
+  - returns -1 if fd is out of range or not open
+  properties:
+  - id: argfd-property-1
+    text: 'guarantee.returns.int: 0 on success'
+  - id: argfd-property-2
+    text: 'guarantee.returns: -1 on invalid fd'
+  - id: argfd-property-3
+    text: 'guarantee.side_effects: *pfd and *pf set on success'
+- name: fdalloc
+  pre: []
+  post:
+  - the file can be accessed via the returned fd
+  errors:
+  - returns -1 if all NOFILE slots are in use
+  properties:
+  - id: fdalloc-property-1
+    text: 'guarantee.returns.int: fd number on success'
+  - id: fdalloc-property-2
+    text: 'guarantee.returns: -1 if no free slot'
+  - id: fdalloc-property-3
+    text: 'guarantee.side_effects: p->ofile[fd] set to f'
+- name: sys_chdir
+  pre: []
+  post:
+  - p->cwd points to the new directory
+  - old cwd's ref count decremented
+  errors:
+  - returns -1 if path invalid or not a directory
+  properties:
+  - id: sys_chdir-property-1
+    text: 'guarantee.returns.int: 0 on success'
+  - id: sys_chdir-property-2
+    text: 'guarantee.returns: -1 on failure'
+  - id: sys_chdir-property-3
+    text: 'guarantee.side_effects: p->cwd updated to the new directory inode'
+- name: sys_close
+  pre:
+  - fd is valid
+  post:
+  - fd is available for reuse
+  errors:
+  - returns -1 on invalid fd
+  properties:
+  - id: sys_close-property-1
+    text: 'guarantee.returns.int: 0 on success'
+  - id: sys_close-property-2
+    text: 'guarantee.returns: -1 on invalid fd'
+  - id: sys_close-property-3
+    text: 'guarantee.side_effects: fd slot cleared'
+  - id: sys_close-property-4
+    text: 'guarantee.side_effects: file ref count decremented'
+  - id: sys_close-property-5
+    text: 'guarantee.side_effects: file may be freed'
+- name: sys_dup
+  pre: []
+  post:
+  - the old and new fds share the same file offset
+  errors:
+  - returns -1 if fd is invalid or no free slot
+  properties:
+  - id: sys_dup-property-1
+    text: 'guarantee.returns.int: new fd on success'
+  - id: sys_dup-property-2
+    text: 'guarantee.returns: -1 on failure'
+  - id: sys_dup-property-3
+    text: 'guarantee.side_effects: new fd points to the same file'
+  - id: sys_dup-property-4
+    text: 'guarantee.side_effects: file ref count incremented'
+- name: sys_fstat
+  pre:
+  - fd is valid
+  post:
+  - user has file metadata
+  errors:
+  - returns -1 on invalid fd or copyout failure
+  properties:
+  - id: sys_fstat-property-1
+    text: 'guarantee.returns.int: 0 on success'
+  - id: sys_fstat-property-2
+    text: 'guarantee.returns: -1 on failure'
+  - id: sys_fstat-property-3
+    text: 'guarantee.side_effects: stat structure copied to user address'
+- name: sys_link
+  pre:
+  - old exists and is not a directory
+  post:
+  - old and new refer to the same inode
+  errors:
+  - returns -1 if old doesn't exist, new already exists, or old is a directory
+  properties:
+  - id: sys_link-property-1
+    text: 'guarantee.returns.int: 0 on success'
+  - id: sys_link-property-2
+    text: 'guarantee.returns: -1 on failure'
+  - id: sys_link-property-3
+    text: 'guarantee.side_effects: new directory entry created'
+  - id: sys_link-property-4
+    text: 'guarantee.side_effects: inode nlink incremented'
+- name: sys_mkdir
+  pre: []
+  post:
+  - new directory exists with . and ..
+  errors:
+  - returns -1 if path already exists or parent invalid
+  properties:
+  - id: sys_mkdir-property-1
+    text: 'guarantee.returns.int: 0 on success'
+  - id: sys_mkdir-property-2
+    text: 'guarantee.returns: -1 on failure'
+  - id: sys_mkdir-property-3
+    text: 'guarantee.side_effects: new directory created'
+  - id: sys_mkdir-property-4
+    text: 'guarantee.side_effects: . and .. entries added'
+  - id: sys_mkdir-property-5
+    text: 'guarantee.side_effects: parent directory updated'
+- name: sys_mknod
+  pre: []
+  post:
+  - device file exists
+  errors:
+  - returns -1 if path already exists
+  properties:
+  - id: sys_mknod-property-1
+    text: 'guarantee.returns.int: 0 on success'
+  - id: sys_mknod-property-2
+    text: 'guarantee.returns: -1 on failure'
+  - id: sys_mknod-property-3
+    text: 'guarantee.side_effects: device inode created'
+  - id: sys_mknod-property-4
+    text: 'guarantee.side_effects: major/minor set'
+- name: sys_open
+  pre: []
+  post:
+  - fd can be used for read/write according to flags
+  errors:
+  - returns -1 if path invalid, permission denied, or table full
+  properties:
+  - id: sys_open-property-1
+    text: 'guarantee.returns.int: fd on success'
+  - id: sys_open-property-2
+    text: 'guarantee.returns: -1 on failure'
+  - id: sys_open-property-3
+    text: 'guarantee.side_effects: file opened'
+  - id: sys_open-property-4
+    text: 'guarantee.side_effects: fd allocated'
+  - id: sys_open-property-5
+    text: 'guarantee.side_effects: inode created if O_CREATE'
+  - id: sys_open-property-6
+    text: 'guarantee.side_effects: file truncated if O_TRUNC'
+- name: sys_pipe
+  pre: []
+  post:
+  - p[0] is the read end
+  - p[1] is the write end
+  errors:
+  - returns -1 on allocation failure
+  properties:
+  - id: sys_pipe-property-1
+    text: 'guarantee.returns.int: 0 on success'
+  - id: sys_pipe-property-2
+    text: 'guarantee.returns: -1 on failure'
+  - id: sys_pipe-property-3
+    text: 'guarantee.side_effects: pipe created'
+  - id: sys_pipe-property-4
+    text: 'guarantee.side_effects: two fds allocated'
+  - id: sys_pipe-property-5
+    text: 'guarantee.side_effects: fd array in user space populated'
+- name: sys_read
+  pre:
+  - fd is valid
+  post:
+  - user buffer contains the read data
+  errors:
+  - returns -1 on invalid fd or read error
+  properties:
+  - id: sys_read-property-1
+    text: 'guarantee.returns.int: number of bytes read, or -1 on error'
+  - id: sys_read-property-2
+    text: 'guarantee.side_effects: data copied to user buffer'
+- name: sys_unlink
+  pre:
+  - file exists
+  post:
+  - directory entry is gone
+  - inode may be freed if nlink==0 and ref==0
+  errors:
+  - returns -1 if file doesn't exist
+  properties:
+  - id: sys_unlink-property-1
+    text: 'guarantee.returns.int: 0 on success'
+  - id: sys_unlink-property-2
+    text: 'guarantee.returns: -1 on failure'
+  - id: sys_unlink-property-3
+    text: 'guarantee.side_effects: directory entry removed'
+  - id: sys_unlink-property-4
+    text: 'guarantee.side_effects: inode nlink decremented'
+  - id: sys_unlink-property-5
+    text: 'guarantee.side_effects: inode may be freed'
+- name: sys_write
+  pre:
+  - fd is valid
+  post:
+  - data is on the output device or in the file
+  errors:
+  - returns -1 on invalid fd or write error
+  properties:
+  - id: sys_write-property-1
+    text: 'guarantee.returns.int: number of bytes written, or -1 on error'
+  - id: sys_write-property-2
+    text: 'guarantee.side_effects: data written to file'
+properties:
+- id: module-property-1
+  text: every user pointer is validated; path traversal is gated by namei; fd access
+    checked against file readable/writable flags
+- id: module-property-2
+  text: file descriptors are allocated via fdalloc and freed via fileclose
+- id: module-property-3
+  text: inodes acquired by namei are released via iunlockput
+- id: module-property-4
+  text: unit tests for all exported functions
+- id: module-property-5
+  text: integration tests with dependent modules
+errors:
+- returns -1 if all NOFILE slots are in use
+- returns -1 if fd is invalid or no free slot
+- returns -1 if fd is out of range or not open
+- returns -1 if file doesn't exist
+- returns -1 if old doesn't exist, new already exists, or old is a directory
+- returns -1 if path already exists
+- returns -1 if path already exists or parent invalid
+- returns -1 if path invalid or not a directory
+- returns -1 if path invalid, permission denied, or table full
+- returns -1 on allocation failure
+- returns -1 on invalid fd
+- returns -1 on invalid fd or copyout failure
+- returns -1 on invalid fd or read error
+- returns -1 on invalid fd or write error
+- returns -1 on invalid fd, bad path, or permission denial
+- sys_pipe returns 0 on success with two fds in user array
+state:
+  stage: full-syscall
+  owned_state:
+  - none (stateless; dispatches to file/fs/pipe modules)
+  resource_lifetime:
+  - file descriptors are allocated via fdalloc and freed via fileclose
+  - inodes acquired by namei are released via iunlockput
+preconditions:
+- fd is valid
+- file exists
+- old exists and is not a directory
+postconditions:
+- '*pf points to a valid struct file with ref>=1'
+- data is on the output device or in the file
+- device file exists
+- directory entry is gone
+- fd can be used for read/write according to flags
+- fd is available for reuse
+- inode may be freed if nlink==0 and ref==0
+- new directory exists with . and ..
+- old and new refer to the same inode
+- old cwd's ref count decremented
+- p->cwd points to the new directory
+- p[0] is the read end
+- p[1] is the write end
+- the file can be accessed via the returned fd
+- the old and new fds share the same file offset
+- user buffer contains the read data
+- user has file metadata
+invariants:
+- id: invariant-1
+  text: all user pointers validated before dereference
+- id: invariant-2
+  text: fd indices bounds-checked against NOFILE
+- id: invariant-3
+  text: path strings validated via argstr/fetchstr
+- id: invariant-4
+  text: permission flags (O_RDONLY/O_WRONLY/O_RDWR/O_CREATE/O_TRUNC) handled correctly
+dependencies:
+- kernel/sysfile
+rely:
+- 'argfd.rely.callable_interfaces: argint (from kernel/syscall)'
+- 'argfd.rely.callable_interfaces: myproc (from kernel/process)'
+- 'argfd.rely.lock_assumptions: none'
+- 'argfd.rely.resource_assumptions: sufficient resources available'
+- 'fdalloc.rely.lock_assumptions: none'
+- 'fdalloc.rely.resource_assumptions: sufficient resources available'
+- 'module: argint/argaddr/argstr/fetchaddr (from kernel/syscall)'
+- 'module: begin_op/end_op (from kernel/log)'
+- 'module: filealloc/fileclose/filedup/fileread/filewrite/filestat (from kernel/file)'
+- 'module: namei/nameiparent/ilock/iunlock/iunlockput/ialloc/dirlink/readi/writei
+  (from kernel/fs)'
+- 'module: pipealloc (from kernel/pipe)'
+- 'sys_chdir.rely.callable_interfaces: namei/ilock/iunlockput (from kernel/fs)'
+- 'sys_chdir.rely.lock_assumptions: none'
+- 'sys_chdir.rely.resource_assumptions: sufficient resources available'
+- 'sys_close.rely.callable_interfaces: argfd (internal)'
+- 'sys_close.rely.callable_interfaces: fileclose (from kernel/file)'
+- 'sys_close.rely.lock_assumptions: none'
+- 'sys_close.rely.resource_assumptions: sufficient resources available'
+- 'sys_dup.rely.callable_interfaces: argfd/fdalloc (internal)'
+- 'sys_dup.rely.callable_interfaces: filedup (from kernel/file)'
+- 'sys_dup.rely.lock_assumptions: none'
+- 'sys_dup.rely.resource_assumptions: sufficient resources available'
+- 'sys_fstat.rely.callable_interfaces: argaddr (from kernel/syscall)'
+- 'sys_fstat.rely.callable_interfaces: argfd (internal)'
+- 'sys_fstat.rely.callable_interfaces: filestat (from kernel/file)'
+- 'sys_fstat.rely.lock_assumptions: none'
+- 'sys_fstat.rely.resource_assumptions: sufficient resources available'
+- 'sys_link.rely.callable_interfaces: begin_op/end_op (from kernel/log)'
+- 'sys_link.rely.callable_interfaces: namei/nameiparent/ilock/iunlockput/dirlink (from
+  kernel/fs)'
+- 'sys_link.rely.lock_assumptions: none'
+- 'sys_link.rely.resource_assumptions: sufficient resources available'
+- 'sys_mkdir.rely.callable_interfaces: begin_op/end_op (from kernel/log)'
+- 'sys_mkdir.rely.callable_interfaces: nameiparent/ialloc/ilock/iunlockput/dirlink
+  (from kernel/fs)'
+- 'sys_mkdir.rely.lock_assumptions: none'
+- 'sys_mkdir.rely.resource_assumptions: sufficient resources available'
+- 'sys_mknod.rely.callable_interfaces: begin_op/end_op (from kernel/log)'
+- 'sys_mknod.rely.callable_interfaces: nameiparent/ialloc/ilock/iunlockput/dirlink
+  (from kernel/fs)'
+- 'sys_mknod.rely.lock_assumptions: none'
+- 'sys_mknod.rely.resource_assumptions: sufficient resources available'
+- 'sys_open.rely.callable_interfaces: begin_op/end_op (from kernel/log)'
+- 'sys_open.rely.callable_interfaces: fdalloc/filealloc (internal)'
+- 'sys_open.rely.callable_interfaces: namei/nameiparent/ialloc/ilock/iunlock (from
+  kernel/fs)'
+- 'sys_open.rely.lock_assumptions: none'
+- 'sys_open.rely.resource_assumptions: sufficient resources available'
+- 'sys_pipe.rely.callable_interfaces: argaddr (from kernel/syscall)'
+- 'sys_pipe.rely.callable_interfaces: fdalloc (internal)'
+- 'sys_pipe.rely.callable_interfaces: pipealloc (from kernel/pipe)'
+- 'sys_pipe.rely.lock_assumptions: none'
+- 'sys_pipe.rely.resource_assumptions: sufficient resources available'
+- 'sys_read.rely.callable_interfaces: argfd (internal)'
+- 'sys_read.rely.callable_interfaces: argint/argaddr (from kernel/syscall)'
+- 'sys_read.rely.callable_interfaces: fileread (from kernel/file)'
+- 'sys_read.rely.lock_assumptions: none'
+- 'sys_read.rely.resource_assumptions: sufficient resources available'
+- 'sys_unlink.rely.callable_interfaces: begin_op/end_op (from kernel/log)'
+- 'sys_unlink.rely.callable_interfaces: nameiparent/ilock/iunlockput/dirlookup (from
+  kernel/fs)'
+- 'sys_unlink.rely.lock_assumptions: none'
+- 'sys_unlink.rely.resource_assumptions: sufficient resources available'
+- 'sys_write.rely.callable_interfaces: argfd (internal)'
+- 'sys_write.rely.callable_interfaces: argint/argaddr (from kernel/syscall)'
+- 'sys_write.rely.callable_interfaces: filewrite (from kernel/file)'
+- 'sys_write.rely.lock_assumptions: none'
+- 'sys_write.rely.resource_assumptions: sufficient resources available'
+guarantee:
+- 'argfd.guarantee.returns.int: 0 on success'
+- 'argfd.guarantee.returns: -1 on invalid fd'
+- 'argfd.guarantee.side_effects: *pfd and *pf set on success'
+- 'exported: argfd'
+- 'exported: fdalloc'
+- 'exported: sys_chdir'
+- 'exported: sys_close'
+- 'exported: sys_dup'
+- 'exported: sys_fstat'
+- 'exported: sys_link'
+- 'exported: sys_mkdir'
+- 'exported: sys_mknod'
+- 'exported: sys_open'
+- 'exported: sys_pipe'
+- 'exported: sys_read'
+- 'exported: sys_unlink'
+- 'exported: sys_write'
+- 'fdalloc.guarantee.returns.int: fd number on success'
+- 'fdalloc.guarantee.returns: -1 if no free slot'
+- 'fdalloc.guarantee.side_effects: p->ofile[fd] set to f'
+- 'sys_chdir.guarantee.returns.int: 0 on success'
+- 'sys_chdir.guarantee.returns: -1 on failure'
+- 'sys_chdir.guarantee.side_effects: p->cwd updated to the new directory inode'
+- 'sys_close.guarantee.returns.int: 0 on success'
+- 'sys_close.guarantee.returns: -1 on invalid fd'
+- 'sys_close.guarantee.side_effects: fd slot cleared'
+- 'sys_close.guarantee.side_effects: file may be freed'
+- 'sys_close.guarantee.side_effects: file ref count decremented'
+- 'sys_dup.guarantee.returns.int: new fd on success'
+- 'sys_dup.guarantee.returns: -1 on failure'
+- 'sys_dup.guarantee.side_effects: file ref count incremented'
+- 'sys_dup.guarantee.side_effects: new fd points to the same file'
+- 'sys_fstat.guarantee.returns.int: 0 on success'
+- 'sys_fstat.guarantee.returns: -1 on failure'
+- 'sys_fstat.guarantee.side_effects: stat structure copied to user address'
+- 'sys_link.guarantee.returns.int: 0 on success'
+- 'sys_link.guarantee.returns: -1 on failure'
+- 'sys_link.guarantee.side_effects: inode nlink incremented'
+- 'sys_link.guarantee.side_effects: new directory entry created'
+- 'sys_mkdir.guarantee.returns.int: 0 on success'
+- 'sys_mkdir.guarantee.returns: -1 on failure'
+- 'sys_mkdir.guarantee.side_effects: . and .. entries added'
+- 'sys_mkdir.guarantee.side_effects: new directory created'
+- 'sys_mkdir.guarantee.side_effects: parent directory updated'
+- 'sys_mknod.guarantee.returns.int: 0 on success'
+- 'sys_mknod.guarantee.returns: -1 on failure'
+- 'sys_mknod.guarantee.side_effects: device inode created'
+- 'sys_mknod.guarantee.side_effects: major/minor set'
+- 'sys_open.guarantee.returns.int: fd on success'
+- 'sys_open.guarantee.returns: -1 on failure'
+- 'sys_open.guarantee.side_effects: fd allocated'
+- 'sys_open.guarantee.side_effects: file opened'
+- 'sys_open.guarantee.side_effects: file truncated if O_TRUNC'
+- 'sys_open.guarantee.side_effects: inode created if O_CREATE'
+- 'sys_pipe.guarantee.returns.int: 0 on success'
+- 'sys_pipe.guarantee.returns: -1 on failure'
+- 'sys_pipe.guarantee.side_effects: fd array in user space populated'
+- 'sys_pipe.guarantee.side_effects: pipe created'
+- 'sys_pipe.guarantee.side_effects: two fds allocated'
+- 'sys_read.guarantee.returns.int: number of bytes read, or -1 on error'
+- 'sys_read.guarantee.side_effects: data copied to user buffer'
+- 'sys_unlink.guarantee.returns.int: 0 on success'
+- 'sys_unlink.guarantee.returns: -1 on failure'
+- 'sys_unlink.guarantee.side_effects: directory entry removed'
+- 'sys_unlink.guarantee.side_effects: inode may be freed'
+- 'sys_unlink.guarantee.side_effects: inode nlink decremented'
+- 'sys_write.guarantee.returns.int: number of bytes written, or -1 on error'
+- 'sys_write.guarantee.side_effects: data written to file'
+algorithm_intent: Implement the full-syscall stage contract while preserving the declared
+  xv6 module boundaries.
+concurrency:
+  module: {}
+  operations:
+    argfd:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    fdalloc:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    sys_chdir:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    sys_close:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    sys_dup:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    sys_fstat:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    sys_link:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    sys_mkdir:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    sys_mknod:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    sys_open:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    sys_pipe:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    sys_read:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    sys_unlink:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    sys_write:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []

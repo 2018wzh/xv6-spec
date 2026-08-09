@@ -1,4 +1,10 @@
 id: lab7-resource-abi
-reason: descriptors and pipes cross module ownership
-changes: [kernel/pipe, kernel/syscall]
-new_invariants: [the final release reclaims each resource once]
+reason: Lab 7 introduces shared file descriptions, descriptor ownership, pipes and shell ABI.
+changes:
+- kernel/file
+- kernel/pipe
+- kernel/sysfile
+- user/programs
+new_invariants:
+- Descriptor duplication shares a reference-counted file description, not an integer owner.
+- Closing either pipe end wakes peers that can no longer make progress.

@@ -1,0 +1,185 @@
+id: kernel/exec
+module: kernel/exec
+level: 3
+purpose: ELF executable loading (exec system call). Validates ELF headers, loads program
+  segments into a new page table, sets up the user stack with argv, and atomically
+  replaces the process address space.
+owns:
+- kernel/exec.c
+- tests/generated/kernel/exec
+interface:
+- name: flags2perm
+  pre:
+  - flags is a valid ELF p_flags value
+  post: []
+  errors:
+  - none
+  properties:
+  - id: flags2perm-property-1
+    text: PTE_R is always set
+  - id: flags2perm-property-2
+    text: PTE_X set if PF_X (0x1)
+  - id: flags2perm-property-3
+    text: PTE_W set if PF_W (0x2)
+  - id: flags2perm-property-4
+    text: 'guarantee.returns.int: PTE permission bits'
+  - id: flags2perm-property-5
+    text: 'guarantee.side_effects: none (pure)'
+- name: kexec
+  pre:
+  - called from user context via sys_exec
+  post:
+  - '{"on success": "process runs the new program"}'
+  - '{"on failure": "original address space preserved"}'
+  errors:
+  - returns -1; cleans up partial allocations; original process intact
+  properties:
+  - id: kexec-property-1
+    text: ELF magic validated before loading
+  - id: kexec-property-2
+    text: no partial address space replacement
+  - id: kexec-property-3
+    text: 'guarantee.returns.int: argc on success (in a0)'
+  - id: kexec-property-4
+    text: 'guarantee.returns: -1 on failure'
+  - id: kexec-property-5
+    text: 'guarantee.side_effects: process address space replaced'
+  - id: kexec-property-6
+    text: 'guarantee.side_effects: old page table freed'
+  - id: kexec-property-7
+    text: 'guarantee.side_effects: new stack set up with argv'
+  - id: kexec-property-8
+    text: 'guarantee.side_effects: sepc set to ELF entry point'
+  - id: kexec-property-9
+    text: 'guarantee.side_effects: process name updated'
+- name: loadseg
+  pre:
+  - va is page-aligned
+  - pages are already mapped
+  post:
+  - segment data loaded into memory
+  errors:
+  - returns -1 if readi fails
+  properties:
+  - id: loadseg-property-1
+    text: no unmapped pages are accessed
+  - id: loadseg-property-2
+    text: 'guarantee.returns.int: 0 on success'
+  - id: loadseg-property-3
+    text: 'guarantee.returns: -1 on failure'
+  - id: loadseg-property-4
+    text: 'guarantee.side_effects: program data copied from inode to physical pages'
+properties:
+- id: module-property-1
+  text: ELF headers are validated before any memory allocation; path resolution uses
+    namei which checks each component
+- id: module-property-2
+  text: old page table is freed after successful swap
+- id: module-property-3
+  text: on failure, partial allocations are cleaned up
+- id: module-property-4
+  text: unit tests for all exported functions
+- id: module-property-5
+  text: integration tests with dependent modules
+errors:
+- none
+- returns -1 if readi fails
+- returns -1 on bad ELF magic, invalid program headers, OOM, or nonexistent path
+- returns -1; cleans up partial allocations; original process intact
+state:
+  stage: filesystem
+  owned_state:
+  - none (stateless; operates on current process)
+  resource_lifetime:
+  - old page table is freed after successful swap
+  - on failure, partial allocations are cleaned up
+preconditions:
+- called from user context via sys_exec
+- flags is a valid ELF p_flags value
+- pages are already mapped
+- va is page-aligned
+postconditions:
+- segment data loaded into memory
+- '{"on failure": "original address space preserved"}'
+- '{"on success": "process runs the new program"}'
+invariants:
+- id: invariant-1
+  text: exec validates ELF magic before loading
+- id: invariant-2
+  text: on failure, the original address space is preserved
+- id: invariant-3
+  text: new stack is set up with argv array and argument strings
+- id: invariant-4
+  text: sepc is set to the ELF entry point on success
+- id: flags2perm-invariant-1
+  text: PTE_R is always set
+- id: flags2perm-invariant-2
+  text: PTE_X set if PF_X (0x1)
+- id: flags2perm-invariant-3
+  text: PTE_W set if PF_W (0x2)
+- id: kexec-invariant-1
+  text: ELF magic validated before loading
+- id: kexec-invariant-2
+  text: no partial address space replacement
+- id: loadseg-invariant-1
+  text: no unmapped pages are accessed
+dependencies:
+- kernel/exec
+- kernel/fs
+- kernel/lock
+- kernel/memory
+rely:
+- 'flags2perm.rely.lock_assumptions: none (pure function)'
+- 'flags2perm.rely.resource_assumptions: sufficient resources available'
+- 'kexec.rely.callable_interfaces: begin_op/end_op (from kernel/log)'
+- 'kexec.rely.callable_interfaces: copyout/safestrcpy (utility)'
+- 'kexec.rely.callable_interfaces: namei/ilock/iunlockput/readi (from kernel/fs)'
+- 'kexec.rely.callable_interfaces: uvmalloc/proc_pagetable/proc_freepagetable (from
+  vm/memory)'
+- 'kexec.rely.lock_assumptions: no locks held during ELF loading (may be rescheduled)'
+- 'kexec.rely.resource_assumptions: sufficient resources available'
+- 'kexec.rely.state_assumptions: current process has a valid page table'
+- 'loadseg.rely.callable_interfaces: readi (from kernel/fs)'
+- 'loadseg.rely.callable_interfaces: walkaddr (from kernel/memory)'
+- 'loadseg.rely.lock_assumptions: none'
+- 'loadseg.rely.resource_assumptions: sufficient resources available'
+- 'loadseg.rely.state_assumptions: pages from va to va+sz are already mapped in pagetable'
+- 'module: copyout/safestrcpy (utility)'
+- 'module: namei/readi (from kernel/fs)'
+- 'module: uvmalloc/uvmfree/proc_pagetable (from kernel/memory)'
+guarantee:
+- 'exported: flags2perm'
+- 'exported: kexec'
+- 'exported: loadseg'
+- 'flags2perm.guarantee.returns.int: PTE permission bits'
+- 'flags2perm.guarantee.side_effects: none (pure)'
+- 'kexec.guarantee.returns.int: argc on success (in a0)'
+- 'kexec.guarantee.returns: -1 on failure'
+- 'kexec.guarantee.side_effects: new stack set up with argv'
+- 'kexec.guarantee.side_effects: old page table freed'
+- 'kexec.guarantee.side_effects: process address space replaced'
+- 'kexec.guarantee.side_effects: process name updated'
+- 'kexec.guarantee.side_effects: sepc set to ELF entry point'
+- 'loadseg.guarantee.returns.int: 0 on success'
+- 'loadseg.guarantee.returns: -1 on failure'
+- 'loadseg.guarantee.side_effects: program data copied from inode to physical pages'
+algorithm_intent: Implement the filesystem stage contract while preserving the declared
+  xv6 module boundaries.
+concurrency:
+  module: {}
+  operations:
+    flags2perm:
+      atomicity: pure function, no concurrency concerns
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    kexec:
+      atomicity: non-atomic (may span timer interrupts)
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    loadseg:
+      atomicity: non-atomic read loop
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []

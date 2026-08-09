@@ -1,0 +1,335 @@
+id: kernel/lock
+module: kernel/lock
+level: 3
+purpose: 'Kernel locking primitives: spinlocks (initlock, acquire, release, holding,
+  push_off, pop_off) for short critical sections with interrupt disabling, and sleeping
+  locks (initsleeplock, acquiresleep, releasesleep, holdingsleep) for long-term locks
+  that allow the holder to sleep.'
+owns:
+- kernel/sleeplock.c
+- kernel/spinlock.c
+- tests/generated/kernel/lock
+interface:
+- name: acquire
+  pre:
+  - lock is not already held by this CPU
+  post:
+  - lock is exclusively held by this CPU
+  errors:
+  - panics on recursive acquisition
+  properties:
+  - id: acquire-property-1
+    text: 'guarantee.returns: void'
+  - id: acquire-property-2
+    text: 'guarantee.side_effects: lock acquired'
+  - id: acquire-property-3
+    text: 'guarantee.side_effects: interrupts disabled'
+  - id: acquire-property-4
+    text: 'guarantee.side_effects: cpu field set'
+- name: acquiresleep
+  pre: []
+  post:
+  - sleeplock is exclusively held by this process
+  errors:
+  - none (blocks until available)
+  properties:
+  - id: acquiresleep-property-1
+    text: 'guarantee.returns: void'
+  - id: acquiresleep-property-2
+    text: 'guarantee.side_effects: sleeplock locked'
+  - id: acquiresleep-property-3
+    text: 'guarantee.side_effects: pid set to current process'
+- name: holding
+  pre: []
+  post: []
+  errors:
+  - none
+  properties:
+  - id: holding-property-1
+    text: 'guarantee.returns.int: 1 if held by current CPU, 0 otherwise'
+  - id: holding-property-2
+    text: 'guarantee.side_effects: none (read-only)'
+- name: holdingsleep
+  pre: []
+  post: []
+  errors:
+  - none
+  properties:
+  - id: holdingsleep-property-1
+    text: 'guarantee.returns.int: 1 if held by current process, 0 otherwise'
+  - id: holdingsleep-property-2
+    text: 'guarantee.side_effects: none (read-only)'
+- name: initlock
+  pre: []
+  post:
+  - spinlock is ready for acquire/release
+  errors:
+  - none
+  properties:
+  - id: initlock-property-1
+    text: 'guarantee.returns: void'
+  - id: initlock-property-2
+    text: 'guarantee.side_effects: spinlock fields initialized'
+- name: initsleeplock
+  pre: []
+  post:
+  - sleeplock is ready
+  errors:
+  - none
+  properties:
+  - id: initsleeplock-property-1
+    text: 'guarantee.returns: void'
+  - id: initsleeplock-property-2
+    text: 'guarantee.side_effects: sleeplock fields initialized'
+- name: pop_off
+  pre:
+  - noff >= 1 (push_off was called)
+  post:
+  - interrupts restored to pre-push_off state if noff==0
+  errors:
+  - panics if noff < 1
+  properties:
+  - id: pop_off-property-1
+    text: 'guarantee.returns: void'
+  - id: pop_off-property-2
+    text: 'guarantee.side_effects: interrupts may be re-enabled if noff reaches 0'
+  - id: pop_off-property-3
+    text: 'guarantee.side_effects: noff decremented'
+- name: push_off
+  pre: []
+  post:
+  - interrupts are disabled
+  errors:
+  - none
+  properties:
+  - id: push_off-property-1
+    text: 'guarantee.returns: void'
+  - id: push_off-property-2
+    text: 'guarantee.side_effects: interrupts disabled'
+  - id: push_off-property-3
+    text: 'guarantee.side_effects: noff incremented'
+  - id: push_off-property-4
+    text: 'guarantee.side_effects: intena saved on first push'
+- name: release
+  pre:
+  - lock is held by this CPU
+  post:
+  - lock is free
+  - interrupts are re-enabled
+  errors:
+  - panics if lock not held by this CPU
+  properties:
+  - id: release-property-1
+    text: 'guarantee.returns: void'
+  - id: release-property-2
+    text: 'guarantee.side_effects: lock released'
+  - id: release-property-3
+    text: 'guarantee.side_effects: interrupts re-enabled'
+- name: releasesleep
+  pre:
+  - lock is held by this process
+  post:
+  - sleeplock is free
+  errors:
+  - none
+  properties:
+  - id: releasesleep-property-1
+    text: 'guarantee.returns: void'
+  - id: releasesleep-property-2
+    text: 'guarantee.side_effects: sleeplock unlocked'
+  - id: releasesleep-property-3
+    text: 'guarantee.side_effects: pid set to 0'
+  - id: releasesleep-property-4
+    text: 'guarantee.side_effects: sleeping processes woken'
+properties:
+- id: module-property-1
+  text: push_off disables interrupts to prevent deadlocks; spinlocks use atomic exchange
+    (amoswap)
+- id: module-property-2
+  text: locks are embedded in their owning data structures
+- id: module-property-3
+  text: spinlocks have static names for debugging
+- id: module-property-4
+  text: unit tests for all exported functions
+- id: module-property-5
+  text: integration tests with dependent modules
+errors:
+- acquire panics if already held (recursive lock)
+- none
+- none (blocks until available)
+- panics if lock not held by this CPU
+- panics if noff < 1
+- panics on recursive acquisition
+- release panics if not held by current CPU
+state:
+  stage: filesystem
+  owned_state:
+  - '{"per-spinlock": "name, locked, cpu fields"}'
+  - '{"per-sleeplock": "locked, lk (spinlock), name, pid fields"}'
+  - '{"per-CPU": "noff (interrupt disable depth), intena (interrupt enable before
+    first push_off)"}'
+  resource_lifetime:
+  - locks are embedded in their owning data structures
+  - spinlocks have static names for debugging
+preconditions:
+- lock is held by this CPU
+- lock is held by this process
+- lock is not already held by this CPU
+- noff >= 1 (push_off was called)
+postconditions:
+- interrupts are disabled
+- interrupts are re-enabled
+- interrupts restored to pre-push_off state if noff==0
+- lock is exclusively held by this CPU
+- lock is free
+- sleeplock is exclusively held by this process
+- sleeplock is free
+- sleeplock is ready
+- spinlock is ready for acquire/release
+invariants:
+- id: invariant-1
+  text: spinlock acquire/release must be paired
+- id: invariant-2
+  text: push_off/pop_off must be paired
+- id: invariant-3
+  text: holding() returns true only for the current CPU
+- id: invariant-4
+  text: sleeplock holder's pid matches myproc()->pid
+- id: invariant-5
+  text: acquire panics on recursive lock attempt
+dependencies:
+- kernel/lock
+rely:
+- 'acquire.rely.callable_interfaces: holding (internal)'
+- 'acquire.rely.callable_interfaces: panic (from kernel/printk)'
+- 'acquire.rely.callable_interfaces: push_off (internal)'
+- 'acquire.rely.lock_assumptions: none'
+- 'acquire.rely.resource_assumptions: sufficient resources available'
+- 'acquiresleep.rely.callable_interfaces: acquire/release (from kernel/lock)'
+- 'acquiresleep.rely.callable_interfaces: sleep/wakeup (from kernel/process)'
+- 'acquiresleep.rely.lock_assumptions: none'
+- 'acquiresleep.rely.resource_assumptions: sufficient resources available'
+- 'holding.rely.lock_assumptions: none'
+- 'holding.rely.resource_assumptions: sufficient resources available'
+- 'holdingsleep.rely.callable_interfaces: acquire/release (from kernel/lock)'
+- 'holdingsleep.rely.lock_assumptions: none'
+- 'holdingsleep.rely.resource_assumptions: sufficient resources available'
+- 'initlock.rely.lock_assumptions: none'
+- 'initlock.rely.resource_assumptions: sufficient resources available'
+- 'initsleeplock.rely.callable_interfaces: initlock (from kernel/lock)'
+- 'initsleeplock.rely.lock_assumptions: none'
+- 'initsleeplock.rely.resource_assumptions: sufficient resources available'
+- 'module: panic (from kernel/printk)'
+- 'module: sleep/wakeup (from kernel/process)'
+- 'pop_off.rely.callable_interfaces: panic (from kernel/printk)'
+- 'pop_off.rely.lock_assumptions: none'
+- 'pop_off.rely.resource_assumptions: sufficient resources available'
+- 'push_off.rely.lock_assumptions: none'
+- 'push_off.rely.resource_assumptions: sufficient resources available'
+- 'release.rely.callable_interfaces: holding (internal)'
+- 'release.rely.callable_interfaces: panic (from kernel/printk)'
+- 'release.rely.callable_interfaces: pop_off (internal)'
+- 'release.rely.lock_assumptions: none'
+- 'release.rely.resource_assumptions: sufficient resources available'
+- 'releasesleep.rely.callable_interfaces: acquire/release (from kernel/lock)'
+- 'releasesleep.rely.callable_interfaces: wakeup (from kernel/process)'
+- 'releasesleep.rely.lock_assumptions: none'
+- 'releasesleep.rely.resource_assumptions: sufficient resources available'
+guarantee:
+- 'acquire.guarantee.returns: void'
+- 'acquire.guarantee.side_effects: cpu field set'
+- 'acquire.guarantee.side_effects: interrupts disabled'
+- 'acquire.guarantee.side_effects: lock acquired'
+- 'acquiresleep.guarantee.returns: void'
+- 'acquiresleep.guarantee.side_effects: pid set to current process'
+- 'acquiresleep.guarantee.side_effects: sleeplock locked'
+- 'exported: acquire'
+- 'exported: acquiresleep'
+- 'exported: holding'
+- 'exported: holdingsleep'
+- 'exported: initlock'
+- 'exported: initsleeplock'
+- 'exported: pop_off'
+- 'exported: push_off'
+- 'exported: release'
+- 'exported: releasesleep'
+- 'holding.guarantee.returns.int: 1 if held by current CPU, 0 otherwise'
+- 'holding.guarantee.side_effects: none (read-only)'
+- 'holdingsleep.guarantee.returns.int: 1 if held by current process, 0 otherwise'
+- 'holdingsleep.guarantee.side_effects: none (read-only)'
+- 'initlock.guarantee.returns: void'
+- 'initlock.guarantee.side_effects: spinlock fields initialized'
+- 'initsleeplock.guarantee.returns: void'
+- 'initsleeplock.guarantee.side_effects: sleeplock fields initialized'
+- 'pop_off.guarantee.returns: void'
+- 'pop_off.guarantee.side_effects: interrupts may be re-enabled if noff reaches 0'
+- 'pop_off.guarantee.side_effects: noff decremented'
+- 'push_off.guarantee.returns: void'
+- 'push_off.guarantee.side_effects: intena saved on first push'
+- 'push_off.guarantee.side_effects: interrupts disabled'
+- 'push_off.guarantee.side_effects: noff incremented'
+- 'release.guarantee.returns: void'
+- 'release.guarantee.side_effects: interrupts re-enabled'
+- 'release.guarantee.side_effects: lock released'
+- 'releasesleep.guarantee.returns: void'
+- 'releasesleep.guarantee.side_effects: pid set to 0'
+- 'releasesleep.guarantee.side_effects: sleeping processes woken'
+- 'releasesleep.guarantee.side_effects: sleeplock unlocked'
+algorithm_intent: Implement the filesystem stage contract while preserving the declared
+  xv6 module boundaries.
+concurrency:
+  module: {}
+  operations:
+    acquire:
+      atomicity: atomic exchange (amoswap)
+      lock_order:
+      - target lock (no other locks held)
+      interrupt_state: disabled (push_off)
+      wait_wakeup_rules: []
+    acquiresleep:
+      atomicity: internal spinlock protects state
+      lock_order: []
+      interrupt_state: enabled (may sleep)
+      wait_wakeup_rules:
+      - sleeps on lk if locked
+      - woken by releasesleep
+    holding:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    holdingsleep:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    initlock:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    initsleeplock:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    pop_off:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: restored if noff reaches 0
+      wait_wakeup_rules: []
+    push_off:
+      atomicity: per-CPU operation
+      lock_order: []
+      interrupt_state: disabled
+      wait_wakeup_rules: []
+    release:
+      atomicity: atomic store
+      lock_order: []
+      interrupt_state: enabled after release (pop_off)
+      wait_wakeup_rules: []
+    releasesleep:
+      atomicity: internal spinlock protects state
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []

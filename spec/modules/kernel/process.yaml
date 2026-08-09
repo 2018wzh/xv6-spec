@@ -1,14 +1,697 @@
 id: kernel/process
 module: kernel/process
-level: 2
-purpose: process lifecycle and scheduling.
+level: 3
+purpose: 'Process abstraction: process table, per-process state, kernel thread context,
+  round-robin scheduler, and lifecycle operations (fork, exit, wait, sleep, wakeup).'
 owns:
-- kernel/proc.c
+- kernel/process.c
 - kernel/swtch.S
 - tests/generated/kernel/process
-interface: []
+interface:
+- name: allocproc
+  pre:
+  - called with interrupts enabled
+  post:
+  - returned proc has valid trapframe pointer
+  errors:
+  - returns NULL if no free slot
+  properties:
+  - id: allocproc-property-1
+    text: proc table size unchanged
+  - id: allocproc-property-2
+    text: 'guarantee.returns: struct proc * on success'
+  - id: allocproc-property-3
+    text: 'guarantee.returns: NULL if all NPROC slots are in use'
+  - id: allocproc-property-4
+    text: 'guarantee.side_effects: one proc slot marked USED'
+  - id: allocproc-property-5
+    text: 'guarantee.side_effects: trapframe allocated and zeroed'
+  - id: allocproc-property-6
+    text: 'guarantee.side_effects: kernel stack top set'
+  - id: allocproc-property-7
+    text: 'guarantee.emitted_events: none'
+- name: exit
+  pre:
+  - called from usermode or kernel
+  post:
+  - process is ZOMBIE; resources freed by parent wait
+  errors:
+  - never returns; unrecoverable
+  properties:
+  - id: exit-property-1
+    text: no process is orphaned
+  - id: exit-property-2
+    text: 'guarantee.returns: never returns'
+  - id: exit-property-3
+    text: 'guarantee.side_effects: process state set to ZOMBIE'
+  - id: exit-property-4
+    text: 'guarantee.side_effects: parent woken (if sleeping in wait)'
+  - id: exit-property-5
+    text: 'guarantee.side_effects: children reparented to init'
+  - id: exit-property-6
+    text: 'guarantee.side_effects: yields CPU via sched'
+  - id: exit-property-7
+    text: 'guarantee.emitted_events: none'
+- name: fork
+  pre:
+  - called from usermode via sys_fork
+  post:
+  - parent and child are distinct RUNNABLE processes
+  errors:
+  - returns -1 if allocproc or uvmcopy fails
+  - cleans up partial state on failure
+  properties:
+  - id: fork-property-1
+    text: process table capacity not exceeded
+  - id: fork-property-2
+    text: no shared writable memory
+  - id: fork-property-3
+    text: 'guarantee.returns: child PID (> 0) to parent'
+  - id: fork-property-4
+    text: 'guarantee.returns: 0 to child'
+  - id: fork-property-5
+    text: 'guarantee.returns: -1 on failure'
+  - id: fork-property-6
+    text: 'guarantee.side_effects: child process created with copied memory'
+  - id: fork-property-7
+    text: 'guarantee.side_effects: child state set to RUNNABLE'
+  - id: fork-property-8
+    text: 'guarantee.emitted_events: none'
+- name: freeproc
+  pre:
+  - process is ZOMBIE
+  - caller holds p->lock
+  post:
+  - process slot is reusable
+  errors:
+  - none (always succeeds)
+  properties:
+  - id: freeproc-property-1
+    text: no resource leak
+  - id: freeproc-property-2
+    text: 'guarantee.returns: void'
+  - id: freeproc-property-3
+    text: 'guarantee.side_effects: user pagetable freed'
+  - id: freeproc-property-4
+    text: 'guarantee.side_effects: trapframe page freed'
+  - id: freeproc-property-5
+    text: 'guarantee.side_effects: kernel stack freed'
+  - id: freeproc-property-6
+    text: 'guarantee.side_effects: process state set to UNUSED'
+  - id: freeproc-property-7
+    text: 'guarantee.emitted_events: none'
+- name: growproc
+  pre:
+  - n may be positive or negative
+  post:
+  - process->sz updated accordingly
+  errors:
+  - returns -1 if uvmalloc fails
+  - returns -1 if shrinking below 0
+  properties:
+  - id: growproc-property-1
+    text: max user address < PLIC (or other device boundary)
+  - id: growproc-property-2
+    text: 'guarantee.returns: 0 on success'
+  - id: growproc-property-3
+    text: 'guarantee.returns: -1 on failure (e.g., out of memory)'
+  - id: growproc-property-4
+    text: 'guarantee.side_effects: process address space expanded or shrunk'
+  - id: growproc-property-5
+    text: 'guarantee.emitted_events: none'
+- name: proc_init
+  pre:
+  - called once during kernel init
+  post:
+  - proc table is consistent
+  errors:
+  - none
+  properties:
+  - id: proc_init-property-1
+    text: no stale proc state
+  - id: proc_init-property-2
+    text: 'guarantee.returns: void'
+  - id: proc_init-property-3
+    text: 'guarantee.side_effects: all proc[NPROC] zeroed'
+  - id: proc_init-property-4
+    text: 'guarantee.side_effects: all proc[NPROC].lock initialized'
+  - id: proc_init-property-5
+    text: 'guarantee.emitted_events: none'
+- name: scheduler
+  pre:
+  - called from process 0 (scheduler context)
+  post:
+  - never terminates
+  errors:
+  - panics if swtch misbehaves
+  properties:
+  - id: scheduler-property-1
+    text: exactly one process is RUNNING at a time
+  - id: scheduler-property-2
+    text: 'guarantee.returns: never returns (infinite loop)'
+  - id: scheduler-property-3
+    text: 'guarantee.side_effects: selects next RUNNABLE process'
+  - id: scheduler-property-4
+    text: 'guarantee.side_effects: transfers control via swtch'
+  - id: scheduler-property-5
+    text: 'guarantee.emitted_events: none'
+- name: sleep
+  pre:
+  - lk is a valid spinlock
+  - chan is a non-NULL wait channel identifier
+  post:
+  - process is eventually rescheduled after wakeup
+  errors:
+  - panics if lk is not held
+  properties:
+  - id: sleep-property-1
+    text: sleep+wakeup pairing integrity
+  - id: sleep-property-2
+    text: 'guarantee.returns: void (returns after wakeup)'
+  - id: sleep-property-3
+    text: 'guarantee.side_effects: current process state set to SLEEPING'
+  - id: sleep-property-4
+    text: 'guarantee.side_effects: lk released atomically'
+  - id: sleep-property-5
+    text: 'guarantee.side_effects: process blocked until wakeup'
+  - id: sleep-property-6
+    text: 'guarantee.emitted_events: none'
+- name: swtch
+  pre:
+  - called from sched() with interrupts disabled
+  - '*old and *new are valid struct context'
+  post:
+  - execution continues in new context
+  errors:
+  - undefined behavior if context pointers invalid
+  properties:
+  - id: swtch-property-1
+    text: no register leakage between contexts
+  - id: swtch-property-2
+    text: 'guarantee.returns: void (but returns in new context''s stack frame)'
+  - id: swtch-property-3
+    text: 'guarantee.side_effects: callee-saved registers saved to *old'
+  - id: swtch-property-4
+    text: 'guarantee.side_effects: callee-saved registers restored from *new'
+  - id: swtch-property-5
+    text: 'guarantee.side_effects: ra (return address) changed to new context'
+  - id: swtch-property-6
+    text: 'guarantee.emitted_events: none'
+- name: userinit
+  pre:
+  - called once during kernel init, after trap_init
+  post:
+  - at least one RUNNABLE process exists
+  errors:
+  - panics if allocproc fails or memory is exhausted
+  properties:
+  - id: userinit-property-1
+    text: process 1 (init) is never killed
+  - id: userinit-property-2
+    text: 'guarantee.returns: void'
+  - id: userinit-property-3
+    text: 'guarantee.side_effects: first user process created (pid 1)'
+  - id: userinit-property-4
+    text: 'guarantee.side_effects: process state set to RUNNABLE'
+  - id: userinit-property-5
+    text: 'guarantee.side_effects: initial user code loaded into process memory'
+  - id: userinit-property-6
+    text: 'guarantee.emitted_events: none'
+- name: wait
+  pre:
+  - called from usermode via sys_wait
+  post:
+  - exited child is fully reaped
+  errors:
+  - returns -1 if caller has no children
+  properties:
+  - id: wait-property-1
+    text: proc table maintains at least one free slot for parent
+  - id: wait-property-2
+    text: 'guarantee.returns: child PID on success'
+  - id: wait-property-3
+    text: 'guarantee.returns: -1 if no children exist'
+  - id: wait-property-4
+    text: 'guarantee.side_effects: child resources freed (pagetable, trapframe, etc.)'
+  - id: wait-property-5
+    text: 'guarantee.side_effects: child slot returned to free pool'
+  - id: wait-property-6
+    text: 'guarantee.emitted_events: none'
+- name: wakeup
+  pre:
+  - chan is the same wait channel used in sleep()
+  - caller holds the lock that was passed to sleep()
+  post:
+  - all processes on chan are RUNNABLE or RUNNING
+  errors:
+  - no-op if no processes are sleeping on chan
+  properties:
+  - id: wakeup-property-1
+    text: process state consistency
+  - id: wakeup-property-2
+    text: 'guarantee.returns: void'
+  - id: wakeup-property-3
+    text: 'guarantee.side_effects: all SLEEPING processes on chan become RUNNABLE'
+  - id: wakeup-property-4
+    text: 'guarantee.emitted_events: none'
+- name: yield_cpu
+  pre:
+  - current process is valid
+  post:
+  - process is eventually rescheduled
+  errors:
+  - panics if not holding p->lock
+  properties:
+  - id: yield_cpu-property-1
+    text: yield is non-preemptive (voluntary)
+  - id: yield_cpu-property-2
+    text: 'guarantee.returns: void (but may return in the future when rescheduled)'
+  - id: yield_cpu-property-3
+    text: 'guarantee.side_effects: current process becomes RUNNABLE'
+  - id: yield_cpu-property-4
+    text: 'guarantee.side_effects: next process becomes RUNNING'
+  - id: yield_cpu-property-5
+    text: 'guarantee.emitted_events: none'
 properties:
-- id: kernel-process-deterministic
-  text: behavior is deterministic under the published lab checks
+- id: module-property-1
+  text: user addresses validated via walkaddr/copyin/copyout
+- id: module-property-2
+  text: fork creates independent memory (no shared writable pages)
+- id: module-property-3
+  text: exit clears process state before marking ZOMBIE
+- id: module-property-4
+  text: process pages (pagetable + trapframe + kernel stack) are freed by freeproc
+    on exit/wait
+- id: module-property-5
+  text: parent reaps child resources via wait
+- id: module-property-6
+  text: fork-exit-wait cycle
+- id: module-property-7
+  text: scheduler fairness
+- id: module-property-8
+  text: NPROC exhaustion
+- id: module-property-9
+  text: proc_init_table_populated
+- id: module-property-10
+  text: allocproc_exhaustion
+- id: module-property-11
+  text: fork_returns_different_pid
+- id: module-property-12
+  text: fork_memory_isolation
+- id: module-property-13
+  text: fork_exhaustion
+- id: module-property-14
+  text: exit_zombie
+- id: module-property-15
+  text: exit_reparent_to_init
+- id: module-property-16
+  text: exit_double
+- id: module-property-17
+  text: wait_reap_child
+- id: module-property-18
+  text: wait_no_children
+- id: module-property-19
+  text: scheduler_runs
+- id: module-property-20
+  text: scheduler_round_robin
+- id: module-property-21
+  text: swtch_context_restore
+- id: module-property-22
+  text: yield_cpu_reschedule
+- id: module-property-23
+  text: growproc_expand
+- id: module-property-24
+  text: growproc_shrink
+- id: module-property-25
+  text: growproc_out_of_memory
+- id: module-property-26
+  text: fork_returns_different_pid
+- id: module-property-27
+  text: fork_memory_isolation
+- id: module-property-28
+  text: exit_zombie
+- id: module-property-29
+  text: exit_reparent_to_init
+- id: module-property-30
+  text: wait_reap_child
+- id: module-property-31
+  text: scheduler_round_robin
+- id: module-property-32
+  text: swtch_context_restore
+- id: module-property-33
+  text: growproc_expand
 errors:
-- invalid state fails explicitly
+- allocproc returns NULL when table is full
+- cleans up partial state on failure
+- exit never returns
+- fork returns -1 on allocation failure
+- never returns; unrecoverable
+- no-op if no processes are sleeping on chan
+- none
+- none (always succeeds)
+- panics if allocproc fails or memory is exhausted
+- panics if lk is not held
+- panics if not holding p->lock
+- panics if swtch misbehaves
+- returns -1 if allocproc or uvmcopy fails
+- returns -1 if caller has no children
+- returns -1 if shrinking below 0
+- returns -1 if uvmalloc fails
+- returns NULL if no free slot
+- undefined behavior if context pointers invalid
+state:
+  stage: process
+  owned_state:
+  - process table (struct proc proc[NPROC])
+  - current process pointer
+  - scheduler state
+  resource_lifetime:
+  - process pages (pagetable + trapframe + kernel stack) are freed by freeproc on
+    exit/wait
+  - parent reaps child resources via wait
+preconditions:
+- '*old and *new are valid struct context'
+- called from process 0 (scheduler context)
+- called from sched() with interrupts disabled
+- called from usermode or kernel
+- called from usermode via sys_fork
+- called from usermode via sys_wait
+- called once during kernel init
+- called once during kernel init, after trap_init
+- called with interrupts enabled
+- caller holds p->lock
+- caller holds the lock that was passed to sleep()
+- chan is a non-NULL wait channel identifier
+- chan is the same wait channel used in sleep()
+- current process is valid
+- lk is a valid spinlock
+- n may be positive or negative
+- process is ZOMBIE
+postconditions:
+- all processes on chan are RUNNABLE or RUNNING
+- at least one RUNNABLE process exists
+- execution continues in new context
+- exited child is fully reaped
+- never terminates
+- parent and child are distinct RUNNABLE processes
+- proc table is consistent
+- process is ZOMBIE; resources freed by parent wait
+- process is eventually rescheduled
+- process is eventually rescheduled after wakeup
+- process slot is reusable
+- process->sz updated accordingly
+- returned proc has valid trapframe pointer
+invariants:
+- id: invariant-1
+  text: at most NPROC processes exist simultaneously
+- id: invariant-2
+  text: RUNNABLE processes have valid pagetable and trapframe
+- id: invariant-3
+  text: only one process is RUNNING per hart
+- id: invariant-4
+  text: process 0 is the scheduler context
+- id: invariant-5
+  text: a parent must not be freed before all children exit
+- id: allocproc-invariant-1
+  text: proc table size unchanged
+- id: exit-invariant-1
+  text: no process is orphaned
+- id: fork-invariant-1
+  text: process table capacity not exceeded
+- id: fork-invariant-2
+  text: no shared writable memory
+- id: freeproc-invariant-1
+  text: no resource leak
+- id: growproc-invariant-1
+  text: max user address < PLIC (or other device boundary)
+- id: proc_init-invariant-1
+  text: no stale proc state
+- id: scheduler-invariant-1
+  text: exactly one process is RUNNING at a time
+- id: sleep-invariant-1
+  text: sleep+wakeup pairing integrity
+- id: swtch-invariant-1
+  text: no register leakage between contexts
+- id: userinit-invariant-1
+  text: process 1 (init) is never killed
+- id: wait-invariant-1
+  text: proc table maintains at least one free slot for parent
+- id: wakeup-invariant-1
+  text: process state consistency
+- id: yield_cpu-invariant-1
+  text: yield is non-preemptive (voluntary)
+dependencies:
+- kernel/memory
+- kernel/process
+rely:
+- 'allocproc.rely.callable_interfaces: kalloc (for trapframe page)'
+- 'allocproc.rely.lock_assumptions: acquires p->lock on found slot'
+- 'allocproc.rely.resource_assumptions: at least one free slot in proc table'
+- 'allocproc.rely.state_assumptions: process table initialized'
+- 'exit.rely.callable_interfaces: wakeup, freeproc, yield'
+- 'exit.rely.lock_assumptions: acquires p->lock, wait_lock'
+- 'exit.rely.resource_assumptions: parent process exists'
+- 'exit.rely.state_assumptions: current process is not the init process'
+- 'fork.rely.callable_interfaces: allocproc, uvmcopy'
+- 'fork.rely.lock_assumptions: acquires child p->lock'
+- 'fork.rely.resource_assumptions: free proc slot and enough memory for copy'
+- 'fork.rely.state_assumptions: current process is valid'
+- 'freeproc.rely.callable_interfaces: uvmfree, kfree'
+- 'freeproc.rely.lock_assumptions: p->lock is held'
+- 'freeproc.rely.resource_assumptions: none'
+- 'freeproc.rely.state_assumptions: process has a valid pagetable and trapframe'
+- 'freeproc.rely.state_assumptions: process is in ZOMBIE state'
+- 'growproc.rely.callable_interfaces: uvmalloc, uvmdealloc'
+- 'growproc.rely.lock_assumptions: none'
+- 'growproc.rely.resource_assumptions: free pages available for positive n'
+- 'growproc.rely.state_assumptions: current process has valid pagetable'
+- 'proc_init.rely.callable_interfaces: initlock'
+- 'proc_init.rely.lock_assumptions: none'
+- 'proc_init.rely.resource_assumptions: none'
+- 'proc_init.rely.state_assumptions: spinlock subsystem initialized'
+- 'scheduler.rely.callable_interfaces: swtch'
+- 'scheduler.rely.lock_assumptions: acquires p->lock'
+- 'scheduler.rely.resource_assumptions: none'
+- 'scheduler.rely.state_assumptions: at least one RUNNABLE process exists (or idle
+  loops)'
+- 'sleep.rely.callable_interfaces: sched'
+- 'sleep.rely.lock_assumptions: lk is held and will be released atomically'
+- 'sleep.rely.lock_assumptions: p->lock is held'
+- 'sleep.rely.resource_assumptions: none'
+- 'sleep.rely.state_assumptions: current process is RUNNING'
+- swtch saves/restores callee-saved regs
+- 'swtch.rely.callable_interfaces: none (assembly only)'
+- 'swtch.rely.lock_assumptions: p->lock held by caller (scheduler or sched)'
+- 'swtch.rely.resource_assumptions: stack is valid for both contexts'
+- 'swtch.rely.state_assumptions: old and new context pointers are valid'
+- timer interrupts drive scheduler
+- 'userinit.rely.callable_interfaces: allocproc, uvmcreate, uvminit'
+- 'userinit.rely.lock_assumptions: acquires p->lock'
+- 'userinit.rely.resource_assumptions: at least one free proc slot'
+- 'userinit.rely.resource_assumptions: free pages for pagetable and trapframe'
+- 'userinit.rely.state_assumptions: kvmmake has set up kernel page table'
+- 'userinit.rely.state_assumptions: proc_init has been called'
+- 'wait.rely.callable_interfaces: sleep'
+- 'wait.rely.lock_assumptions: acquires wait_lock and child p->lock'
+- 'wait.rely.resource_assumptions: none'
+- 'wait.rely.state_assumptions: current process has children'
+- 'wakeup.rely.callable_interfaces: proc table'
+- 'wakeup.rely.lock_assumptions: the lock associated with chan is held (same as was
+  passed to sleep)'
+- 'wakeup.rely.resource_assumptions: none'
+- 'wakeup.rely.state_assumptions: at least one process may be sleeping on chan'
+- 'yield_cpu.rely.callable_interfaces: sched'
+- 'yield_cpu.rely.lock_assumptions: acquires p->lock'
+- 'yield_cpu.rely.resource_assumptions: none'
+- 'yield_cpu.rely.state_assumptions: current process is RUNNING'
+guarantee:
+- 'allocproc.guarantee.emitted_events: none'
+- 'allocproc.guarantee.returns: NULL if all NPROC slots are in use'
+- 'allocproc.guarantee.returns: struct proc * on success'
+- 'allocproc.guarantee.side_effects: kernel stack top set'
+- 'allocproc.guarantee.side_effects: one proc slot marked USED'
+- 'allocproc.guarantee.side_effects: trapframe allocated and zeroed'
+- 'exit.guarantee.emitted_events: none'
+- 'exit.guarantee.returns: never returns'
+- 'exit.guarantee.side_effects: children reparented to init'
+- 'exit.guarantee.side_effects: parent woken (if sleeping in wait)'
+- 'exit.guarantee.side_effects: process state set to ZOMBIE'
+- 'exit.guarantee.side_effects: yields CPU via sched'
+- 'exported: allocproc'
+- 'exported: exit'
+- 'exported: fork'
+- 'exported: freeproc'
+- 'exported: growproc'
+- 'exported: proc_init'
+- 'exported: scheduler'
+- 'exported: sleep'
+- 'exported: swtch'
+- 'exported: userinit'
+- 'exported: wait'
+- 'exported: wakeup'
+- 'exported: yield'
+- 'fork.guarantee.emitted_events: none'
+- 'fork.guarantee.returns: -1 on failure'
+- 'fork.guarantee.returns: 0 to child'
+- 'fork.guarantee.returns: child PID (> 0) to parent'
+- 'fork.guarantee.side_effects: child process created with copied memory'
+- 'fork.guarantee.side_effects: child state set to RUNNABLE'
+- 'freeproc.guarantee.emitted_events: none'
+- 'freeproc.guarantee.returns: void'
+- 'freeproc.guarantee.side_effects: kernel stack freed'
+- 'freeproc.guarantee.side_effects: process state set to UNUSED'
+- 'freeproc.guarantee.side_effects: trapframe page freed'
+- 'freeproc.guarantee.side_effects: user pagetable freed'
+- 'growproc.guarantee.emitted_events: none'
+- 'growproc.guarantee.returns: -1 on failure (e.g., out of memory)'
+- 'growproc.guarantee.returns: 0 on success'
+- 'growproc.guarantee.side_effects: process address space expanded or shrunk'
+- 'proc_init.guarantee.emitted_events: none'
+- 'proc_init.guarantee.returns: void'
+- 'proc_init.guarantee.side_effects: all proc[NPROC] zeroed'
+- 'proc_init.guarantee.side_effects: all proc[NPROC].lock initialized'
+- process state transitions are atomic
+- 'scheduler.guarantee.emitted_events: none'
+- 'scheduler.guarantee.returns: never returns (infinite loop)'
+- 'scheduler.guarantee.side_effects: selects next RUNNABLE process'
+- 'scheduler.guarantee.side_effects: transfers control via swtch'
+- 'sleep.guarantee.emitted_events: none'
+- 'sleep.guarantee.returns: void (returns after wakeup)'
+- 'sleep.guarantee.side_effects: current process state set to SLEEPING'
+- 'sleep.guarantee.side_effects: lk released atomically'
+- 'sleep.guarantee.side_effects: process blocked until wakeup'
+- swtch never returns to a freed process
+- 'swtch.guarantee.emitted_events: none'
+- 'swtch.guarantee.returns: void (but returns in new context''s stack frame)'
+- 'swtch.guarantee.side_effects: callee-saved registers restored from *new'
+- 'swtch.guarantee.side_effects: callee-saved registers saved to *old'
+- 'swtch.guarantee.side_effects: ra (return address) changed to new context'
+- 'userinit.guarantee.emitted_events: none'
+- 'userinit.guarantee.returns: void'
+- 'userinit.guarantee.side_effects: first user process created (pid 1)'
+- 'userinit.guarantee.side_effects: initial user code loaded into process memory'
+- 'userinit.guarantee.side_effects: process state set to RUNNABLE'
+- 'wait.guarantee.emitted_events: none'
+- 'wait.guarantee.returns: -1 if no children exist'
+- 'wait.guarantee.returns: child PID on success'
+- 'wait.guarantee.side_effects: child resources freed (pagetable, trapframe, etc.)'
+- 'wait.guarantee.side_effects: child slot returned to free pool'
+- 'wakeup.guarantee.emitted_events: none'
+- 'wakeup.guarantee.returns: void'
+- 'wakeup.guarantee.side_effects: all SLEEPING processes on chan become RUNNABLE'
+- 'yield_cpu.guarantee.emitted_events: none'
+- 'yield_cpu.guarantee.returns: void (but may return in the future when rescheduled)'
+- 'yield_cpu.guarantee.side_effects: current process becomes RUNNABLE'
+- 'yield_cpu.guarantee.side_effects: next process becomes RUNNING'
+algorithm_intent: Implement the process stage contract while preserving the declared
+  xv6 module boundaries.
+concurrency:
+  module:
+    module: kernel/process
+    shared_state:
+    - process table (proc[NPROC])
+    - wait_lock
+    lock_types:
+    - spinlock (struct spinlock)
+    lock_order:
+    - p->lock before wait_lock
+    - never acquire p->lock while holding wait_lock
+    atomic_sections:
+    - process state transitions (via p->lock)
+    - scheduler context switch (swtch)
+    interrupt_rules:
+    - interrupts disabled while holding p->lock
+    - push_off/pop_off around proc state mutations
+    wait_wakeup_rules:
+    - sleep(chan, lock) releases lock and blocks until wakeup(chan)
+    - wakeup(chan) wakes all sleepers on chan
+    - wakeup must be called with the same lock held that sleep was called with
+    rely:
+    - timer interrupts drive scheduler
+    - swtch saves/restores callee-saved regs
+    guarantee:
+    - process state transitions are atomic
+    - swtch never returns to a freed process
+    forbidden_patterns:
+    - accessing p->state without holding p->lock
+    - holding p->lock across swtch
+    - sched() called without p->lock held
+  operations:
+    allocproc:
+      atomicity: proc table scan under p->lock
+      lock_order:
+      - p->lock (per-slot)
+      interrupt_state: push_off/pop_off
+      wait_wakeup_rules: []
+    exit:
+      atomicity: state transitions under locks
+      lock_order:
+      - p->lock -> wait_lock
+      interrupt_state: push_off/pop_off
+      wait_wakeup_rules:
+      - wakeup(parent) on exit
+    fork:
+      atomicity: non-atomic (copy may span timer interrupts)
+      lock_order:
+      - p->lock (on child during setup)
+      interrupt_state: push_off/pop_off around critical updates
+      wait_wakeup_rules: []
+    freeproc:
+      atomicity: under p->lock
+      lock_order:
+      - p->lock
+      interrupt_state: push_off/pop_off
+      wait_wakeup_rules: []
+    growproc:
+      atomicity: non-atomic across page operations
+      lock_order: []
+      interrupt_state: interrupts enabled
+      wait_wakeup_rules: []
+    proc_init:
+      atomicity: init only
+      lock_order: []
+      interrupt_state: disabled
+      wait_wakeup_rules: []
+    scheduler:
+      atomicity: per-slot lock + swtch
+      lock_order:
+      - p->lock
+      interrupt_state: push_off before acquire
+      wait_wakeup_rules: []
+    sleep:
+      atomicity: lock release + state change is atomic
+      lock_order:
+      - p->lock acquired, then lk released
+      interrupt_state: push_off/pop_off
+      wait_wakeup_rules:
+      - sleep(chan, lk) blocks current process on chan
+    swtch:
+      atomicity: whole function is the context switch
+      lock_order: []
+      interrupt_state: must be called with interrupts off
+      wait_wakeup_rules: []
+    userinit:
+      atomicity: init only
+      lock_order: []
+      interrupt_state: interrupts disabled during init
+      wait_wakeup_rules: []
+    wait:
+      atomicity: reaping under wait_lock
+      lock_order:
+      - wait_lock -> child p->lock
+      interrupt_state: push_off/pop_off
+      wait_wakeup_rules:
+      - sleep(current, wait_lock)
+    wakeup:
+      atomicity: per-process wake under p->lock
+      lock_order:
+      - p->lock (per process)
+      interrupt_state: push_off/pop_off
+      wait_wakeup_rules:
+      - wakeup on chan causes sleep on chan to return
+    yield_cpu:
+      atomicity: sched does the context switch
+      lock_order:
+      - p->lock
+      interrupt_state: acquires lock with push_off
+      wait_wakeup_rules: []

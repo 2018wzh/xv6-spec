@@ -1,0 +1,305 @@
+id: kernel/bio
+module: kernel/bio
+level: 3
+purpose: Buffer cache for block I/O. Provides a linked list of cached disk blocks
+  with LRU eviction. The cache sits between the file system and the virtio disk driver,
+  reducing disk reads and providing a synchronization point for concurrent block access.
+owns:
+- kernel/bio.c
+- tests/generated/kernel/bio
+interface:
+- name: binit
+  pre:
+  - called exactly once during boot, before any FS operation
+  post:
+  - bcache is ready for bread/bwrite/brelse
+  errors:
+  - none
+  properties:
+  - id: binit-property-1
+    text: bcache.head.prev points to the least-recently-used buffer
+  - id: binit-property-2
+    text: bcache.head.next points to the most-recently-used buffer
+  - id: binit-property-3
+    text: 'guarantee.returns: void'
+  - id: binit-property-4
+    text: 'guarantee.side_effects: bcache linked list initialized'
+  - id: binit-property-5
+    text: 'guarantee.side_effects: bcache.lock spinlock initialized'
+  - id: binit-property-6
+    text: 'guarantee.side_effects: all NBUF buffer sleeplocks initialized'
+- name: bpin
+  pre:
+  - buffer is currently in the cache
+  post:
+  - b->refcnt increased by 1
+  - buffer cannot be evicted while refcnt > 0
+  errors:
+  - none
+  properties:
+  - id: bpin-property-1
+    text: refcnt >= 1 after pin
+  - id: bpin-property-2
+    text: 'guarantee.returns: void'
+  - id: bpin-property-3
+    text: 'guarantee.side_effects: b->refcnt incremented'
+- name: bread
+  pre:
+  - bcache is initialized
+  post:
+  - returned buf has valid==1 and is locked
+  errors:
+  - none
+  properties:
+  - id: bread-property-1
+    text: cached blocks are reused
+  - id: bread-property-2
+    text: uncached blocks are read from disk
+  - id: bread-property-3
+    text: 'guarantee.returns: struct buf* (locked, with valid contents)'
+  - id: bread-property-4
+    text: 'guarantee.side_effects: may read from disk'
+  - id: bread-property-5
+    text: 'guarantee.side_effects: buffer marked valid'
+  - id: bread-property-6
+    text: 'guarantee.side_effects: buffer moved to head of LRU list (via brelse by
+      previous user)'
+- name: brelse
+  pre:
+  - caller holds b->lock
+  post:
+  - buffer is unlocked and available for reuse
+  errors:
+  - none
+  properties:
+  - id: brelse-property-1
+    text: refcnt >= 0 at all times
+  - id: brelse-property-2
+    text: 'guarantee.returns: void'
+  - id: brelse-property-3
+    text: 'guarantee.side_effects: buffer unlocked'
+  - id: brelse-property-4
+    text: 'guarantee.side_effects: buffer moved to head of LRU list if refcnt==0'
+- name: bunpin
+  pre:
+  - b->refcnt >= 1
+  post:
+  - b->refcnt decreased by 1
+  errors:
+  - none
+  properties:
+  - id: bunpin-property-1
+    text: refcnt >= 0
+  - id: bunpin-property-2
+    text: 'guarantee.returns: void'
+  - id: bunpin-property-3
+    text: 'guarantee.side_effects: b->refcnt decremented'
+- name: bwrite
+  pre:
+  - caller holds b->lock
+  - b->dev and b->blockno are valid
+  post:
+  - buffer contents are on disk
+  errors:
+  - none
+  properties:
+  - id: bwrite-property-1
+    text: buffer valid flag unchanged
+  - id: bwrite-property-2
+    text: 'guarantee.returns: void'
+  - id: bwrite-property-3
+    text: 'guarantee.side_effects: buffer contents written to disk'
+properties:
+- id: module-property-1
+  text: buffer cache is kernel-only; user code never sees struct buf
+- id: module-property-2
+  text: buffers are never allocated or freed; the pool is fixed at NBUF
+- id: module-property-3
+  text: each buffer has a sleeplock and is protected by bcache.lock for list operations
+- id: module-property-4
+  text: cache hit/miss behavior
+- id: module-property-5
+  text: LRU eviction order
+- id: module-property-6
+  text: bread/bwrite/brelse cycle
+errors:
+- bget panics if no free buffer is available
+- bread panics if virtio_disk_rw fails
+- brelse panics if called without holding the buffer's sleeplock
+- none
+state:
+  stage: filesystem
+  owned_state:
+  - buffer cache linked list (bcache.head)
+  - array of NBUF struct buf entries
+  - bcache.lock spinlock
+  resource_lifetime:
+  - buffers are never allocated or freed; the pool is fixed at NBUF
+  - each buffer has a sleeplock and is protected by bcache.lock for list operations
+preconditions:
+- b->dev and b->blockno are valid
+- b->refcnt >= 1
+- bcache is initialized
+- buffer is currently in the cache
+- called exactly once during boot, before any FS operation
+- caller holds b->lock
+postconditions:
+- b->refcnt decreased by 1
+- b->refcnt increased by 1
+- bcache is ready for bread/bwrite/brelse
+- buffer cannot be evicted while refcnt > 0
+- buffer contents are on disk
+- buffer is unlocked and available for reuse
+- returned buf has valid==1 and is locked
+invariants:
+- id: invariant-1
+  text: every buf on the linked list has refcnt >= 0
+- id: invariant-2
+  text: bcache.head.next is most-recently-used, bcache.head.prev is least-recently-used
+- id: invariant-3
+  text: a buf with valid==1 has up-to-date contents from disk
+- id: invariant-4
+  text: bpin/bunpin are used to protect blocks being actively modified by the log
+    layer
+- id: binit-invariant-1
+  text: bcache.head.prev points to the least-recently-used buffer
+- id: binit-invariant-2
+  text: bcache.head.next points to the most-recently-used buffer
+- id: bpin-invariant-1
+  text: refcnt >= 1 after pin
+- id: bread-invariant-1
+  text: cached blocks are reused
+- id: bread-invariant-2
+  text: uncached blocks are read from disk
+- id: brelse-invariant-1
+  text: refcnt >= 0 at all times
+- id: bunpin-invariant-1
+  text: refcnt >= 0
+- id: bwrite-invariant-1
+  text: buffer valid flag unchanged
+dependencies:
+- kernel/bio
+rely:
+- 'binit.rely.callable_interfaces: initlock (from kernel/lock)'
+- 'binit.rely.callable_interfaces: initsleeplock (from kernel/lock)'
+- 'binit.rely.lock_assumptions: none during init'
+- 'binit.rely.resource_assumptions: sufficient resources available'
+- 'binit.rely.state_assumptions: bcache is uninitialized'
+- 'bpin.rely.lock_assumptions: acquires bcache.lock briefly'
+- 'bpin.rely.resource_assumptions: sufficient resources available'
+- 'bpin.rely.state_assumptions: buffer is valid'
+- 'bread.rely.callable_interfaces: bget (internal)'
+- 'bread.rely.callable_interfaces: virtio_disk_rw (from kernel/virtio)'
+- 'bread.rely.lock_assumptions: returns with buffer sleeplock held'
+- 'bread.rely.resource_assumptions: sufficient resources available'
+- 'bread.rely.state_assumptions: bcache is initialized'
+- 'brelse.rely.callable_interfaces: releasesleep (from kernel/lock)'
+- 'brelse.rely.lock_assumptions: caller must hold b->lock (sleeplock)'
+- 'brelse.rely.lock_assumptions: releases sleep lock before acquiring bcache.lock'
+- 'brelse.rely.resource_assumptions: sufficient resources available'
+- 'brelse.rely.state_assumptions: buffer is locked by caller'
+- 'bunpin.rely.lock_assumptions: acquires bcache.lock briefly'
+- 'bunpin.rely.resource_assumptions: sufficient resources available'
+- 'bunpin.rely.state_assumptions: buffer has refcnt >= 1'
+- 'bwrite.rely.callable_interfaces: virtio_disk_rw (from kernel/virtio)'
+- 'bwrite.rely.lock_assumptions: caller must hold b->lock (sleeplock)'
+- 'bwrite.rely.resource_assumptions: sufficient resources available'
+- 'bwrite.rely.state_assumptions: buffer is locked by caller'
+- callers must not hold spinlocks when calling bread (may sleep)
+- 'module: sleeplock operations (from kernel/lock)'
+- 'module: virtio_disk_rw (from kernel/virtio)'
+- virtio_disk_rw is safe to call while holding b->lock sleeplock
+guarantee:
+- a locked buffer returned by bread has valid contents
+- 'binit.guarantee.returns: void'
+- 'binit.guarantee.side_effects: all NBUF buffer sleeplocks initialized'
+- 'binit.guarantee.side_effects: bcache linked list initialized'
+- 'binit.guarantee.side_effects: bcache.lock spinlock initialized'
+- 'bpin.guarantee.returns: void'
+- 'bpin.guarantee.side_effects: b->refcnt incremented'
+- 'bread.guarantee.returns: struct buf* (locked, with valid contents)'
+- 'bread.guarantee.side_effects: buffer marked valid'
+- 'bread.guarantee.side_effects: buffer moved to head of LRU list (via brelse by previous
+  user)'
+- 'bread.guarantee.side_effects: may read from disk'
+- brelse moves the buffer to the head of the LRU list if refcnt==0
+- 'brelse.guarantee.returns: void'
+- 'brelse.guarantee.side_effects: buffer moved to head of LRU list if refcnt==0'
+- 'brelse.guarantee.side_effects: buffer unlocked'
+- 'bunpin.guarantee.returns: void'
+- 'bunpin.guarantee.side_effects: b->refcnt decremented'
+- 'bwrite.guarantee.returns: void'
+- 'bwrite.guarantee.side_effects: buffer contents written to disk'
+- 'exported: binit'
+- 'exported: bpin'
+- 'exported: bread'
+- 'exported: brelse'
+- 'exported: bunpin'
+- 'exported: bwrite'
+algorithm_intent: Implement the filesystem stage contract while preserving the declared
+  xv6 module boundaries.
+concurrency:
+  module:
+    module: kernel/bio
+    shared_state:
+    - bcache.buf[NBUF] (linked list of buffer entries)
+    - bcache.head (LRU sentinel)
+    lock_types:
+    - bcache.lock: spinlock (protects linked-list structure)
+    - b->lock: sleeplock (protects individual buffer content and metadata)
+    lock_order:
+    - bcache.lock before b->lock (in bget)
+    - b->lock before bcache.lock (in brelse, after releasesleep)
+    atomic_sections:
+    - bget: bcache.lock held while scanning LRU list, released before acquiresleep
+    - brelse: releasesleep first, then bcache.lock for LRU reordering
+    interrupt_rules:
+    - bcache.lock is never held with interrupts disabled for long (no push_off)
+    - bread may sleep in virtio_disk_rw (holds b->lock sleeplock)
+    wait_wakeup_rules:
+    - bget sleeps on b->lock via acquiresleep until buffer is unlocked
+    rely:
+    - virtio_disk_rw is safe to call while holding b->lock sleeplock
+    - callers must not hold spinlocks when calling bread (may sleep)
+    guarantee:
+    - a locked buffer returned by bread has valid contents
+    - brelse moves the buffer to the head of the LRU list if refcnt==0
+    forbidden_patterns:
+    - holding bcache.lock while calling acquiresleep (deadlock risk)
+    - using a buffer after calling brelse
+  operations:
+    binit:
+      atomicity: single-hart init
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    bpin:
+      atomicity: bcache.lock for refcnt update
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    bread:
+      atomicity: bcache.lock for lookup, b->lock for content
+      lock_order:
+      - bcache.lock (in bget)
+      - b->lock (acquiresleep)
+      interrupt_state: enabled (may sleep on disk I/O)
+      wait_wakeup_rules: []
+    brelse:
+      atomicity: releasesleep then bcache.lock for LRU reorder
+      lock_order:
+      - release b->lock first
+      - then bcache.lock
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    bunpin:
+      atomicity: bcache.lock for refcnt update
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    bwrite:
+      atomicity: under b->lock
+      lock_order:
+      - b->lock (held by caller)
+      interrupt_state: enabled
+      wait_wakeup_rules: []

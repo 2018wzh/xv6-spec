@@ -1,0 +1,269 @@
+id: kernel/file
+module: kernel/file
+level: 3
+purpose: File descriptor table and file object management. Provides allocation, reference
+  counting, duplication, closing, metadata query, and typed read/write dispatch (pipe,
+  inode, device).
+owns:
+- kernel/file.c
+- tests/generated/kernel/file
+interface:
+- name: filealloc
+  pre:
+  - ftable is initialized
+  post:
+  - allocated file has ref==1 and is not yet typed
+  errors:
+  - none
+  properties:
+  - id: filealloc-property-1
+    text: 'guarantee.returns: struct file* on success'
+  - id: filealloc-property-2
+    text: 'guarantee.returns: 0 if table is full'
+  - id: filealloc-property-3
+    text: 'guarantee.side_effects: file ref count set to 1'
+- name: fileclose
+  pre:
+  - f->ref >= 1
+  post:
+  - file is freed and available for reallocation
+  errors:
+  - none
+  properties:
+  - id: fileclose-property-1
+    text: 'guarantee.returns: void'
+  - id: fileclose-property-2
+    text: 'guarantee.side_effects: f->ref decremented'
+  - id: fileclose-property-3
+    text: 'guarantee.side_effects: underlying resource freed if ref reaches 0'
+  - id: fileclose-property-4
+    text: 'guarantee.side_effects: f->type set to FD_NONE'
+- name: filedup
+  pre:
+  - f->ref >= 1
+  post:
+  - f->ref increased by 1
+  errors:
+  - none
+  properties:
+  - id: filedup-property-1
+    text: 'guarantee.returns: struct file* (same as input)'
+  - id: filedup-property-2
+    text: 'guarantee.side_effects: f->ref incremented'
+- name: fileinit
+  pre:
+  - called once during boot
+  post:
+  - file table ready for allocation
+  errors:
+  - none
+  properties:
+  - id: fileinit-property-1
+    text: 'guarantee.returns: void'
+  - id: fileinit-property-2
+    text: 'guarantee.side_effects: ftable.lock initialized'
+- name: fileread
+  pre:
+  - file must be readable
+  post:
+  - bytes copied to user buffer
+  errors:
+  - returns -1 if file is not readable
+  properties:
+  - id: fileread-property-1
+    text: 'guarantee.returns.int: number of bytes read, or -1 on error'
+  - id: fileread-property-2
+    text: 'guarantee.side_effects: file offset advanced by bytes read (for FD_INODE)'
+- name: filestat
+  pre:
+  - file type is FD_INODE or FD_DEVICE
+  post:
+  - user receives valid stat data
+  errors:
+  - returns -1 if not FD_INODE/DEVICE or copyout fails
+  properties:
+  - id: filestat-property-1
+    text: 'guarantee.returns.int: 0 on success, -1 on failure'
+  - id: filestat-property-2
+    text: 'guarantee.side_effects: stat data copied to user address'
+- name: filewrite
+  pre:
+  - file must be writable
+  post:
+  - bytes written to file
+  errors:
+  - returns -1 if file is not writable
+  properties:
+  - id: filewrite-property-1
+    text: 'guarantee.returns.int: number of bytes written, or -1 on error'
+  - id: filewrite-property-2
+    text: 'guarantee.side_effects: file offset advanced by bytes written (for FD_INODE)'
+  - id: filewrite-property-3
+    text: 'guarantee.side_effects: new blocks may be allocated'
+  - id: filewrite-property-4
+    text: 'guarantee.side_effects: log transactions for inode writes'
+properties:
+- id: module-property-1
+  text: readable/writable flags gate all read/write access
+- id: module-property-2
+  text: device major number bounds-checked before dispatch
+- id: module-property-3
+  text: fileclose calls iput on the underlying inode when ref reaches 0
+- id: module-property-4
+  text: pipe files are closed via pipeclose
+- id: module-property-5
+  text: file alloc/dup/close cycle
+- id: module-property-6
+  text: read/write dispatch by type
+- id: module-property-7
+  text: ref count correctness
+errors:
+- filealloc returns 0 when table is full
+- fileclose panics if ref < 1
+- fileread/filewrite return -1 on invalid access
+- none
+- returns -1 if file is not readable
+- returns -1 if file is not writable
+- returns -1 if not FD_INODE/DEVICE or copyout fails
+state:
+  stage: filesystem
+  owned_state:
+  - file table (ftable.file[NFILE])
+  - ftable.lock spinlock
+  - device switch table (devsw[NDEV])
+  resource_lifetime:
+  - fileclose calls iput on the underlying inode when ref reaches 0
+  - pipe files are closed via pipeclose
+preconditions:
+- called once during boot
+- f->ref >= 1
+- file must be readable
+- file must be writable
+- file type is FD_INODE or FD_DEVICE
+- ftable is initialized
+postconditions:
+- allocated file has ref==1 and is not yet typed
+- bytes copied to user buffer
+- bytes written to file
+- f->ref increased by 1
+- file is freed and available for reallocation
+- file table ready for allocation
+- user receives valid stat data
+invariants:
+- id: invariant-1
+  text: every allocated file has ref >= 1
+- id: invariant-2
+  text: file type is one of FD_NONE, FD_PIPE, FD_INODE, FD_DEVICE
+- id: invariant-3
+  text: file offset is only meaningful for FD_INODE
+- id: invariant-4
+  text: major device number is validated against NDEV
+dependencies:
+- kernel/file
+rely:
+- 'filealloc.rely.lock_assumptions: acquires ftable.lock for table operations'
+- 'filealloc.rely.resource_assumptions: sufficient resources available'
+- 'filealloc.rely.state_assumptions: ftable is initialized'
+- 'fileclose.rely.callable_interfaces: begin_op/end_op (from kernel/log)'
+- 'fileclose.rely.callable_interfaces: iput (from kernel/fs)'
+- 'fileclose.rely.callable_interfaces: pipeclose (from kernel/pipe)'
+- 'fileclose.rely.lock_assumptions: acquires ftable.lock for table operations'
+- 'fileclose.rely.resource_assumptions: sufficient resources available'
+- 'fileclose.rely.state_assumptions: ftable is initialized'
+- 'filedup.rely.lock_assumptions: acquires ftable.lock for table operations'
+- 'filedup.rely.resource_assumptions: sufficient resources available'
+- 'filedup.rely.state_assumptions: ftable is initialized'
+- 'fileinit.rely.callable_interfaces: initlock (from kernel/lock)'
+- 'fileinit.rely.lock_assumptions: acquires ftable.lock for table operations'
+- 'fileinit.rely.resource_assumptions: sufficient resources available'
+- 'fileinit.rely.state_assumptions: ftable is initialized'
+- 'fileread.rely.callable_interfaces: devsw read (device driver)'
+- 'fileread.rely.callable_interfaces: ilock/iunlock (from kernel/fs)'
+- 'fileread.rely.callable_interfaces: piperead (from kernel/pipe)'
+- 'fileread.rely.callable_interfaces: readi (from kernel/fs)'
+- 'fileread.rely.lock_assumptions: acquires ftable.lock for table operations'
+- 'fileread.rely.resource_assumptions: sufficient resources available'
+- 'fileread.rely.state_assumptions: ftable is initialized'
+- 'filestat.rely.callable_interfaces: copyout (from kernel/memory)'
+- 'filestat.rely.callable_interfaces: ilock/iunlock/stati (from kernel/fs)'
+- 'filestat.rely.lock_assumptions: acquires ftable.lock for table operations'
+- 'filestat.rely.resource_assumptions: sufficient resources available'
+- 'filestat.rely.state_assumptions: ftable is initialized'
+- 'filewrite.rely.callable_interfaces: begin_op/end_op (from kernel/log)'
+- 'filewrite.rely.callable_interfaces: devsw write (device driver)'
+- 'filewrite.rely.callable_interfaces: ilock/iunlock (from kernel/fs)'
+- 'filewrite.rely.callable_interfaces: pipewrite (from kernel/pipe)'
+- 'filewrite.rely.callable_interfaces: writei (from kernel/fs)'
+- 'filewrite.rely.lock_assumptions: acquires ftable.lock for table operations'
+- 'filewrite.rely.resource_assumptions: sufficient resources available'
+- 'filewrite.rely.state_assumptions: ftable is initialized'
+- 'module: copyout (from kernel/memory)'
+- 'module: ilock/iunlock/stati/readi/writei (from kernel/fs)'
+- 'module: pipeclose/piperead/pipewrite (from kernel/pipe)'
+guarantee:
+- 'exported: filealloc'
+- 'exported: fileclose'
+- 'exported: filedup'
+- 'exported: fileinit'
+- 'exported: fileread'
+- 'exported: filestat'
+- 'exported: filewrite'
+- 'filealloc.guarantee.returns: 0 if table is full'
+- 'filealloc.guarantee.returns: struct file* on success'
+- 'filealloc.guarantee.side_effects: file ref count set to 1'
+- 'fileclose.guarantee.returns: void'
+- 'fileclose.guarantee.side_effects: f->ref decremented'
+- 'fileclose.guarantee.side_effects: f->type set to FD_NONE'
+- 'fileclose.guarantee.side_effects: underlying resource freed if ref reaches 0'
+- 'filedup.guarantee.returns: struct file* (same as input)'
+- 'filedup.guarantee.side_effects: f->ref incremented'
+- 'fileinit.guarantee.returns: void'
+- 'fileinit.guarantee.side_effects: ftable.lock initialized'
+- 'fileread.guarantee.returns.int: number of bytes read, or -1 on error'
+- 'fileread.guarantee.side_effects: file offset advanced by bytes read (for FD_INODE)'
+- 'filestat.guarantee.returns.int: 0 on success, -1 on failure'
+- 'filestat.guarantee.side_effects: stat data copied to user address'
+- 'filewrite.guarantee.returns.int: number of bytes written, or -1 on error'
+- 'filewrite.guarantee.side_effects: file offset advanced by bytes written (for FD_INODE)'
+- 'filewrite.guarantee.side_effects: log transactions for inode writes'
+- 'filewrite.guarantee.side_effects: new blocks may be allocated'
+algorithm_intent: Implement the filesystem stage contract while preserving the declared
+  xv6 module boundaries.
+concurrency:
+  module: {}
+  operations:
+    filealloc:
+      atomicity: ftable.lock for allocation/refcount, per-inode lock for inode ops
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    fileclose:
+      atomicity: ftable.lock for allocation/refcount, per-inode lock for inode ops
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    filedup:
+      atomicity: ftable.lock for allocation/refcount, per-inode lock for inode ops
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    fileinit:
+      atomicity: ftable.lock for allocation/refcount, per-inode lock for inode ops
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    fileread:
+      atomicity: ftable.lock for allocation/refcount, per-inode lock for inode ops
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    filestat:
+      atomicity: ftable.lock for allocation/refcount, per-inode lock for inode ops
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    filewrite:
+      atomicity: ftable.lock for allocation/refcount, per-inode lock for inode ops
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
