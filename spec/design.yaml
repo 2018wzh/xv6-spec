@@ -1,32 +1,50 @@
 system:
-  name: xv6-spec
-  language: C
-  isa: RISC-V RV64GC
+  name: xv6-riscv-kernel
+  language: gnu99-c
+  isa: riscv64
 machine:
   qemu:
-    model: virt
-  hardware: {}
+    compatible: qemu-virt
+    memory: 128M
+    firmware: none
+    console: 16550A UART
+    block_device: virtio-mmio
+  hardware:
+    compatible: starfive,jh7110-visionfive-2
+    board_revision: v1.3B
+    bsp_reference: VF2_v3.8.2
+    status: candidate-pending-physical-review
 kernel:
-  organization: monolithic teaching kernel
-  execution: supervisor-mode kernel with deterministic interrupt handling
-  protection: Sv39 page tables isolate mapped regions
-  communication: traps cross the user and kernel boundary
-  resource_model: explicit ownership for resources introduced through this lab
+  organization: monolithic
+  execution: preemptive four-hart supervisor mode
+  protection: RISC-V Sv39 paging with user/kernel privilege separation
+  communication: system calls, sleep/wakeup IPC, UART and PLIC interrupts
+  resource_model: physical pages, processes, inodes, file descriptions, descriptors,
+    pipes and platform block devices
 required_mechanisms:
-- deterministic early entry
-- virtual memory
-- traps
-- process scheduling
-- system calls
-- filesystem
-- resource ABI
-- complete upstream behavior oracle
+- QEMU M-mode bootstrap and U-Boot S-mode bootstrap with a0=hartid and a1=DTB
+- strict DTB discovery of RAM, reserved memory, U74 harts, UART, PLIC and SDIO
+- SBI TIME, IPI, RFENCE, HSM and SRST capability gates
+- four U74 harts released in order through SBI HSM
+- Sv39 page tables and dynamic physical-page allocation
+- trap, timer, PLIC and UART dispatch
+- round-robin process scheduling and validated syscall ABI
+- buffer cache, logging, inode filesystem, exec, pipe IPC and shell
+- platform block-device boundary with virtio on QEMU and native SDIO on VisionFive 2
+- GPT discovery of the xv6fs partition without fixed LBAs
 composition_invariants:
-- every published check is deterministic and scoped to the current lab
+- Every syscall user pointer is validated before an operation with external side effects.
+- Every filesystem block transfer crosses the block-device interface and buffer cache.
+- Platform discovery rejects unsupported compatible strings, missing DT nodes and missing
+  SBI extensions instead of selecting fallback addresses; reserved-memory ranges never
+  enter the page allocator, and storage is selected by a validated GPT name and GUID.
 non_goals:
-- mechanisms assigned to later labs
+- networking
+- full POSIX compliance
+- copy-on-write fork
+- treating QEMU or simulated serial output as physical-board evidence
 hardware_port:
-  board: not in current lab scope
-  boot: not in current lab scope
-  console: not in current lab scope
-  interrupt: not in current lab scope
+  board: StarFive VisionFive 2 v1.3B candidate pending physical review
+  boot: BootROM to SPL/OpenSBI/U-Boot then hash-checked FIT at 0x40200000
+  console: DT-discovered DesignWare 16550 UART at 115200 baud
+  interrupt: DT-discovered PLIC plus mandatory SBI TIME IPI RFENCE HSM and SRST
