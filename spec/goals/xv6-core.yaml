@@ -1,0 +1,15 @@
+id: xv6-upstream-behavior
+objective: Preserve the observable behavior of the upstream xv6-riscv user/kernel
+  interface implemented by this course through deterministic public checks and the
+  complete QEMU usertests suite.
+metric: every cumulative public check passes and usertests prints ALL TESTS PASSED
+oracle: QEMU serial output from the repository kernel and fs.img, evaluated by
+  tests/public/verify.sh without model judgment
+correctness:
+- Invalid user pointers fail before filesystem transactions allocate blocks or inodes.
+- Forked processes do not share writable user pages.
+- Committed filesystem operations survive log recovery without stale buffer data.
+- File descriptions, descriptors, inodes, pipes and physical pages obey their declared
+  ownership and lifetime rules.
+- The shell can execute the cumulative user program set.
+- No advanced feature absent from the implementation is implied by this goal.
