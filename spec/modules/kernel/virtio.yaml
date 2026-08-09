@@ -1,0 +1,13 @@
+id: kernel/virtio
+module: kernel/virtio
+level: 2
+purpose: QEMU block transport.
+owns:
+- kernel/virtio_disk.c
+- tests/generated/kernel/virtio
+interface: []
+properties:
+- id: kernel-virtio-deterministic
+  text: behavior is deterministic under the published lab checks
+errors:
+- invalid state fails explicitly

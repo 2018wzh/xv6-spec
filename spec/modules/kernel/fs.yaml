@@ -1,0 +1,16 @@
+id: kernel/fs
+module: kernel/fs
+level: 2
+purpose: buffer cache log inode and exec.
+owns:
+- kernel/bio.c
+- kernel/log.c
+- kernel/fs.c
+- kernel/exec.c
+- tests/generated/kernel/fs
+interface: []
+properties:
+- id: kernel-fs-deterministic
+  text: behavior is deterministic under the published lab checks
+errors:
+- invalid state fails explicitly
