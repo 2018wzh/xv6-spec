@@ -1,15 +1,13 @@
 version: vos.project.v1
 build:
   program: make
-  args:
-    - all
+  args: []
   cwd: .
   env:
     - PATH
   timeout: 120000
   artifacts:
-    - lab1/build/flag-reader
-    - lab1/build/ctf-baremetal.elf
+    - kernel/kernel
 runners:
   qemu:
     program: make
@@ -18,13 +16,18 @@ runners:
     cwd: .
     env:
       - PATH
-    timeout: 30000
-    artifacts:
-      - lab1/build/ctf-baremetal.elf
-      - lab1/build/flags.img
-    workload: ctf-baremetal-generated-fixture
-    success_pattern: CTF_BAREMETAL_OK(?:\r?\n|$)
-    failure_pattern: panic|PANIC|fatal|FATAL|CTF_BAREMETAL_FAIL
+    timeout: 120000
+    artifacts: []
+  hardware:
+    program: sh
+    args:
+      - -c
+      - exit 2
+    cwd: .
+    env:
+      - PATH
+    timeout: 1000
+    artifacts: []
 checks:
   ctf-warmup-linux-public:
     args:
@@ -114,3 +117,14 @@ checks:
     verifies:
       - lab/ctf-warmup
     workload: Run both readers over fixed seeds 5 and 9 against the same generated non-secret fixture and record their redacted metadata plus alternating provenance records in order.
+  bootstrap_banner_not_null:
+    program: sh
+    args:
+      - tests/public/verify.sh
+      - bootstrap_banner_not_null
+    cwd: .
+    env:
+      - PATH
+    timeout: 120000
+    verifies:
+      - kernel/boot
