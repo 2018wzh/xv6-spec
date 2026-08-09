@@ -1,6 +1,6 @@
 id: kernel/platform
 module: kernel/platform
-level: 2
+level: 3
 purpose: Strictly select qemu-virt or parse the pinned VisionFive 2 device tree.
 owns:
 - kernel/platform.c

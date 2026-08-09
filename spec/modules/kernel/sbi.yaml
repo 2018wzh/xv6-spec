@@ -1,6 +1,6 @@
 id: kernel/sbi
 module: kernel/sbi
-level: 2
+level: 3
 purpose: Typed SBI v0.2 calls for timer, capability probing, HSM and reset.
 owns:
 - kernel/sbi.c

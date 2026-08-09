@@ -45,6 +45,28 @@ interface:
     text: 'guarantee.returns: void'
   - id: generate_usertests_c-property-2
     text: 'guarantee.side_effects: user/usertests.c generated'
+- name: generate_fuzzvos_c
+  pre: []
+  post:
+  - test program compiles
+  errors:
+  - none
+  properties:
+  - id: generate_fuzzvos_c-property-1
+    text: 'guarantee.returns: void'
+  - id: generate_fuzzvos_c-property-2
+    text: 'guarantee.side_effects: user/fuzzvos.c generated'
+- name: generate_tracevos_c
+  pre: []
+  post:
+  - test program compiles
+  errors:
+  - none
+  properties:
+  - id: generate_tracevos_c-property-1
+    text: 'guarantee.returns: void'
+  - id: generate_tracevos_c-property-2
+    text: 'guarantee.side_effects: user/tracevos.c generated'
 properties:
 - id: module-property-1
   text: user-space only; tests exercise syscall interface
@@ -75,7 +97,6 @@ dependencies:
 - user/headers
 - user/lib
 - user/stubs
-- user/tests
 rely:
 - 'generate_forktest_c.rely.lock_assumptions: none'
 - 'generate_forktest_c.rely.resource_assumptions: sufficient resources available'
@@ -83,18 +104,28 @@ rely:
 - 'generate_grind_c.rely.resource_assumptions: sufficient resources available'
 - 'generate_usertests_c.rely.lock_assumptions: none'
 - 'generate_usertests_c.rely.resource_assumptions: sufficient resources available'
+- 'generate_fuzzvos_c.rely.lock_assumptions: none'
+- 'generate_fuzzvos_c.rely.resource_assumptions: sufficient resources available'
+- 'generate_tracevos_c.rely.lock_assumptions: none'
+- 'generate_tracevos_c.rely.resource_assumptions: sufficient resources available'
 - 'module: all syscall stubs (from user/stubs)'
 - 'module: printf/malloc/free (from user/lib)'
 guarantee:
 - 'exported: generate_forktest_c'
 - 'exported: generate_grind_c'
 - 'exported: generate_usertests_c'
+- 'exported: generate_fuzzvos_c'
+- 'exported: generate_tracevos_c'
 - 'generate_forktest_c.guarantee.returns: void'
 - 'generate_forktest_c.guarantee.side_effects: user/forktest.c generated'
 - 'generate_grind_c.guarantee.returns: void'
 - 'generate_grind_c.guarantee.side_effects: user/grind.c generated'
 - 'generate_usertests_c.guarantee.returns: void'
 - 'generate_usertests_c.guarantee.side_effects: user/usertests.c generated'
+- 'generate_fuzzvos_c.guarantee.returns: void'
+- 'generate_fuzzvos_c.guarantee.side_effects: user/fuzzvos.c generated'
+- 'generate_tracevos_c.guarantee.returns: void'
+- 'generate_tracevos_c.guarantee.side_effects: user/tracevos.c generated'
 algorithm_intent: Implement the full-syscall stage contract while preserving the declared
   xv6 module boundaries.
 concurrency:
@@ -111,6 +142,16 @@ concurrency:
       interrupt_state: n/a
       wait_wakeup_rules: []
     generate_usertests_c:
+      atomicity: build-time only
+      lock_order: []
+      interrupt_state: n/a
+      wait_wakeup_rules: []
+    generate_fuzzvos_c:
+      atomicity: build-time only
+      lock_order: []
+      interrupt_state: n/a
+      wait_wakeup_rules: []
+    generate_tracevos_c:
       atomicity: build-time only
       lock_order: []
       interrupt_state: n/a
