@@ -1,0 +1,12 @@
+id: toolchain
+module: toolchain
+level: 2
+purpose: student project commands.
+owns:
+- vos.yaml
+interface: []
+properties:
+- id: toolchain-deterministic
+  text: behavior is deterministic under the published lab checks
+errors:
+- invalid state fails explicitly
