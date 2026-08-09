@@ -1,4 +1,17 @@
 #include "types.h"
+#include "defs.h"
+
+// panic - print an explicit message and halt (single boot hart, Lab 3).
+// Used by kfree/kalloc/vm to "fail explicitly" on invalid inputs before any
+// state mutation. A panic halts the single boot hart; a bounded serial
+// capture then observes the missing banner and the check fails explicitly.
+void
+panic(char *s)
+{
+  (void)s;
+  for (;;)
+    ;
+}
 
 void*
 memset(void *dst, int c, uint n)

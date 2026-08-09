@@ -1,4 +1,4 @@
-  # entry.S - the linked machine-mode entry point. kernel.ld places this
+# entry.S - the linked machine-mode entry point. kernel.ld places this
   # at 0x80000000 where qemu's -kernel jumps. QEMU enters here in machine
   # mode with interrupts disabled and a single boot hart (Lab 2).
   .section .text
@@ -11,3 +11,12 @@ _entry:
   call start
 spin:
   j spin
+
+  # Trampoline stub. kernel.ld places this section on its own page and
+  # provides `trampoline` at its start; the kernel page table maps the
+  # highest virtual page (TRAMPOLINE) here as read/execute. Not executed
+  # until a later trap lab.
+  .section .trampoline
+  .globl trampoline
+trampoline:
+  j trampoline

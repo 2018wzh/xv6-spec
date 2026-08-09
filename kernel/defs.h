@@ -20,3 +20,26 @@ void     start(void);
 
 // main.c
 void     main(void);
+
+// spinlock.c
+struct spinlock;
+void     initlock(struct spinlock*, const char*);
+void     acquire(struct spinlock*);
+void     release(struct spinlock*);
+int      holding(struct spinlock*);
+
+// kalloc.c
+void     kinit(void);
+void*    kalloc(void);
+void     kfree(void*);
+
+// vm.c
+void     kvminit(void);
+void     kvminithart(void);
+
+// string.c
+void     panic(char*);
+
+// physical memory delimiters
+extern char end[];
+extern char etext[];

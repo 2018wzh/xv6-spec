@@ -73,6 +73,12 @@
 #define w_pmpcfg0(x) asm volatile("csrw 0x3a0, %0" : : "r" (x))
 #define w_pmpaddr0(x) asm volatile("csrw 0x3b0, %0" : : "r" (x))
 
+// Supervisor address translation and protection (satp) + TLB shootdown.
+#define w_satp(x) do { asm volatile("csrw satp, %0" : : "r" (x)); } while (0)
+#define sfence_vma() asm volatile("sfence.vma zero, zero")
+// Sv39 mode (8) shifted into the satp MODE field.
+#define MAKE_SATP(pagetable) (((uint64)pagetable >> 12) | (8L << 60))
+
 static inline uint64
 r_pmpcfg0(void)
 {

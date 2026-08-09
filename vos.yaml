@@ -189,3 +189,61 @@ checks:
       - kernel/kernel
     workload: bounded QEMU virt serial capture of the booted Lab 2 kernel via vos_lab2_capture_serial
     oracle: captured serial must contain exactly one canonical XV6_BOOT_OK banner line and no partial/garbage banner line
+  kernel_memory_allocator_boot_public:
+    artifacts:
+      - kernel/kernel
+    args:
+      - tests/generated/kernel/memory/public_allocator_boot.sh
+    cwd: .
+    env:
+      - PATH
+    kind: public
+    program: sh
+    timeout: 120000
+    verifies:
+      - kernel/memory
+  kernel_memory_allocator_contract:
+    artifacts: []
+    args:
+      - tests/generated/kernel/memory/contract_memory.sh
+    cwd: .
+    env:
+      - PATH
+    kind: contract
+    program: sh
+    timeout: 30000
+    verifies:
+      - kernel/memory
+  kernel_memory_allocator_fuzz:
+    artifacts: []
+    args:
+      - tests/generated/kernel/memory/fuzz_allocator.sh
+      - "42"
+      - "500"
+      - tests/generated/kernel/memory/repro/kernel_memory_allocator_fuzz.repro
+    cases: 500
+    cwd: .
+    env:
+      - PATH
+    kind: fuzz
+    program: sh
+    reproduction_artifact: tests/generated/kernel/memory/repro/kernel_memory_allocator_fuzz.repro
+    seed: 42
+    timeout: 30000
+    verifies:
+      - kernel/memory
+  kernel_memory_mapping_trace:
+    artifacts:
+      - kernel/kernel
+    args:
+      - tests/generated/kernel/memory/trace_mapping.sh
+    cwd: .
+    env:
+      - PATH
+    kind: trace
+    oracle: captured serial must contain exactly one canonical XV6_BOOT_OK banner line
+    program: sh
+    timeout: 120000
+    verifies:
+      - kernel/memory
+    workload: bounded QEMU virt serial capture of the booted Lab 3 kernel via vos_lab2_capture_serial

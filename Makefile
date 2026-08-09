@@ -8,7 +8,10 @@ OBJS = \
   $(K)/start.o \
   $(K)/boot.o \
   $(K)/main.o \
-  $(K)/string.o
+  $(K)/string.o \
+  $(K)/spinlock.o \
+  $(K)/kalloc.o \
+  $(K)/vm.o
 
 # select_riscv_toolchain: probe candidate prefixes and pick the first one
 # that can compile an empty freestanding RV64 object. Empty on failure.
