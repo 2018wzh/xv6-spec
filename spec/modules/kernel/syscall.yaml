@@ -1,0 +1,103 @@
+id: kernel/syscall
+module: kernel/syscall
+level: 3
+purpose: Cross from user mode through the trampoline and trap frame, validate syscall numbers and arguments, and provide the minimal Lab 5 process-control and console-call surface.
+owns:
+- kernel/syscall.c
+- kernel/syscall.h
+- kernel/sysproc.c
+- kernel/trampoline.S
+- tests/generated/kernel/syscall
+interface:
+- name: syscall
+  pre:
+  - usertrap identified a user ecall and advanced sepc by one instruction
+  post:
+  - a known call writes its result to trap-frame a0 exactly once; an unknown number returns -1 and emits a bounded diagnostic
+  errors:
+  - invalid syscall numbers never index outside the dispatch table
+  properties:
+  - id: syscall-dispatch-contract
+    text: kernel_syscall_dispatch_contract observes bounds checking before table access and one result publication
+- name: fetch_arguments
+  pre:
+  - arguments originate only in the current process trap frame or validated user memory
+  post:
+  - integer, address, and string arguments are copied without directly dereferencing a user pointer
+  errors:
+  - invalid ranges and unterminated strings return failure without kernel memory access
+  properties:
+  - id: syscall-argument-fuzz
+    text: kernel_syscall_argument_fuzz exercises fixed-seed argument indexes, boundary addresses, and strings
+- name: uservec_userret
+  pre:
+  - TRAMPOLINE and TRAPFRAME have identical virtual addresses in the user page table expected by the kernel
+  post:
+  - uservec saves all user registers before switching to the kernel page table and userret restores them after switching back
+  errors:
+  - usertrapret clears SPP and configures SPIE before entering trampoline userret, so sret cannot inherit supervisor privilege
+  properties:
+  - id: user-roundtrip-trace
+    text: kernel_syscall_user_trace observes the bounded first ecall and return path with no privileged mapping exposed to user mode
+properties:
+- id: syscall-table-bounds
+  text: dispatch checks the number is positive, within the table, and has a non-null handler
+- id: trap-frame-register-symmetry
+  text: trampoline save and restore offsets are symmetric for every user register
+errors:
+- unknown calls return -1
+- invalid user arguments return failure without partial privileged writes
+state:
+  stage: syscall
+  owned_state:
+  - syscall dispatch table
+  - user trampoline code
+  resource_lifetime:
+  - the trampoline is shared read-only; each process owns its trap frame through kernel/process
+preconditions:
+- process and trap stages have initialized the current process and trap frame
+postconditions:
+- the first user process can enter and return from a validated minimal syscall
+invariants:
+- id: no-raw-user-pointer
+  text: C code never directly dereferences an address supplied by user mode
+- id: trampoline-identical-mapping
+  text: trampoline code is mapped read-execute at the same virtual address in kernel and user contexts
+dependencies:
+- kernel/boot
+- kernel/process
+- kernel/trap
+- kernel/memory
+- toolchain
+rely:
+- kernel/process owns the current trap frame and address space
+- kernel/memory provides copyin, copyout, and copyinstr validation
+guarantee:
+- every user-to-kernel transition saves all user registers before accessing process state
+- syscall dispatch performs a bounds check before indexing the function table
+algorithm_intent: Use a fixed syscall function table indexed by trap-frame a7 and a trampoline page that switches satp only after saving or before restoring the complete user register set.
+concurrency:
+  module:
+    module: kernel/syscall
+    shared_state:
+    - read-only syscall table
+    lock_types: []
+    lock_order: []
+    atomic_sections:
+    - one trap-frame result publication
+    interrupt_rules:
+    - usertrap runs with supervisor interrupts disabled until kernel state is safe
+    rely:
+    - current process and trap frame remain stable during dispatch
+    guarantee:
+    - dispatch does not retain user pointers after the call returns
+    wait_wakeup_rules: []
+    forbidden_patterns:
+    - indexing the syscall table before validating the number
+    - dereferencing a user virtual address directly
+  operations:
+    syscall:
+      atomicity: one validated dispatch and one a0 result write
+      lock_order: []
+      interrupt_state: determined by usertrap after state publication
+      wait_wakeup_rules: []

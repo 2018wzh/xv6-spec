@@ -1,7 +1,7 @@
 id: kernel/trap
 module: kernel/trap
 level: 3
-purpose: Install the supervisor trap vector, preserve kernel register state across traps, and dispatch bounded UART/PLIC interrupts; user-mode trap return is not in current lab scope.
+purpose: Install supervisor and user trap vectors, preserve register state, dispatch bounded device interrupts, and return a validated Lab 5 ecall to user mode.
 owns:
 - kernel/kernelvec.S
 - kernel/trap.c
@@ -41,6 +41,26 @@ interface:
   properties:
   - id: external-interrupt-lifecycle
     text: kernel_trap_device_contract observes every nonzero PLIC claim is completed after dispatch
+- name: usertrap
+  pre:
+  - the current process owns a mapped trap frame and uservec saved the user register set
+  post:
+  - a user ecall advances sepc, dispatches through kernel/syscall, and reaches usertrapret
+  errors:
+  - an unexpected user exception terminates the process with scause, sepc, and stval evidence
+  properties:
+  - id: user-ecall-dispatch
+    text: kernel_syscall_user_trace observes one bounded user ecall through dispatch and return
+- name: usertrapret
+  pre:
+  - the current trap frame and user page table are valid
+  post:
+  - stvec names uservec, SPP is clear, SPIE is set, and trampoline userret restores user state
+  errors:
+  - invalid process or address-space state fails before sret
+  properties:
+  - id: user-return-privilege
+    text: kernel_syscall_user_trace observes return with supervisor mappings inaccessible to user mode
 properties:
 - id: vector-frame-symmetry
   text: kernel_trap_frame_fuzz observes that kernelvec saves and restores every register it changes in symmetric stack slots
@@ -66,7 +86,7 @@ state:
 preconditions:
 - the memory stage has activated the kernel page table
 postconditions:
-- the single boot hart can receive, diagnose, dispatch, and return from supervisor interrupts
+- the single boot hart can receive, diagnose, dispatch, and return from supervisor interrupts and validated user ecalls
 invariants:
 - id: kernel-vector-privilege
   text: kernelvec handles only traps whose saved SPP bit identifies supervisor mode
@@ -87,7 +107,7 @@ rely:
 guarantee:
 - trap entry never runs on the interrupted stack without first reserving the complete register frame
 - diagnostic printing uses bounded synchronous UART output in trap context
-algorithm_intent: Use an assembly register frame with a C dispatcher; route external interrupts through PLIC claim, device dispatch, and completion, keeping user-mode trap machinery outside this lab.
+algorithm_intent: Use assembly register frames with C dispatchers; route external interrupts through PLIC claim and completion, and route user ecalls through syscall dispatch before a privilege-clearing trampoline return.
 concurrency:
   module:
     module: kernel/trap

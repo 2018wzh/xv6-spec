@@ -1,0 +1,15 @@
+id: interface/trap-frame
+name: user trap-frame ABI
+boundary: abi
+module: kernel/syscall
+operations:
+- name: uservec_userret
+  pre:
+  - the current process owns a mapped TRAPFRAME page below TRAMPOLINE
+  post:
+  - all general registers and kernel handoff fields cross privilege only through the declared fixed offsets
+  errors:
+  - a mismatched C/assembly layout fails the contract check before user execution
+  properties:
+  - id: trap-frame-layout-binding
+    text: kernel_syscall_trapframe_contract compares proc.h field offsets with trampoline save and restore slots
