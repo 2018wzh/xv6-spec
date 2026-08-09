@@ -1,0 +1,4 @@
+id: lab6-filesystem
+reason: persistent state adds transactional ownership
+changes: [kernel/fs, kernel/virtio]
+new_invariants: [committed log records recover atomically]
