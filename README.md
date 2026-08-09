@@ -1,3 +1,3 @@
-# xv6-spec Lab 2
+# xv6-spec Lab 3
 
-This slice adds the first machine-to-supervisor bootstrap and its minimal RISC-V build projection. `kernel/boot` owns the early entry, PMP transition, byte-addressed UART publication, and generated module tests. `toolchain` owns the structured build projection and capability/clean-rebuild checks. Later course mechanisms remain intentionally absent.
+This slice adds a page-aligned physical allocator and the kernel's Sv39 mappings to the working bootstrap. `kernel/memory` owns allocator, mapping, spinlock, and generated module-test paths. The committed Spec deliberately excludes user processes and demand paging, which later labs introduce.

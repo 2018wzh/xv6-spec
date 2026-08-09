@@ -1,0 +1,10 @@
+id: lab3-memory-bootstrap
+reason: Lab 3 adds physical allocation and the kernel page table to the existing bootstrap and build projection.
+changes:
+- kernel/memory
+- kernel/boot
+- toolchain
+new_invariants:
+- Boot initializes the allocator before constructing or activating the kernel page table.
+- The build and every memory test use only paths owned by the affected modules.
+- memory_allocator_public, memory_freelist_contract, and memory_mapping_trace bind the allocator and mapping requirements to generated deterministic checks.
