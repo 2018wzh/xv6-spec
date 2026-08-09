@@ -1,0 +1,16 @@
+id: kernel/pipe
+module: kernel/pipe
+level: 2
+purpose: file descriptions pipes and shell IO.
+owns:
+- kernel/file.c
+- kernel/pipe.c
+- kernel/sysfile.c
+- user/sh.c
+- tests/generated/kernel/pipe
+interface: []
+properties:
+- id: kernel-pipe-deterministic
+  text: behavior is deterministic under the published lab checks
+errors:
+- invalid state fails explicitly

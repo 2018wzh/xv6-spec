@@ -1,0 +1,4 @@
+id: lab7-resource-abi
+reason: descriptors and pipes cross module ownership
+changes: [kernel/pipe, kernel/syscall]
+new_invariants: [the final release reclaims each resource once]
