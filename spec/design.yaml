@@ -1,8 +1,25 @@
-# Created by vos init; filled by the next design commit.
-system: {name: student-os, language: TODO, isa: TODO}
-machine: {qemu: {}, hardware: {}}
-kernel: {organization: TODO, execution: TODO, protection: TODO, communication: TODO, resource_model: TODO}
-required_mechanisms: []
-composition_invariants: []
-non_goals: []
-hardware_port: {board: TODO, boot: TODO, console: TODO, interrupt: TODO}
+system:
+  name: xv6-spec
+  language: C
+  isa: RISC-V RV64GC
+machine:
+  qemu:
+    model: virt
+  hardware: {}
+kernel:
+  organization: monolithic teaching kernel
+  execution: single boot hart reaches the current lab target
+  protection: machine entry establishes supervisor execution
+  communication: serial boot output only
+  resource_model: static boot memory only
+required_mechanisms:
+- deterministic early entry
+composition_invariants:
+- every published check is deterministic and scoped to the current lab
+non_goals:
+- mechanisms assigned to later labs
+hardware_port:
+  board: not in current lab scope
+  boot: not in current lab scope
+  console: not in current lab scope
+  interrupt: not in current lab scope
