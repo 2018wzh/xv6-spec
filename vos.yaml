@@ -1,6 +1,31 @@
 version: vos.project.v1
-build: {program: bun, args: [--version], cwd: ., env: [], timeout: 30000, artifacts: []}
+build:
+  program: make
+  args: []
+  cwd: .
+  env: []
+  timeout: 120000
+  artifacts: [kernel/kernel]
 runners:
-  qemu: {program: bun, args: [--version], cwd: ., env: [], timeout: 30000, artifacts: []}
-  hardware: {program: bun, args: [--version], cwd: ., env: [], timeout: 30000, artifacts: []}
-checks: {}
+  qemu:
+    program: make
+    args: [qemu]
+    cwd: .
+    env: []
+    timeout: 120000
+    artifacts: []
+  hardware:
+    program: sh
+    args: [-c, 'exit 2']
+    cwd: .
+    env: []
+    timeout: 1000
+    artifacts: []
+checks:
+  bootstrap_banner_not_null:
+    program: sh
+    args: [tests/public/verify.sh, bootstrap_banner_not_null]
+    cwd: .
+    env: []
+    timeout: 120000
+    verifies: [kernel/boot]
