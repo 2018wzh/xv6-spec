@@ -1,14 +1,442 @@
 id: kernel/trap
 module: kernel/trap
-level: 2
-purpose: supervisor trap and interrupt dispatch.
+level: 3
+purpose: Trap vector installation, usermode/kernel trap dispatch, timer interrupt
+  handling, and usermode return trampoline.
 owns:
+- kernel/kernelvec.S
+- kernel/trampoline.S
 - kernel/trap.c
-- kernel/plic.c
-- kernel/uart.c
-interface: []
+interface:
+- name: devintr
+  pre:
+  - called from trap handler with valid scause
+  post:
+  - next timer interrupt is scheduled
+  errors:
+  - returns 0 for non-device interrupts
+  properties:
+  - id: devintr-property-1
+    text: no kernel state corruption
+  - id: devintr-property-2
+    text: 'guarantee.returns: 1 if device interrupt handled'
+  - id: devintr-property-3
+    text: 'guarantee.returns: 0 if not a device interrupt'
+  - id: devintr-property-4
+    text: 'guarantee.side_effects: SBI timer reprogrammed for next tick'
+  - id: devintr-property-5
+    text: 'guarantee.emitted_events: none'
+- name: kerneltrap
+  pre:
+  - entered from kernel mode
+  post:
+  - kernel state restored identically
+  errors:
+  - panics on unexpected kernel traps
+  properties:
+  - id: kerneltrap-property-1
+    text: no kernel state corruption
+  - id: kerneltrap-property-2
+    text: 'guarantee.returns: void (returns via sret)'
+  - id: kerneltrap-property-3
+    text: 'guarantee.side_effects: sepc, scause, sstatus saved/restored'
+  - id: kerneltrap-property-4
+    text: 'guarantee.side_effects: timer interrupt handled if applicable'
+  - id: kerneltrap-property-5
+    text: 'guarantee.emitted_events: none'
+- name: kernelvec
+  pre:
+  - stvec points to kernelvec
+  - sp points to top of current hart's kernel stack
+  post:
+  - execution resumes at the instruction pointed to by sepc
+  errors:
+  - panics via kerneltrap on unexpected exceptions
+  properties:
+  - id: kernelvec-property-1
+    text: all register values restored identically (except a0 if used for return)
+  - id: kernelvec-property-2
+    text: sstatus.SPP restored correctly
+  - id: kernelvec-property-3
+    text: 'guarantee.returns: void (returns via sret to interrupted code)'
+  - id: kernelvec-property-4
+    text: 'guarantee.side_effects: all registers saved to and restored from kernel
+      stack'
+  - id: kernelvec-property-5
+    text: 'guarantee.side_effects: sstatus/sepc saved and restored'
+  - id: kernelvec-property-6
+    text: 'guarantee.side_effects: trap handled via kerneltrap'
+  - id: kernelvec-property-7
+    text: 'guarantee.emitted_events: none'
+- name: trampoline
+  pre:
+  - 'uservec: stvec points to uservec address in trampoline'
+  - 'uservec: satp currently holds user page table'
+  - 'userret: satp currently holds kernel page table'
+  - 'userret: TRAPFRAME page contains valid register state'
+  post:
+  - 'uservec: execution is in kernel context with kernel page table active'
+  - 'userret: execution returns to U-mode at sepc'
+  errors:
+  - undefined behavior if trapframe is corrupted
+  properties:
+  - id: trampoline-property-1
+    text: no user registers leak to kernel (saved in trapframe)
+  - id: trampoline-property-2
+    text: page table switch is safe (TRAMPOLINE mapped identically)
+  - id: trampoline-property-3
+    text: 'guarantee.returns: uservec: never returns directly; jumps to usertrap'
+  - id: trampoline-property-4
+    text: 'guarantee.returns: userret: never returns directly; executes sret to U-mode'
+  - id: trampoline-property-5
+    text: 'guarantee.side_effects: uservec: saves all 32 user registers to trapframe,
+      loads kernel satp/stack/trap handler address from trapframe, switches satp to
+      kernel page table'
+  - id: trampoline-property-6
+    text: 'guarantee.side_effects: userret: restores all 32 user registers from trapframe,
+      switches satp to user page table, executes sret'
+  - id: trampoline-property-7
+    text: 'guarantee.emitted_events: none'
+- name: trap_init
+  pre:
+  - called once during kernel init
+  post:
+  - stvec != 0
+  errors:
+  - panics if kernelvec is NULL
+  properties:
+  - id: trap_init-property-1
+    text: stvec updated atomically (csrw)
+  - id: trap_init-property-2
+    text: 'guarantee.returns: void'
+  - id: trap_init-property-3
+    text: 'guarantee.side_effects: stvec set to kernelvec address'
+  - id: trap_init-property-4
+    text: 'guarantee.side_effects: kernelvec installed as trap handler'
+  - id: trap_init-property-5
+    text: 'guarantee.emitted_events: none'
+- name: usertrap
+  pre:
+  - entered from usermode via trampoline
+  post:
+  - process is resumable via usertrapret
+  errors:
+  - unexpected scause in usermode kills process (exit(-1))
+  properties:
+  - id: usertrap-property-1
+    text: kernel never runs with user page table
+  - id: usertrap-property-2
+    text: 'guarantee.returns: void (always calls usertrapret)'
+  - id: usertrap-property-3
+    text: 'guarantee.side_effects: user registers saved to trapframe'
+  - id: usertrap-property-4
+    text: 'guarantee.side_effects: sepc, scause, stval saved'
+  - id: usertrap-property-5
+    text: 'guarantee.side_effects: sstatus.SPP restored'
+  - id: usertrap-property-6
+    text: 'guarantee.side_effects: on timer: yield()'
+  - id: usertrap-property-7
+    text: 'guarantee.side_effects: on syscall: sepc += 4, syscall()'
+  - id: usertrap-property-8
+    text: 'guarantee.emitted_events: none'
+- name: usertrapret
+  pre:
+  - sepc points to valid usermode instruction
+  - trapframe contains valid register state
+  post:
+  - process runs in U-mode with restored context
+  errors:
+  - panics if trapframe is invalid
+  properties:
+  - id: usertrapret-property-1
+    text: kernel paging not accessible from U-mode
+  - id: usertrapret-property-2
+    text: 'guarantee.returns: void (jumps to usermode)'
+  - id: usertrapret-property-3
+    text: 'guarantee.side_effects: stvec set to uservec (trampoline)'
+  - id: usertrapret-property-4
+    text: 'guarantee.side_effects: satp set to user page table'
+  - id: usertrapret-property-5
+    text: 'guarantee.side_effects: all user registers restored from trapframe'
+  - id: usertrapret-property-6
+    text: 'guarantee.side_effects: sret to sepc in U-mode'
+  - id: usertrapret-property-7
+    text: 'guarantee.emitted_events: none'
 properties:
-- id: kernel-trap-deterministic
-  text: behavior is deterministic under the published lab checks
+- id: module-property-1
+  text: user registers are sanitized before kernel access
+- id: module-property-2
+  text: sstatus.SPP tracks privilege correctly
+- id: module-property-3
+  text: sepc is saved and validated before resumption
+- id: module-property-4
+  text: trapframe pages are freed when process exits
+- id: module-property-5
+  text: trap vector verification
+- id: module-property-6
+  text: timer interrupt firing
+- id: module-property-7
+  text: user/kernel transition cycle
+- id: module-property-8
+  text: trap_init_stvec_set
+- id: module-property-9
+  text: trap_init_idempotent
+- id: module-property-10
+  text: usertrap_timer
+- id: module-property-11
+  text: usertrap_syscall_dispatched
+- id: module-property-12
+  text: usertrap_illegal_instruction
+- id: module-property-13
+  text: usertrap_nesting
+- id: module-property-14
+  text: kerneltrap_unexpected
+- id: module-property-15
+  text: usertrapret_roundtrip
+- id: module-property-16
+  text: devintr_timer
+- id: module-property-17
+  text: devintr_other
+- id: module-property-18
+  text: trap_init_stvec_set
+- id: module-property-19
+  text: usertrap_timer
+- id: module-property-20
+  text: usertrap_syscall_dispatched
+- id: module-property-21
+  text: usertrap_illegal_instruction
+- id: module-property-22
+  text: kerneltrap_unexpected
+- id: module-property-23
+  text: usertrapret_roundtrip
+- id: module-property-24
+  text: devintr_timer
 errors:
-- invalid state fails explicitly
+- panics if kernelvec is NULL
+- panics if trapframe is invalid
+- panics on unexpected kernel traps
+- panics via kerneltrap on unexpected exceptions
+- returns 0 for non-device interrupts
+- undefined behavior if trapframe is corrupted
+- unexpected scause in usermode kills process (exit(-1))
+- unexpected traps in kernel mode cause panic
+- usertrap returns via usertrapret, never falls through
+state:
+  stage: trap
+  owned_state:
+  - trap vector (stvec)
+  - per-CPU trapframe pointer (no CPU struct in v0)
+  - kernel stack for trap handling
+  resource_lifetime:
+  - trapframe pages are freed when process exits
+preconditions:
+- called from trap handler with valid scause
+- called once during kernel init
+- entered from kernel mode
+- entered from usermode via trampoline
+- sepc points to valid usermode instruction
+- sp points to top of current hart's kernel stack
+- stvec points to kernelvec
+- trapframe contains valid register state
+- 'userret: TRAPFRAME page contains valid register state'
+- 'userret: satp currently holds kernel page table'
+- 'uservec: satp currently holds user page table'
+- 'uservec: stvec points to uservec address in trampoline'
+postconditions:
+- execution resumes at the instruction pointed to by sepc
+- kernel state restored identically
+- next timer interrupt is scheduled
+- process is resumable via usertrapret
+- process runs in U-mode with restored context
+- stvec != 0
+- 'userret: execution returns to U-mode at sepc'
+- 'uservec: execution is in kernel context with kernel page table active'
+invariants:
+- id: invariant-1
+  text: stvec points to trampoline uservec during usermode
+- id: invariant-2
+  text: stvec points to kernelvec during kernel mode
+- id: invariant-3
+  text: trapframe is saved/restored atomically per trap entry
+- id: invariant-4
+  text: timer interrupts never nest
+- id: devintr-invariant-1
+  text: no kernel state corruption
+- id: kerneltrap-invariant-1
+  text: no kernel state corruption
+- id: kernelvec-invariant-1
+  text: all register values restored identically (except a0 if used for return)
+- id: kernelvec-invariant-2
+  text: sstatus.SPP restored correctly
+- id: trampoline-invariant-1
+  text: no user registers leak to kernel (saved in trapframe)
+- id: trampoline-invariant-2
+  text: page table switch is safe (TRAMPOLINE mapped identically)
+- id: trap_init-invariant-1
+  text: stvec updated atomically (csrw)
+- id: usertrap-invariant-1
+  text: kernel never runs with user page table
+- id: usertrapret-invariant-1
+  text: kernel paging not accessible from U-mode
+dependencies:
+- kernel/memory
+- kernel/process
+- kernel/trap
+rely:
+- SBI provides timer extension
+- 'devintr.rely.callable_interfaces: SBI set_timer (ecall'
+- 'devintr.rely.lock_assumptions: none'
+- 'devintr.rely.resource_assumptions: none'
+- 'devintr.rely.state_assumptions: scause contains the interrupt cause'
+- hardware delivers timer interrupts
+- 'kerneltrap.rely.callable_interfaces: devintr'
+- 'kerneltrap.rely.lock_assumptions: may hold locks (push_off/pop_off used)'
+- 'kerneltrap.rely.resource_assumptions: kernel stack is valid'
+- 'kerneltrap.rely.state_assumptions: kernel page table is active'
+- 'kerneltrap.rely.state_assumptions: trap originated from S-mode'
+- 'kernelvec.rely.callable_interfaces: kerneltrap (C handler)'
+- 'kernelvec.rely.lock_assumptions: none'
+- 'kernelvec.rely.resource_assumptions: sufficient kernel stack space for 32-register
+  save area'
+- 'kernelvec.rely.state_assumptions: entered from S-mode via a trap (interrupt or
+  exception)'
+- 'kernelvec.rely.state_assumptions: kernel page table is active'
+- 'kernelvec.rely.state_assumptions: kernel stack pointer is valid'
+- 'trampoline.rely.callable_interfaces: usertrap (C handler, called by uservec)'
+- 'trampoline.rely.callable_interfaces: usertrapret (C function that calls userret)'
+- 'trampoline.rely.lock_assumptions: none'
+- 'trampoline.rely.resource_assumptions: trapframe page is writable'
+- 'trampoline.rely.state_assumptions: TRAMPOLINE page is identity-mapped in both kernel
+  and user page tables'
+- 'trampoline.rely.state_assumptions: current process has a valid trapframe page mapped
+  at TRAPFRAME'
+- 'trap_init.rely.callable_interfaces: kernelvec (assembly symbol)'
+- 'trap_init.rely.lock_assumptions: none'
+- 'trap_init.rely.resource_assumptions: none'
+- 'trap_init.rely.state_assumptions: kernel is running in S-mode'
+- 'usertrap.rely.callable_interfaces: devintr, syscall, exit'
+- 'usertrap.rely.lock_assumptions: no locks held on entry'
+- 'usertrap.rely.resource_assumptions: trapframe page is mapped'
+- 'usertrap.rely.state_assumptions: current process has a valid trapframe'
+- 'usertrap.rely.state_assumptions: trap originated from U-mode'
+- 'usertrapret.rely.callable_interfaces: userret (assembly in trampoline)'
+- 'usertrapret.rely.lock_assumptions: no locks held'
+- 'usertrapret.rely.resource_assumptions: trapframe page is mapped'
+- 'usertrapret.rely.state_assumptions: current process trapframe is valid'
+- 'usertrapret.rely.state_assumptions: kernel mapped trampoline page'
+guarantee:
+- 'devintr.guarantee.emitted_events: none'
+- 'devintr.guarantee.returns: 0 if not a device interrupt'
+- 'devintr.guarantee.returns: 1 if device interrupt handled'
+- 'devintr.guarantee.side_effects: SBI timer reprogrammed for next tick'
+- 'exported: devintr'
+- 'exported: kerneltrap'
+- 'exported: kernelvec'
+- 'exported: trampoline'
+- 'exported: trap_init'
+- 'exported: usertrap'
+- 'exported: usertrapret'
+- 'kerneltrap.guarantee.emitted_events: none'
+- 'kerneltrap.guarantee.returns: void (returns via sret)'
+- 'kerneltrap.guarantee.side_effects: sepc, scause, sstatus saved/restored'
+- 'kerneltrap.guarantee.side_effects: timer interrupt handled if applicable'
+- 'kernelvec.guarantee.emitted_events: none'
+- 'kernelvec.guarantee.returns: void (returns via sret to interrupted code)'
+- 'kernelvec.guarantee.side_effects: all registers saved to and restored from kernel
+  stack'
+- 'kernelvec.guarantee.side_effects: sstatus/sepc saved and restored'
+- 'kernelvec.guarantee.side_effects: trap handled via kerneltrap'
+- timer interrupts fire at ~1 Hz
+- 'trampoline.guarantee.emitted_events: none'
+- 'trampoline.guarantee.returns: userret: never returns directly; executes sret to
+  U-mode'
+- 'trampoline.guarantee.returns: uservec: never returns directly; jumps to usertrap'
+- 'trampoline.guarantee.side_effects: userret: restores all 32 user registers from
+  trapframe, switches satp to user page table, executes sret'
+- 'trampoline.guarantee.side_effects: uservec: saves all 32 user registers to trapframe,
+  loads kernel satp/stack/trap handler address from trapframe, switches satp to kernel
+  page table'
+- trap frame is consistent after save
+- 'trap_init.guarantee.emitted_events: none'
+- 'trap_init.guarantee.returns: void'
+- 'trap_init.guarantee.side_effects: kernelvec installed as trap handler'
+- 'trap_init.guarantee.side_effects: stvec set to kernelvec address'
+- 'usertrap.guarantee.emitted_events: none'
+- 'usertrap.guarantee.returns: void (always calls usertrapret)'
+- 'usertrap.guarantee.side_effects: on syscall: sepc += 4, syscall()'
+- 'usertrap.guarantee.side_effects: on timer: yield()'
+- 'usertrap.guarantee.side_effects: sepc, scause, stval saved'
+- 'usertrap.guarantee.side_effects: sstatus.SPP restored'
+- 'usertrap.guarantee.side_effects: user registers saved to trapframe'
+- 'usertrapret.guarantee.emitted_events: none'
+- 'usertrapret.guarantee.returns: void (jumps to usermode)'
+- 'usertrapret.guarantee.side_effects: all user registers restored from trapframe'
+- 'usertrapret.guarantee.side_effects: satp set to user page table'
+- 'usertrapret.guarantee.side_effects: sret to sepc in U-mode'
+- 'usertrapret.guarantee.side_effects: stvec set to uservec (trampoline)'
+algorithm_intent: Implement the trap stage contract while preserving the declared
+  xv6 module boundaries.
+concurrency:
+  module:
+    module: kernel/trap
+    shared_state:
+    - stvec (per-hart)
+    - sstatus (per-hart)
+    - sie (per-hart)
+    lock_types:
+    - push_off / pop_off (interrupt disable)
+    lock_order:
+    - push_off before kernel critical sections
+    atomic_sections:
+    - trap entry/exit (hardware atomic)
+    - timer interrupt acknowledge
+    interrupt_rules:
+    - sie.STIE set for timer interrupts
+    - sie.SEIE clear (no external interrupts)
+    - sstatus.SIE clear in handler
+    rely:
+    - SBI provides timer extension
+    - hardware delivers timer interrupts
+    guarantee:
+    - timer interrupts fire at ~1 Hz
+    - trap frame is consistent after save
+    wait_wakeup_rules: []
+    forbidden_patterns:
+    - holding a spinlock across usertrapret
+    - re-enabling interrupts inside usertrap before yield
+  operations:
+    devintr:
+      atomicity: single ecall
+      lock_order: []
+      interrupt_state: irrelevant
+      wait_wakeup_rules: []
+    kerneltrap:
+      atomicity: trap entry/exit by hardware
+      lock_order: []
+      interrupt_state: interrupts disabled throughout
+      wait_wakeup_rules: []
+    kernelvec:
+      atomicity: hardware atomic trap entry/exit
+      lock_order: []
+      interrupt_state: interrupts disabled on entry (SIE clear in sstatus)
+      wait_wakeup_rules: []
+    trampoline:
+      atomicity: hardware atomic trap entry/exit
+      lock_order: []
+      interrupt_state: interrupts disabled during trap handling
+      wait_wakeup_rules: []
+    trap_init:
+      atomicity: single csrw instruction
+      lock_order: []
+      interrupt_state: interrupts disabled
+      wait_wakeup_rules: []
+    usertrap:
+      atomicity: single trap handler instance per hart
+      lock_order: []
+      interrupt_state: interrupts initially disabled
+      wait_wakeup_rules: []
+    usertrapret:
+      atomicity: hardware sret
+      lock_order: []
+      interrupt_state: disabled; re-enabled by sret
+      wait_wakeup_rules: []

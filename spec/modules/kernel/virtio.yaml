@@ -1,12 +1,144 @@
 id: kernel/virtio
 module: kernel/virtio
-level: 2
-purpose: QEMU block transport.
+level: 3
+purpose: Virtio block device driver via MMIO. Manages descriptor rings for disk read/write
+  operations. Initializes the virtio device, submits I/O requests via descriptor chains,
+  and handles completion interrupts.
 owns:
 - kernel/virtio_disk.c
-interface: []
+interface:
+- name: virtio_disk_init
+  pre:
+  - called once during boot
+  post:
+  - virtio disk is ready for I/O
+  errors:
+  - panics if device not found or initialization fails
+  properties:
+  - id: virtio_disk_init-property-1
+    text: 'guarantee.returns: void'
+  - id: virtio_disk_init-property-2
+    text: 'guarantee.side_effects: virtio device initialized'
+  - id: virtio_disk_init-property-3
+    text: 'guarantee.side_effects: descriptor rings allocated'
+  - id: virtio_disk_init-property-4
+    text: 'guarantee.side_effects: disk.lock initialized'
+- name: virtio_disk_intr
+  pre:
+  - called from interrupt context (devintr)
+  post:
+  - all completed descriptors processed
+  errors:
+  - none
+  properties:
+  - id: virtio_disk_intr-property-1
+    text: 'guarantee.returns: void'
+  - id: virtio_disk_intr-property-2
+    text: 'guarantee.side_effects: completed I/O operations processed'
+  - id: virtio_disk_intr-property-3
+    text: 'guarantee.side_effects: waiting processes woken'
+- name: virtio_disk_rw
+  pre:
+  - buffer is locked by caller
+  post:
+  - buffer contains disk data (for read) or data is on disk (for write)
+  errors:
+  - panics if descriptor allocation fails
+  properties:
+  - id: virtio_disk_rw-property-1
+    text: 'guarantee.returns: void'
+  - id: virtio_disk_rw-property-2
+    text: 'guarantee.side_effects: disk I/O submitted'
+  - id: virtio_disk_rw-property-3
+    text: 'guarantee.side_effects: caller sleeps until completion'
 properties:
-- id: kernel-virtio-deterministic
-  text: behavior is deterministic under the published lab checks
+- id: module-property-1
+  text: Virtio MMIO registers are S-mode only; DMA uses physical addresses
+- id: module-property-2
+  text: descriptor pool is allocated once at init
+- id: module-property-3
+  text: disk struct persists for kernel lifetime
+- id: module-property-4
+  text: unit tests for all exported functions
+- id: module-property-5
+  text: integration tests with dependent modules
 errors:
-- invalid state fails explicitly
+- none
+- panics if descriptor allocation fails
+- panics if device not found or initialization fails
+- virtio_disk_init panics if the device is not found
+- virtio_disk_rw panics if the descriptor is not free
+state:
+  stage: device
+  owned_state:
+  - struct disk (descriptor arrays, free list, used_idx, info array)
+  - disk.lock (virtio_disk_lock)
+  resource_lifetime:
+  - descriptor pool is allocated once at init
+  - disk struct persists for kernel lifetime
+preconditions:
+- buffer is locked by caller
+- called from interrupt context (devintr)
+- called once during boot
+postconditions:
+- all completed descriptors processed
+- buffer contains disk data (for read) or data is on disk (for write)
+- virtio disk is ready for I/O
+invariants:
+- id: invariant-1
+  text: each virtq_desc corresponds to one I/O operation
+- id: invariant-2
+  text: descriptors are allocated from a fixed pool (NUM)
+- id: invariant-3
+  text: virtio_disk_rw blocks until the I/O completes (sleep/wakeup)
+dependencies:
+- kernel/virtio
+rely:
+- 'module: kalloc (from kernel/memory)'
+- 'module: sleep/wakeup (from kernel/process)'
+- 'virtio_disk_init.rely.callable_interfaces: initlock (from kernel/lock)'
+- 'virtio_disk_init.rely.callable_interfaces: kalloc (from kernel/memory)'
+- 'virtio_disk_init.rely.lock_assumptions: none'
+- 'virtio_disk_init.rely.resource_assumptions: sufficient resources available'
+- 'virtio_disk_intr.rely.callable_interfaces: wakeup (from kernel/process)'
+- 'virtio_disk_intr.rely.lock_assumptions: none'
+- 'virtio_disk_intr.rely.resource_assumptions: sufficient resources available'
+- 'virtio_disk_rw.rely.callable_interfaces: sleep/wakeup (from kernel/process)'
+- 'virtio_disk_rw.rely.lock_assumptions: none'
+- 'virtio_disk_rw.rely.resource_assumptions: sufficient resources available'
+guarantee:
+- 'exported: virtio_disk_init'
+- 'exported: virtio_disk_intr'
+- 'exported: virtio_disk_rw'
+- 'virtio_disk_init.guarantee.returns: void'
+- 'virtio_disk_init.guarantee.side_effects: descriptor rings allocated'
+- 'virtio_disk_init.guarantee.side_effects: disk.lock initialized'
+- 'virtio_disk_init.guarantee.side_effects: virtio device initialized'
+- 'virtio_disk_intr.guarantee.returns: void'
+- 'virtio_disk_intr.guarantee.side_effects: completed I/O operations processed'
+- 'virtio_disk_intr.guarantee.side_effects: waiting processes woken'
+- 'virtio_disk_rw.guarantee.returns: void'
+- 'virtio_disk_rw.guarantee.side_effects: caller sleeps until completion'
+- 'virtio_disk_rw.guarantee.side_effects: disk I/O submitted'
+algorithm_intent: Implement the device stage contract while preserving the declared
+  xv6 module boundaries.
+concurrency:
+  module: {}
+  operations:
+    virtio_disk_init:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    virtio_disk_intr:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    virtio_disk_rw:
+      atomicity: disk.lock for descriptor allocation
+      lock_order: []
+      interrupt_state: enabled (may sleep)
+      wait_wakeup_rules:
+      - sleeps on &disk after I/O submission
+      - woken by virtio_disk_intr

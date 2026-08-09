@@ -1,0 +1,16 @@
+id: interface/user-headers
+name: user/headers abi boundary
+boundary: abi
+module: user/headers
+operations:
+- name: generate_user_h
+  pre: []
+  post:
+  - user/user.h is self-consistent and compiles
+  errors:
+  - none (build-time)
+  properties:
+  - id: generate_user_h-property-1
+    text: 'guarantee.returns: void'
+  - id: generate_user_h-property-2
+    text: 'guarantee.side_effects: user/user.h generated'

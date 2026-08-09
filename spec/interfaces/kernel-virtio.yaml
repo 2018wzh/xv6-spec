@@ -1,0 +1,49 @@
+id: interface/kernel-virtio
+name: kernel/virtio driver boundary
+boundary: driver
+module: kernel/virtio
+operations:
+- name: virtio_disk_init
+  pre:
+  - called once during boot
+  post:
+  - virtio disk is ready for I/O
+  errors:
+  - panics if device not found or initialization fails
+  properties:
+  - id: virtio_disk_init-property-1
+    text: 'guarantee.returns: void'
+  - id: virtio_disk_init-property-2
+    text: 'guarantee.side_effects: virtio device initialized'
+  - id: virtio_disk_init-property-3
+    text: 'guarantee.side_effects: descriptor rings allocated'
+  - id: virtio_disk_init-property-4
+    text: 'guarantee.side_effects: disk.lock initialized'
+- name: virtio_disk_intr
+  pre:
+  - called from interrupt context (devintr)
+  post:
+  - all completed descriptors processed
+  errors:
+  - none
+  properties:
+  - id: virtio_disk_intr-property-1
+    text: 'guarantee.returns: void'
+  - id: virtio_disk_intr-property-2
+    text: 'guarantee.side_effects: completed I/O operations processed'
+  - id: virtio_disk_intr-property-3
+    text: 'guarantee.side_effects: waiting processes woken'
+- name: virtio_disk_rw
+  pre:
+  - buffer is locked by caller
+  post:
+  - buffer contains disk data (for read) or data is on disk (for write)
+  errors:
+  - panics if descriptor allocation fails
+  properties:
+  - id: virtio_disk_rw-property-1
+    text: 'guarantee.returns: void'
+  - id: virtio_disk_rw-property-2
+    text: 'guarantee.side_effects: disk I/O submitted'
+  - id: virtio_disk_rw-property-3
+    text: 'guarantee.side_effects: caller sleeps until completion'

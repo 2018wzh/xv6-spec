@@ -2,6 +2,8 @@ build/
 fs.img
 kernel/*.o
 kernel/*.d
+kernel/*.asm
+kernel/*.sym
 kernel/kernel
 mkfs/mkfs
 user/*.o

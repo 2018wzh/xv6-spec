@@ -146,6 +146,8 @@ filewrite(struct file *f, uint64 addr, int n)
       return -1;
     ret = devsw[f->major].write(1, addr, n);
   } else if (f->type == FD_INODE) {
+    // Reject an unreadable user range before bmap() can allocate blocks.
+    // writei() still performs the actual copy under the inode lock.
     if (copyincheck(myproc()->pagetable, addr, n) < 0)
       return -1;
 

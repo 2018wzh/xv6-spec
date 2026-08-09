@@ -1,0 +1,142 @@
+id: kernel/plic
+module: kernel/plic
+level: 3
+purpose: RISC-V Platform-Level Interrupt Controller (PLIC) driver. Sets IRQ priorities,
+  enables per-hart S-mode interrupts, and provides claim/complete for interrupt dispatch.
+owns:
+- kernel/plic.c
+interface:
+- name: plic_claim
+  pre:
+  - called from interrupt context (devintr)
+  post: []
+  errors:
+  - none
+  properties:
+  - id: plic_claim-property-1
+    text: 'guarantee.returns.int: IRQ number (UART0_IRQ, VIRTIO0_IRQ, or 0)'
+  - id: plic_claim-property-2
+    text: 'guarantee.side_effects: interrupt claimed (marked in-progress)'
+- name: plic_complete
+  pre: []
+  post:
+  - PLIC can deliver the next interrupt of this type
+  errors:
+  - none
+  properties:
+  - id: plic_complete-property-1
+    text: 'guarantee.returns: void'
+  - id: plic_complete-property-2
+    text: 'guarantee.side_effects: interrupt marked complete'
+- name: plicinit
+  pre:
+  - called once during boot
+  post:
+  - PLIC is configured
+  errors:
+  - none
+  properties:
+  - id: plicinit-property-1
+    text: 'guarantee.returns: void'
+  - id: plicinit-property-2
+    text: 'guarantee.side_effects: UART and VIRTIO IRQ priorities set'
+- name: plicinithart
+  pre:
+  - called once per hart during boot
+  post:
+  - hart can receive UART and VIRTIO interrupts
+  errors:
+  - none
+  properties:
+  - id: plicinithart-property-1
+    text: 'guarantee.returns: void'
+  - id: plicinithart-property-2
+    text: 'guarantee.side_effects: hart-specific PLIC enable bits set'
+  - id: plicinithart-property-3
+    text: 'guarantee.side_effects: priority threshold set to 0'
+properties:
+- id: module-property-1
+  text: PLIC MMIO registers are S-mode only; userspace cannot access
+- id: module-property-2
+  text: plicinit runs once at boot
+- id: module-property-3
+  text: plicinithart runs per hart
+- id: module-property-4
+  text: unit tests for all exported functions
+- id: module-property-5
+  text: integration tests with dependent modules
+errors:
+- none
+- spurious interrupts return an invalid IRQ number; caller must handle
+state:
+  stage: device
+  owned_state:
+  - none (stateless; configures PLIC MMIO registers)
+  resource_lifetime:
+  - plicinit runs once at boot
+  - plicinithart runs per hart
+preconditions:
+- called from interrupt context (devintr)
+- called once during boot
+- called once per hart during boot
+postconditions:
+- PLIC can deliver the next interrupt of this type
+- PLIC is configured
+- hart can receive UART and VIRTIO interrupts
+invariants:
+- id: invariant-1
+  text: UART0_IRQ and VIRTIO0_IRQ are enabled for S-mode
+- id: invariant-2
+  text: each claimed interrupt is completed exactly once
+- id: invariant-3
+  text: PLIC priority threshold is set to 0 (accept all)
+dependencies:
+- kernel/plic
+rely:
+- 'plic_claim.rely.lock_assumptions: none'
+- 'plic_claim.rely.resource_assumptions: sufficient resources available'
+- 'plic_complete.rely.lock_assumptions: none'
+- 'plic_complete.rely.resource_assumptions: sufficient resources available'
+- 'plicinit.rely.lock_assumptions: none'
+- 'plicinit.rely.resource_assumptions: sufficient resources available'
+- 'plicinithart.rely.lock_assumptions: none'
+- 'plicinithart.rely.resource_assumptions: sufficient resources available'
+guarantee:
+- 'exported: plic_claim'
+- 'exported: plic_complete'
+- 'exported: plicinit'
+- 'exported: plicinithart'
+- 'plic_claim.guarantee.returns.int: IRQ number (UART0_IRQ, VIRTIO0_IRQ, or 0)'
+- 'plic_claim.guarantee.side_effects: interrupt claimed (marked in-progress)'
+- 'plic_complete.guarantee.returns: void'
+- 'plic_complete.guarantee.side_effects: interrupt marked complete'
+- 'plicinit.guarantee.returns: void'
+- 'plicinit.guarantee.side_effects: UART and VIRTIO IRQ priorities set'
+- 'plicinithart.guarantee.returns: void'
+- 'plicinithart.guarantee.side_effects: hart-specific PLIC enable bits set'
+- 'plicinithart.guarantee.side_effects: priority threshold set to 0'
+algorithm_intent: Implement the device stage contract while preserving the declared
+  xv6 module boundaries.
+concurrency:
+  module: {}
+  operations:
+    plic_claim:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    plic_complete:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    plicinit:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    plicinithart:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []

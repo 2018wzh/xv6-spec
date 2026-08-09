@@ -1,0 +1,63 @@
+id: interface/kernel-console
+name: kernel/console driver boundary
+boundary: driver
+module: kernel/console
+operations:
+- name: consoleinit
+  pre:
+  - called once during boot
+  post:
+  - console is ready
+  errors:
+  - none
+  properties:
+  - id: consoleinit-property-1
+    text: 'guarantee.returns: void'
+  - id: consoleinit-property-2
+    text: 'guarantee.side_effects: cons.lock initialized'
+- name: consoleintr
+  pre:
+  - called from interrupt context
+  post:
+  - input buffer reflects the new character
+  errors:
+  - none
+  properties:
+  - id: consoleintr-property-1
+    text: 'guarantee.returns: void'
+  - id: consoleintr-property-2
+    text: 'guarantee.side_effects: character added to input buffer'
+  - id: consoleintr-property-3
+    text: 'guarantee.side_effects: line may be completed'
+  - id: consoleintr-property-4
+    text: 'guarantee.side_effects: readers may be woken'
+- name: consoleread
+  pre: []
+  post: []
+  errors:
+  - none
+  properties:
+  - id: consoleread-property-1
+    text: 'guarantee.returns.int: number of bytes read, or -1 on error'
+  - id: consoleread-property-2
+    text: 'guarantee.side_effects: data copied to user buffer'
+- name: consolewrite
+  pre: []
+  post: []
+  errors:
+  - none (always succeeds)
+  properties:
+  - id: consolewrite-property-1
+    text: 'guarantee.returns.int: n (always succeeds)'
+  - id: consolewrite-property-2
+    text: 'guarantee.side_effects: all n bytes written to UART'
+- name: consputc
+  pre: []
+  post: []
+  errors:
+  - none
+  properties:
+  - id: consputc-property-1
+    text: 'guarantee.returns: void'
+  - id: consputc-property-2
+    text: 'guarantee.side_effects: character written to UART'

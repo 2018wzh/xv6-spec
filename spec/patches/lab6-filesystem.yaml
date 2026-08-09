@@ -1,4 +1,11 @@
 id: lab6-filesystem
-reason: persistent state adds transactional ownership
-changes: [kernel/fs, kernel/virtio]
-new_invariants: [committed log records recover atomically]
+reason: Lab 6 composes the block driver, buffer cache, log, inode layer and exec loader.
+changes:
+- kernel/bio
+- kernel/virtio
+- kernel/log
+- kernel/fs
+- kernel/exec
+new_invariants:
+- Logged writes reach the disk only through pinned buffer-cache entries.
+- Invalid write buffers fail before a filesystem transaction changes allocation state.

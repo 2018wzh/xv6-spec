@@ -1,15 +1,233 @@
 id: kernel/pipe
 module: kernel/pipe
-level: 2
-purpose: file descriptions pipes and shell IO.
+level: 3
+purpose: 'Pipe-based inter-process communication: paired file descriptors with a bounded
+  kernel buffer (PIPESIZE=512), blocking read/write with sleep/wakeup.'
 owns:
-- kernel/file.c
 - kernel/pipe.c
-- kernel/sysfile.c
-- user/sh.c
-interface: []
+interface:
+- name: pipealloc
+  pre:
+  - neither file descriptor is in use
+  post:
+  - 'on success: *f0 is the read end, *f1 is the write end'
+  errors:
+  - returns -1 on allocation failure; cleans up partial allocations
+  properties:
+  - id: pipealloc-property-1
+    text: 'guarantee.returns.int: 0 on success'
+  - id: pipealloc-property-2
+    text: 'guarantee.returns: -1 on failure'
+  - id: pipealloc-property-3
+    text: 'guarantee.side_effects: pipe allocated'
+  - id: pipealloc-property-4
+    text: 'guarantee.side_effects: two file descriptors created'
+  - id: pipealloc-property-5
+    text: 'guarantee.side_effects: pipe initialized (nread=0, nwrite=0, readopen=1,
+      writeopen=1)'
+- name: pipeclose
+  pre: []
+  post: []
+  errors:
+  - none
+  properties:
+  - id: pipeclose-property-1
+    text: 'guarantee.returns: void'
+  - id: pipeclose-property-2
+    text: 'guarantee.side_effects: readopen or writeopen set to 0'
+  - id: pipeclose-property-3
+    text: 'guarantee.side_effects: blocked readers/writers woken'
+  - id: pipeclose-property-4
+    text: 'guarantee.side_effects: pipe freed if both ends closed'
+- name: piperead
+  pre: []
+  post:
+  - bytes are in user buffer
+  errors:
+  - returns -1 if write end is closed and pipe is empty, or process is killed
+  properties:
+  - id: piperead-property-1
+    text: 'guarantee.returns.int: number of bytes read, or -1 on error'
+  - id: piperead-property-2
+    text: 'guarantee.side_effects: data copied to user buffer'
+  - id: piperead-property-3
+    text: 'guarantee.side_effects: nread advanced'
+  - id: piperead-property-4
+    text: 'guarantee.side_effects: writers woken'
+- name: pipewrite
+  pre:
+  - pipe read end is open
+  post:
+  - bytes are in the pipe buffer
+  errors:
+  - returns -1 if read end is closed or process is killed
+  properties:
+  - id: pipewrite-property-1
+    text: 'guarantee.returns.int: number of bytes written, or -1 on error'
+  - id: pipewrite-property-2
+    text: 'guarantee.side_effects: data copied to pipe buffer'
+  - id: pipewrite-property-3
+    text: 'guarantee.side_effects: nwrite advanced'
+  - id: pipewrite-property-4
+    text: 'guarantee.side_effects: readers woken'
 properties:
-- id: kernel-pipe-deterministic
-  text: behavior is deterministic under the published lab checks
+- id: module-property-1
+  text: pipe data copied through kernel via copyin/copyout; no shared memory between
+    processes
+- id: module-property-2
+  text: pipe is allocated via kalloc and freed via kfree
+- id: module-property-3
+  text: readopen/writeopen track open ends
+- id: module-property-4
+  text: fileclose triggers pipeclose
+- id: module-property-5
+  text: unit tests for all exported functions
+- id: module-property-6
+  text: integration tests with dependent modules
 errors:
-- invalid state fails explicitly
+- none
+- piperead returns -1 if write end is closed and buffer is empty
+- pipewrite returns -1 if read end is closed
+- returns -1 if process is killed while sleeping
+- returns -1 if read end is closed or process is killed
+- returns -1 if write end is closed and pipe is empty, or process is killed
+- returns -1 on allocation failure; cleans up partial allocations
+state:
+  stage: ipc
+  owned_state:
+  - struct pipe (lock, data[PIPESIZE], nread, nwrite, readopen, writeopen)
+  resource_lifetime:
+  - pipe is allocated via kalloc and freed via kfree
+  - readopen/writeopen track open ends
+  - fileclose triggers pipeclose
+preconditions:
+- neither file descriptor is in use
+- pipe read end is open
+postconditions:
+- bytes are in the pipe buffer
+- bytes are in user buffer
+- 'on success: *f0 is the read end, *f1 is the write end'
+invariants:
+- id: invariant-1
+  text: nwrite - nread <= PIPESIZE
+- id: invariant-2
+  text: nread <= nwrite
+- id: invariant-3
+  text: at most one reader and one writer
+- id: invariant-4
+  text: pipe is freed when both readopen and writeopen are 0
+dependencies:
+- kernel/pipe
+rely:
+- copyin/copyout handle user address validation
+- 'module: copyin/copyout (from kernel/memory)'
+- 'module: filealloc/fileclose (from kernel/file)'
+- 'module: kalloc/kfree (from kernel/memory)'
+- 'module: sleep/wakeup (from kernel/process)'
+- 'pipealloc.rely.callable_interfaces: filealloc (from kernel/file)'
+- 'pipealloc.rely.callable_interfaces: initlock (from kernel/lock)'
+- 'pipealloc.rely.callable_interfaces: kalloc/kfree (from kernel/memory)'
+- 'pipealloc.rely.lock_assumptions: acquires pi->lock'
+- 'pipealloc.rely.resource_assumptions: sufficient resources available'
+- 'pipeclose.rely.callable_interfaces: kfree (from kernel/memory)'
+- 'pipeclose.rely.callable_interfaces: wakeup (from kernel/process)'
+- 'pipeclose.rely.lock_assumptions: acquires pi->lock'
+- 'pipeclose.rely.resource_assumptions: sufficient resources available'
+- 'piperead.rely.callable_interfaces: copyout (from kernel/memory)'
+- 'piperead.rely.callable_interfaces: sleep/wakeup (from kernel/process)'
+- 'piperead.rely.lock_assumptions: acquires pi->lock'
+- 'piperead.rely.resource_assumptions: sufficient resources available'
+- 'pipewrite.rely.callable_interfaces: copyin (from kernel/memory)'
+- 'pipewrite.rely.callable_interfaces: sleep/wakeup (from kernel/process)'
+- 'pipewrite.rely.lock_assumptions: acquires pi->lock'
+- 'pipewrite.rely.resource_assumptions: sufficient resources available'
+- sleep/wakeup correctly manage the wait channel
+guarantee:
+- every byte written is either read or discarded on close
+- 'exported: pipealloc'
+- 'exported: pipeclose'
+- 'exported: piperead'
+- 'exported: pipewrite'
+- 'pipealloc.guarantee.returns.int: 0 on success'
+- 'pipealloc.guarantee.returns: -1 on failure'
+- 'pipealloc.guarantee.side_effects: pipe allocated'
+- 'pipealloc.guarantee.side_effects: pipe initialized (nread=0, nwrite=0, readopen=1,
+  writeopen=1)'
+- 'pipealloc.guarantee.side_effects: two file descriptors created'
+- 'pipeclose.guarantee.returns: void'
+- 'pipeclose.guarantee.side_effects: blocked readers/writers woken'
+- 'pipeclose.guarantee.side_effects: pipe freed if both ends closed'
+- 'pipeclose.guarantee.side_effects: readopen or writeopen set to 0'
+- piperead returns actual bytes read (may be -1 if killed)
+- 'piperead.guarantee.returns.int: number of bytes read, or -1 on error'
+- 'piperead.guarantee.side_effects: data copied to user buffer'
+- 'piperead.guarantee.side_effects: nread advanced'
+- 'piperead.guarantee.side_effects: writers woken'
+- pipewrite returns actual bytes written (may be < n if killed)
+- 'pipewrite.guarantee.returns.int: number of bytes written, or -1 on error'
+- 'pipewrite.guarantee.side_effects: data copied to pipe buffer'
+- 'pipewrite.guarantee.side_effects: nwrite advanced'
+- 'pipewrite.guarantee.side_effects: readers woken'
+algorithm_intent: Implement the ipc stage contract while preserving the declared xv6
+  module boundaries.
+concurrency:
+  module:
+    module: kernel/pipe
+    shared_state:
+    - pi->data[PIPESIZE] (circular buffer)
+    - pi->nread, pi->nwrite (read/write pointers)
+    - pi->readopen, pi->writeopen (end-of-pipe flags)
+    lock_types:
+    - pi->lock: spinlock (protects all pipe state)
+    lock_order:
+    - pi->lock only (no nested locks)
+    atomic_sections:
+    - pipewrite: holds pi->lock throughout; may sleep on &pi->nwrite
+    - piperead: holds pi->lock throughout; may sleep on &pi->nread
+    - pipeclose: holds pi->lock, decrements open flags, may kfree
+    interrupt_rules:
+    - pi->lock is never held across copyin/copyout (released during sleep)
+    wait_wakeup_rules:
+    - pipewrite sleeps on &pi->nwrite when buffer is full; wakes on piperead or pipeclose
+    - piperead sleeps on &pi->nread when buffer is empty and writeopen; wakes on pipewrite
+      or pipeclose
+    - pipeclose wakes both &pi->nread and &pi->nwrite
+    rely:
+    - copyin/copyout handle user address validation
+    - sleep/wakeup correctly manage the wait channel
+    guarantee:
+    - every byte written is either read or discarded on close
+    - pipewrite returns actual bytes written (may be < n if killed)
+    - piperead returns actual bytes read (may be -1 if killed)
+    forbidden_patterns:
+    - accessing pipe after kfree (race with pipeclose on last close)
+    - assuming piperead always returns the requested number of bytes
+  operations:
+    pipealloc:
+      atomicity: pi->lock
+      lock_order:
+      - pi->lock
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    pipeclose:
+      atomicity: pi->lock
+      lock_order:
+      - pi->lock
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    piperead:
+      atomicity: pi->lock held throughout, released during sleep
+      lock_order:
+      - pi->lock
+      interrupt_state: enabled (may sleep)
+      wait_wakeup_rules:
+      - sleeps on &pi->nread when empty
+      - wakes &pi->nwrite after reading
+    pipewrite:
+      atomicity: pi->lock held throughout, released during sleep
+      lock_order:
+      - pi->lock
+      interrupt_state: enabled (may sleep)
+      wait_wakeup_rules:
+      - sleeps on &pi->nwrite when full
+      - wakes &pi->nread after writing

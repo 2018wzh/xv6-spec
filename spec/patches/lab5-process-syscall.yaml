@@ -1,4 +1,10 @@
 id: lab5-process-syscall
-reason: process state crosses the trap boundary
-changes: [kernel/trap, kernel/process, kernel/syscall]
-new_invariants: [trap-frame state belongs to one process]
+reason: Lab 5 extends traps and memory ownership across the new process and syscall boundary.
+changes:
+- kernel/memory
+- kernel/trap
+- kernel/process
+- kernel/syscall
+new_invariants:
+- User pointers are translated through the owning process page table.
+- Trap-frame state is the sole register handoff between user and kernel execution.

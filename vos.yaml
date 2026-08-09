@@ -1,129 +1,689 @@
 version: vos.project.v1
 build:
   program: make
-  args: []
+  args:
+  - all
   cwd: .
-  env: []
-  timeout: 120000
-  artifacts: [kernel/kernel]
+  env:
+  - PATH
+  - TOOLPREFIX
+  timeout: 180000
+  artifacts:
+  - build/kernel.elf
+  - build/kernel.bin
+  - build/kernel.asm
+  - fs.img
 runners:
   qemu:
-    program: make
-    args: [qemu]
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - shell_boots
     cwd: .
-    env: []
-    timeout: 120000
-    artifacts: []
+    env:
+    - PATH
+    - TOOLPREFIX
+    timeout: 60000
+    artifacts:
+    - build/qemu_boot.log
+    - build/public/shell_boots.log
+    workload: boot-smoke
   hardware:
-    program: sh
-    args: [-c, 'exit 2']
+    program: python3
+    args:
+    - tools/vf2_hardware_runner.py
     cwd: .
-    env: []
-    timeout: 1000
-    artifacts: []
+    env:
+    - PATH
+    - VOS_VF2_BOARD_ALIAS
+    - VOS_VF2_SERIAL_PORT
+    timeout: 1500000
+    artifacts:
+    - .vos/hardware/visionfive2-evidence.json
+    - .vos/hardware/visionfive2-serial.log
+    board: visionfive2-v1.3b
+    serial: VOS_VF2_SERIAL_PORT
+    workload: four-hart-usertests
 checks:
   bootstrap_banner_not_null:
-    program: sh
-    args: [tests/public/verify.sh, bootstrap_banner_not_null]
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - bootstrap_banner_not_null
     cwd: .
-    env: []
-    timeout: 120000
-    verifies: [kernel/boot]
+    env:
+    - PATH
+    - TOOLPREFIX
+    timeout: 60000
+    verifies:
+    - kernel/boot
+  bootstrap_banner_length_positive:
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - bootstrap_banner_length_positive
+    cwd: .
+    env:
+    - PATH
+    - TOOLPREFIX
+    timeout: 60000
+    verifies:
+    - kernel/boot
+  boot_banner_printable:
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - boot_banner_printable
+    cwd: .
+    env:
+    - PATH
+    - TOOLPREFIX
+    timeout: 60000
+    verifies:
+    - kernel/boot
+  kalloc_exhaustion:
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - kalloc_exhaustion
+    cwd: .
+    env:
+    - PATH
+    - TOOLPREFIX
+    timeout: 60000
+    verifies:
+    - kernel/memory
   kalloc_alignment:
-    program: sh
-    args: [tests/public/verify.sh, kalloc_alignment]
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - kalloc_alignment
     cwd: .
-    env: []
-    timeout: 120000
-    verifies: [kernel/memory]
+    env:
+    - PATH
+    - TOOLPREFIX
+    timeout: 60000
+    verifies:
+    - kernel/memory
+  kalloc_kfree_cycle:
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - kalloc_kfree_cycle
+    cwd: .
+    env:
+    - PATH
+    - TOOLPREFIX
+    timeout: 60000
+    verifies:
+    - kernel/memory
   kvmmake_identity_mapping:
-    program: sh
-    args: [tests/public/verify.sh, kvmmake_identity_mapping]
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - kvmmake_identity_mapping
     cwd: .
-    env: []
-    timeout: 120000
-    verifies: [kernel/memory]
+    env:
+    - PATH
+    - TOOLPREFIX
+    timeout: 60000
+    verifies:
+    - kernel/memory
+  kvmmake_trampoline_mapped:
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - kvmmake_trampoline_mapped
+    cwd: .
+    env:
+    - PATH
+    - TOOLPREFIX
+    timeout: 60000
+    verifies:
+    - kernel/memory
   trap_init_stvec_set:
-    program: sh
-    args: [tests/public/verify.sh, trap_init_stvec_set]
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - trap_init_stvec_set
     cwd: .
-    env: []
-    timeout: 120000
-    verifies: [kernel/trap]
+    env:
+    - PATH
+    - TOOLPREFIX
+    timeout: 60000
+    verifies:
+    - kernel/trap
   devintr_timer:
-    program: sh
-    args: [tests/public/verify.sh, devintr_timer]
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - devintr_timer
     cwd: .
-    env: []
-    timeout: 120000
-    verifies: [kernel/trap]
-  uart_boot_output:
-    program: sh
-    args: [tests/public/verify.sh, uart_boot_output]
+    env:
+    - PATH
+    - TOOLPREFIX
+    timeout: 60000
+    verifies:
+    - kernel/trap
+  usertrap_timer:
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - usertrap_timer
     cwd: .
-    env: []
-    timeout: 120000
-    verifies: [kernel/trap]
+    env:
+    - PATH
+    - TOOLPREFIX
+    timeout: 60000
+    verifies:
+    - kernel/trap
   fork_returns_different_pid:
-    program: sh
-    args: [tests/public/verify.sh, fork_returns_different_pid]
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - fork_returns_different_pid
     cwd: .
-    env: []
-    timeout: 120000
-    verifies: [kernel/process]
+    env:
+    - PATH
+    - TOOLPREFIX
+    timeout: 60000
+    verifies:
+    - kernel/process
+  fork_memory_isolation:
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - fork_memory_isolation
+    cwd: .
+    env:
+    - PATH
+    - TOOLPREFIX
+    timeout: 60000
+    verifies:
+    - kernel/process
+  exit_zombie:
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - exit_zombie
+    cwd: .
+    env:
+    - PATH
+    - TOOLPREFIX
+    timeout: 60000
+    verifies:
+    - kernel/process
+  wait_reap_child:
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - wait_reap_child
+    cwd: .
+    env:
+    - PATH
+    - TOOLPREFIX
+    timeout: 60000
+    verifies:
+    - kernel/process
   syscall_valid_number:
-    program: sh
-    args: [tests/public/verify.sh, syscall_valid_number]
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - syscall_valid_number
     cwd: .
-    env: []
-    timeout: 120000
-    verifies: [kernel/process]
+    env:
+    - PATH
+    - TOOLPREFIX
+    timeout: 60000
+    verifies:
+    - kernel/syscall
+  syscall_invalid_number:
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - syscall_invalid_number
+    cwd: .
+    env:
+    - PATH
+    - TOOLPREFIX
+    timeout: 60000
+    verifies:
+    - kernel/syscall
+  invalid_user_pointer_write:
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - invalid_user_pointer_write
+    cwd: .
+    env:
+    - PATH
+    - TOOLPREFIX
+    timeout: 60000
+    verifies:
+    - kernel/syscall
+  sys_write_basic:
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - sys_write_basic
+    cwd: .
+    env:
+    - PATH
+    - TOOLPREFIX
+    timeout: 60000
+    verifies:
+    - kernel/syscall
+    - kernel/sysfile
+  sys_write_large_buffer:
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - sys_write_large_buffer
+    cwd: .
+    env:
+    - PATH
+    - TOOLPREFIX
+    timeout: 60000
+    verifies:
+    - kernel/syscall
+  sys_fork_parent_pid:
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - sys_fork_parent_pid
+    cwd: .
+    env:
+    - PATH
+    - TOOLPREFIX
+    timeout: 60000
+    verifies:
+    - kernel/syscall
+  sys_fork_child_zero:
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - sys_fork_child_zero
+    cwd: .
+    env:
+    - PATH
+    - TOOLPREFIX
+    timeout: 60000
+    verifies:
+    - kernel/syscall
+  sys_sbrk_grow:
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - sys_sbrk_grow
+    cwd: .
+    env:
+    - PATH
+    - TOOLPREFIX
+    timeout: 60000
+    verifies:
+    - kernel/syscall
+  sys_sbrk_shrink:
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - sys_sbrk_shrink
+    cwd: .
+    env:
+    - PATH
+    - TOOLPREFIX
+    timeout: 60000
+    verifies:
+    - kernel/syscall
   bread_cache_hit:
-    program: sh
-    args: [tests/public/verify.sh, bread_cache_hit]
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - bread_cache_hit
     cwd: .
-    env: []
-    timeout: 120000
-    verifies: [kernel/fs]
+    env:
+    - PATH
+    - TOOLPREFIX
+    timeout: 60000
+    verifies:
+    - kernel/bio
+  bread_cache_miss:
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - bread_cache_miss
+    cwd: .
+    env:
+    - PATH
+    - TOOLPREFIX
+    timeout: 60000
+    verifies:
+    - kernel/bio
+  bwrite_verify:
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - bwrite_verify
+    cwd: .
+    env:
+    - PATH
+    - TOOLPREFIX
+    timeout: 60000
+    verifies:
+    - kernel/bio
   log_recovery_committed:
-    program: sh
-    args: [tests/public/verify.sh, log_recovery_committed]
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - log_recovery_committed
     cwd: .
-    env: []
-    timeout: 120000
-    verifies: [kernel/fs]
-  exec_valid_elf:
-    program: sh
-    args: [tests/public/verify.sh, exec_valid_elf]
+    env:
+    - PATH
+    - TOOLPREFIX
+    timeout: 60000
+    verifies:
+    - kernel/log
+  log_recovery_empty:
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - log_recovery_empty
     cwd: .
-    env: []
-    timeout: 120000
-    verifies: [kernel/fs]
+    env:
+    - PATH
+    - TOOLPREFIX
+    timeout: 60000
+    verifies:
+    - kernel/log
+  inode_alloc_free_cycle:
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - inode_alloc_free_cycle
+    cwd: .
+    env:
+    - PATH
+    - TOOLPREFIX
+    timeout: 60000
+    verifies:
+    - kernel/fs
+  inode_ref_count:
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - inode_ref_count
+    cwd: .
+    env:
+    - PATH
+    - TOOLPREFIX
+    timeout: 60000
+    verifies:
+    - kernel/fs
   fd_alloc_close_cycle:
-    program: sh
-    args: [tests/public/verify.sh, fd_alloc_close_cycle]
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - fd_alloc_close_cycle
     cwd: .
-    env: []
-    timeout: 120000
-    verifies: [kernel/pipe]
+    env:
+    - PATH
+    - TOOLPREFIX
+    timeout: 60000
+    verifies:
+    - kernel/file
+    - kernel/sysfile
+  fd_ref_count:
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - fd_ref_count
+    cwd: .
+    env:
+    - PATH
+    - TOOLPREFIX
+    timeout: 60000
+    verifies:
+    - kernel/file
+  exec_valid_elf:
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - exec_valid_elf
+    cwd: .
+    env:
+    - PATH
+    - TOOLPREFIX
+    timeout: 60000
+    verifies:
+    - kernel/exec
+  exec_invalid_elf:
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - exec_invalid_elf
+    cwd: .
+    env:
+    - PATH
+    - TOOLPREFIX
+    timeout: 60000
+    verifies:
+    - kernel/exec
+  exec_argv_passing:
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - exec_argv_passing
+    cwd: .
+    env:
+    - PATH
+    - TOOLPREFIX
+    timeout: 60000
+    verifies:
+    - kernel/exec
   pipe_read_write_cycle:
-    program: sh
-    args: [tests/public/verify.sh, pipe_read_write_cycle]
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - pipe_read_write_cycle
     cwd: .
-    env: []
-    timeout: 120000
-    verifies: [kernel/pipe]
+    env:
+    - PATH
+    - TOOLPREFIX
+    timeout: 60000
+    verifies:
+    - kernel/pipe
+  pipe_blocking_full:
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - pipe_blocking_full
+    cwd: .
+    env:
+    - PATH
+    - TOOLPREFIX
+    timeout: 60000
+    verifies:
+    - kernel/pipe
+  pipe_close_wakeup:
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - pipe_close_wakeup
+    cwd: .
+    env:
+    - PATH
+    - TOOLPREFIX
+    timeout: 60000
+    verifies:
+    - kernel/pipe
+    - kernel/sysfile
+  uart_boot_output:
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - uart_boot_output
+    cwd: .
+    env:
+    - PATH
+    - TOOLPREFIX
+    timeout: 60000
+    verifies:
+    - kernel/uart
+  uart_echo:
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - uart_echo
+    cwd: .
+    env:
+    - PATH
+    - TOOLPREFIX
+    timeout: 60000
+    verifies:
+    - kernel/uart
+  disk_read_write:
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - disk_read_write
+    cwd: .
+    env:
+    - PATH
+    - TOOLPREFIX
+    timeout: 60000
+    verifies:
+    - kernel/virtio
+  disk_init:
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - disk_init
+    cwd: .
+    env:
+    - PATH
+    - TOOLPREFIX
+    timeout: 60000
+    verifies:
+    - kernel/virtio
+  open_read_write_close:
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - open_read_write_close
+    cwd: .
+    env:
+    - PATH
+    - TOOLPREFIX
+    timeout: 60000
+    verifies:
+    - kernel/sysfile
+  dup_functional:
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - dup_functional
+    cwd: .
+    env:
+    - PATH
+    - TOOLPREFIX
+    timeout: 60000
+    verifies:
+    - kernel/sysfile
+  link_unlink:
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - link_unlink
+    cwd: .
+    env:
+    - PATH
+    - TOOLPREFIX
+    timeout: 60000
+    verifies:
+    - kernel/sysfile
+  sys_pipe_create:
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - sys_pipe_create
+    cwd: .
+    env:
+    - PATH
+    - TOOLPREFIX
+    timeout: 60000
+    verifies:
+    - kernel/pipe
+  sys_pipe_read_write:
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - sys_pipe_read_write
+    cwd: .
+    env:
+    - PATH
+    - TOOLPREFIX
+    timeout: 60000
+    verifies:
+    - kernel/pipe
   shell_boots:
-    program: sh
-    args: [tests/public/verify.sh, shell_boots]
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - shell_boots
     cwd: .
-    env: []
-    timeout: 120000
-    verifies: [kernel/pipe]
+    env:
+    - PATH
+    - TOOLPREFIX
+    timeout: 60000
+    verifies:
+    - user/tests
+  shell_executes_echo:
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - shell_executes_echo
+    cwd: .
+    env:
+    - PATH
+    - TOOLPREFIX
+    timeout: 60000
+    verifies:
+    - kernel/exec
+    - kernel/uart
+    - user/tests
   usertests_all_pass:
-    program: sh
-    args: [tests/public/verify.sh, usertests_all_pass]
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - usertests_all_pass
     cwd: .
-    env: []
+    env:
+    - PATH
+    - TOOLPREFIX
     timeout: 900000
-    verifies: [xv6-upstream-behavior]
+    verifies:
+    - user/tests
+  vf2_platform_contract:
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - vf2_platform_contract
+    cwd: .
+    env:
+    - PATH
+    timeout: 60000
+    verifies:
+    - kernel/platform
+    - kernel/sbi
+  vf2_image_tools:
+    program: bash
+    args:
+    - tests/public/verify.sh
+    - vf2_image_tools
+    cwd: .
+    env:
+    - PATH
+    timeout: 60000
+    verifies:
+    - kernel/block-device
+    - kernel/sd
+    - kernel/gpt

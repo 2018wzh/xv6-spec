@@ -1,0 +1,114 @@
+id: user/tests
+module: user/tests
+level: 3
+purpose: 'User-space test and stress programs: forktest (fork stress), usertests (comprehensive
+  regression suite), grind (randomized syscall fuzzing). These programs exercise kernel
+  functionality from user space and report pass/fail results.'
+owns:
+- user/forktest.c
+- user/grind.c
+- user/usertests.c
+interface:
+- name: generate_forktest_c
+  pre: []
+  post:
+  - test program compiles
+  errors:
+  - none
+  properties:
+  - id: generate_forktest_c-property-1
+    text: 'guarantee.returns: void'
+  - id: generate_forktest_c-property-2
+    text: 'guarantee.side_effects: user/forktest.c generated'
+- name: generate_grind_c
+  pre: []
+  post:
+  - test program compiles
+  errors:
+  - none
+  properties:
+  - id: generate_grind_c-property-1
+    text: 'guarantee.returns: void'
+  - id: generate_grind_c-property-2
+    text: 'guarantee.side_effects: user/grind.c generated'
+- name: generate_usertests_c
+  pre: []
+  post:
+  - test program compiles
+  errors:
+  - none
+  properties:
+  - id: generate_usertests_c-property-1
+    text: 'guarantee.returns: void'
+  - id: generate_usertests_c-property-2
+    text: 'guarantee.side_effects: user/usertests.c generated'
+properties:
+- id: module-property-1
+  text: user-space only; tests exercise syscall interface
+- id: module-property-2
+  text: test programs allocate and free memory during execution
+- id: module-property-3
+  text: usertests passes all sub-tests
+- id: module-property-4
+  text: forktest does not deadlock or leak processes
+errors:
+- none
+- test programs print error messages and exit(1) on failure
+state:
+  stage: full-syscall
+  owned_state:
+  - none (test programs only)
+  resource_lifetime:
+  - test programs allocate and free memory during execution
+preconditions: []
+postconditions:
+- test program compiles
+invariants:
+- id: invariant-1
+  text: test programs exit with 0 on success
+- id: invariant-2
+  text: test output is deterministic for a given kernel state
+dependencies:
+- user/headers
+- user/lib
+- user/stubs
+- user/tests
+rely:
+- 'generate_forktest_c.rely.lock_assumptions: none'
+- 'generate_forktest_c.rely.resource_assumptions: sufficient resources available'
+- 'generate_grind_c.rely.lock_assumptions: none'
+- 'generate_grind_c.rely.resource_assumptions: sufficient resources available'
+- 'generate_usertests_c.rely.lock_assumptions: none'
+- 'generate_usertests_c.rely.resource_assumptions: sufficient resources available'
+- 'module: all syscall stubs (from user/stubs)'
+- 'module: printf/malloc/free (from user/lib)'
+guarantee:
+- 'exported: generate_forktest_c'
+- 'exported: generate_grind_c'
+- 'exported: generate_usertests_c'
+- 'generate_forktest_c.guarantee.returns: void'
+- 'generate_forktest_c.guarantee.side_effects: user/forktest.c generated'
+- 'generate_grind_c.guarantee.returns: void'
+- 'generate_grind_c.guarantee.side_effects: user/grind.c generated'
+- 'generate_usertests_c.guarantee.returns: void'
+- 'generate_usertests_c.guarantee.side_effects: user/usertests.c generated'
+algorithm_intent: Implement the full-syscall stage contract while preserving the declared
+  xv6 module boundaries.
+concurrency:
+  module: {}
+  operations:
+    generate_forktest_c:
+      atomicity: build-time only
+      lock_order: []
+      interrupt_state: n/a
+      wait_wakeup_rules: []
+    generate_grind_c:
+      atomicity: build-time only
+      lock_order: []
+      interrupt_state: n/a
+      wait_wakeup_rules: []
+    generate_usertests_c:
+      atomicity: build-time only
+      lock_order: []
+      interrupt_state: n/a
+      wait_wakeup_rules: []

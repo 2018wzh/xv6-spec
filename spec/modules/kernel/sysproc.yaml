@@ -1,0 +1,293 @@
+id: kernel/sysproc
+module: kernel/sysproc
+level: 3
+purpose: Process-oriented syscall handlers for xv6 user programs, including fork,
+  exit, wait, kill, getpid, sbrk, uptime, and pause. This module bridges syscall dispatch
+  to process and memory subsystems.
+owns:
+- kernel/sysproc.c
+interface:
+- name: sys_exit
+  pre:
+  - called from user context
+  post:
+  - process is ZOMBIE, resources will be reaped by parent
+  errors:
+  - never returns
+  properties:
+  - id: sys_exit-property-1
+    text: 'guarantee.returns.int: does not return'
+  - id: sys_exit-property-2
+    text: 'guarantee.side_effects: process state set to ZOMBIE'
+  - id: sys_exit-property-3
+    text: 'guarantee.side_effects: children reparented to init'
+  - id: sys_exit-property-4
+    text: 'guarantee.side_effects: parent woken'
+- name: sys_fork
+  pre: []
+  post:
+  - parent and child are independent processes
+  errors:
+  - returns -1 if fork fails
+  properties:
+  - id: sys_fork-property-1
+    text: 'guarantee.returns.int: child PID to parent'
+  - id: sys_fork-property-2
+    text: 'guarantee.returns: 0 to child'
+  - id: sys_fork-property-3
+    text: 'guarantee.returns: -1 on failure'
+  - id: sys_fork-property-4
+    text: 'guarantee.side_effects: new child process created'
+- name: sys_getpid
+  pre: []
+  post: []
+  errors:
+  - none
+  properties:
+  - id: sys_getpid-property-1
+    text: 'guarantee.returns.int: current process PID'
+  - id: sys_getpid-property-2
+    text: 'guarantee.side_effects: none'
+- name: sys_kill
+  pre: []
+  post:
+  - target process will exit on next trap or syscall
+  errors:
+  - returns -1 if pid is invalid or no such process
+  properties:
+  - id: sys_kill-property-1
+    text: 'guarantee.returns.int: 0 on success'
+  - id: sys_kill-property-2
+    text: 'guarantee.returns: -1 if pid invalid'
+  - id: sys_kill-property-3
+    text: 'guarantee.side_effects: target process''s killed flag set'
+  - id: sys_kill-property-4
+    text: 'guarantee.side_effects: target woken if sleeping'
+- name: sys_pause
+  pre: []
+  post:
+  - at least n ticks have elapsed (or killed)
+  errors:
+  - returns -1 if killed
+  properties:
+  - id: sys_pause-property-1
+    text: 'guarantee.returns.int: 0 on success'
+  - id: sys_pause-property-2
+    text: 'guarantee.returns: -1 if killed'
+  - id: sys_pause-property-3
+    text: 'guarantee.side_effects: process sleeps for n ticks'
+- name: sys_sbrk
+  pre: []
+  post:
+  - heap size is changed
+  - new pages are zeroed
+  errors:
+  - returns -1 if growproc fails or address overflows
+  properties:
+  - id: sys_sbrk-property-1
+    text: 'guarantee.returns.uint64: old process size'
+  - id: sys_sbrk-property-2
+    text: 'guarantee.returns: -1 on failure'
+  - id: sys_sbrk-property-3
+    text: 'guarantee.side_effects: p->sz updated'
+  - id: sys_sbrk-property-4
+    text: 'guarantee.side_effects: pages allocated (if eager)'
+- name: sys_uptime
+  pre: []
+  post: []
+  errors:
+  - none
+  properties:
+  - id: sys_uptime-property-1
+    text: 'guarantee.returns.uint64: number of ticks'
+  - id: sys_uptime-property-2
+    text: 'guarantee.side_effects: none'
+- name: sys_wait
+  pre: []
+  post:
+  - exited child is reaped
+  - exit status copied to user address
+  errors:
+  - returns -1 if no children exist
+  properties:
+  - id: sys_wait-property-1
+    text: 'guarantee.returns.int: child PID on success'
+  - id: sys_wait-property-2
+    text: 'guarantee.returns: -1 on failure'
+  - id: sys_wait-property-3
+    text: 'guarantee.side_effects: zombie child reaped'
+  - id: sys_wait-property-4
+    text: 'guarantee.side_effects: child resources freed'
+properties:
+- id: module-property-1
+  text: user arguments are fetched through syscall argument helpers
+- id: module-property-2
+  text: process identifiers do not grant direct kernel object access
+- id: module-property-3
+  text: process resources are released through exit and wait
+- id: module-property-4
+  text: address-space growth and shrink are delegated to growproc
+- id: module-property-5
+  text: fork/exit/wait syscall behavior
+- id: module-property-6
+  text: getpid and kill argument handling
+- id: module-property-7
+  text: sbrk growth and failure behavior
+errors:
+- failed process or memory operations return -1
+- invalid syscall arguments return -1
+- never returns
+- none
+- returns -1 if fork fails
+- returns -1 if growproc fails or address overflows
+- returns -1 if killed
+- returns -1 if no children exist
+- returns -1 if pid is invalid or no such process
+state:
+  stage: full-syscall
+  owned_state:
+  - syscall-visible process state transitions
+  - syscall argument marshalling for process operations
+  resource_lifetime:
+  - process resources are released through exit and wait
+  - address-space growth and shrink are delegated to growproc
+preconditions:
+- called from user context
+postconditions:
+- at least n ticks have elapsed (or killed)
+- exit status copied to user address
+- exited child is reaped
+- heap size is changed
+- new pages are zeroed
+- parent and child are independent processes
+- process is ZOMBIE, resources will be reaped by parent
+- target process will exit on next trap or syscall
+invariants:
+- id: invariant-1
+  text: syscall handlers do not expose kernel pointers to user mode
+- id: invariant-2
+  text: process lifecycle changes preserve scheduler invariants
+- id: invariant-3
+  text: sbrk growth is mediated by memory subsystem checks
+dependencies:
+- kernel/sysproc
+rely:
+- 'module: argint'
+- 'module: exit'
+- 'module: fork'
+- 'module: growproc'
+- 'module: kill'
+- 'module: myproc'
+- 'module: wait'
+- 'sys_exit.rely.callable_interfaces: argint (from kernel/syscall)'
+- 'sys_exit.rely.callable_interfaces: kexit (from kernel/process)'
+- 'sys_exit.rely.lock_assumptions: none'
+- 'sys_exit.rely.resource_assumptions: sufficient resources available'
+- 'sys_fork.rely.callable_interfaces: kfork (from kernel/process)'
+- 'sys_fork.rely.lock_assumptions: none'
+- 'sys_fork.rely.resource_assumptions: sufficient resources available'
+- 'sys_getpid.rely.callable_interfaces: myproc (from kernel/process)'
+- 'sys_getpid.rely.lock_assumptions: none'
+- 'sys_getpid.rely.resource_assumptions: sufficient resources available'
+- 'sys_kill.rely.callable_interfaces: argint (from kernel/syscall)'
+- 'sys_kill.rely.callable_interfaces: kkill (from kernel/process)'
+- 'sys_kill.rely.lock_assumptions: none'
+- 'sys_kill.rely.resource_assumptions: sufficient resources available'
+- 'sys_pause.rely.callable_interfaces: argint (from kernel/syscall)'
+- 'sys_pause.rely.callable_interfaces: sleep/wakeup (from kernel/process)'
+- 'sys_pause.rely.lock_assumptions: none'
+- 'sys_pause.rely.resource_assumptions: sufficient resources available'
+- 'sys_sbrk.rely.callable_interfaces: argint (from kernel/syscall)'
+- 'sys_sbrk.rely.callable_interfaces: growproc (from kernel/process)'
+- 'sys_sbrk.rely.lock_assumptions: none'
+- 'sys_sbrk.rely.resource_assumptions: sufficient resources available'
+- 'sys_uptime.rely.callable_interfaces: acquire/release (from kernel/lock)'
+- 'sys_uptime.rely.lock_assumptions: none'
+- 'sys_uptime.rely.resource_assumptions: sufficient resources available'
+- 'sys_wait.rely.callable_interfaces: argaddr (from kernel/syscall)'
+- 'sys_wait.rely.callable_interfaces: kwait (from kernel/process)'
+- 'sys_wait.rely.lock_assumptions: none'
+- 'sys_wait.rely.resource_assumptions: sufficient resources available'
+guarantee:
+- 'exported: sys_exit'
+- 'exported: sys_fork'
+- 'exported: sys_getpid'
+- 'exported: sys_kill'
+- 'exported: sys_pause'
+- 'exported: sys_sbrk'
+- 'exported: sys_uptime'
+- 'exported: sys_wait'
+- 'sys_exit.guarantee.returns.int: does not return'
+- 'sys_exit.guarantee.side_effects: children reparented to init'
+- 'sys_exit.guarantee.side_effects: parent woken'
+- 'sys_exit.guarantee.side_effects: process state set to ZOMBIE'
+- 'sys_fork.guarantee.returns.int: child PID to parent'
+- 'sys_fork.guarantee.returns: -1 on failure'
+- 'sys_fork.guarantee.returns: 0 to child'
+- 'sys_fork.guarantee.side_effects: new child process created'
+- 'sys_getpid.guarantee.returns.int: current process PID'
+- 'sys_getpid.guarantee.side_effects: none'
+- 'sys_kill.guarantee.returns.int: 0 on success'
+- 'sys_kill.guarantee.returns: -1 if pid invalid'
+- 'sys_kill.guarantee.side_effects: target process''s killed flag set'
+- 'sys_kill.guarantee.side_effects: target woken if sleeping'
+- 'sys_pause.guarantee.returns.int: 0 on success'
+- 'sys_pause.guarantee.returns: -1 if killed'
+- 'sys_pause.guarantee.side_effects: process sleeps for n ticks'
+- 'sys_sbrk.guarantee.returns.uint64: old process size'
+- 'sys_sbrk.guarantee.returns: -1 on failure'
+- 'sys_sbrk.guarantee.side_effects: p->sz updated'
+- 'sys_sbrk.guarantee.side_effects: pages allocated (if eager)'
+- 'sys_uptime.guarantee.returns.uint64: number of ticks'
+- 'sys_uptime.guarantee.side_effects: none'
+- 'sys_wait.guarantee.returns.int: child PID on success'
+- 'sys_wait.guarantee.returns: -1 on failure'
+- 'sys_wait.guarantee.side_effects: child resources freed'
+- 'sys_wait.guarantee.side_effects: zombie child reaped'
+algorithm_intent: Implement the full-syscall stage contract while preserving the declared
+  xv6 module boundaries.
+concurrency:
+  module: {}
+  operations:
+    sys_exit:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    sys_fork:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    sys_getpid:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    sys_kill:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    sys_pause:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules:
+      - sleeps on &ticks
+      - woken by clock interrupt
+    sys_sbrk:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    sys_uptime:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
+    sys_wait:
+      atomicity: single operation
+      lock_order: []
+      interrupt_state: enabled
+      wait_wakeup_rules: []
