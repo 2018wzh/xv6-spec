@@ -1,0 +1,10 @@
+id: lab4-trap-devices
+reason: Lab 4 adds supervisor trap entry and the UART/PLIC driver boundaries to the boot and memory composition.
+changes:
+- kernel/trap
+- kernel/boot
+- kernel/memory
+- toolchain
+new_invariants:
+- The boot hart initializes stvec, UART, and PLIC before enabling supervisor interrupts.
+- The implementation submission proposes public, contract, fuzz, and trace targets for trap-frame symmetry and PLIC claim/completion behavior, which VOS validates before projection.

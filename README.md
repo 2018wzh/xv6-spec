@@ -1,3 +1,3 @@
-# xv6-spec Lab 3
+# xv6-spec Lab 4
 
-This slice adds a page-aligned physical allocator and the kernel's Sv39 mappings to the working bootstrap. `kernel/memory` owns allocator, mapping, spinlock, and generated module-test paths. The committed Spec deliberately excludes user processes and demand paging, which later labs introduce.
+This slice adds supervisor trap entry and the UART/PLIC device boundaries to the working bootstrap and memory system. `kernel/trap` owns the vector, dispatcher, drivers, console, and generated module tests. User-mode trap return and processes remain outside the Lab 4 boundary.
