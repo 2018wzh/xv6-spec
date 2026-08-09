@@ -1,0 +1,12 @@
+id: interface/kernel-uart
+name: serial interrupt boundary
+boundary: abi
+module: kernel/trap
+operations:
+- name: current_lab_contract
+  pre: []
+  post:
+  - the current lab boundary is preserved
+  errors:
+  - invalid state fails explicitly
+  properties: []
