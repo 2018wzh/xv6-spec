@@ -1,0 +1,12 @@
+id: lab5-user-syscall
+reason: Lab 5 then composes the process substrate with user trap return, the trampoline, and validated syscall dispatch.
+changes:
+- kernel/syscall
+- kernel/trap
+- kernel/memory
+- kernel/process
+- kernel/boot
+- toolchain
+new_invariants:
+- User registers cross privilege only through the interface/trap-frame layout.
+- Syscall arguments cross only through validated copy helpers.

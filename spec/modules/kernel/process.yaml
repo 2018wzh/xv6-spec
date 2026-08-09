@@ -1,7 +1,7 @@
 id: kernel/process
 module: kernel/process
 level: 3
-purpose: Own the fixed process table, per-process address spaces and trap frames, first user process, lifecycle transitions, and round-robin context switching on the single Lab 5 hart.
+purpose: Own the fixed process table, per-process address spaces and trap frames, lifecycle transitions, and round-robin context-switching primitives on the single Lab 5 hart.
 owns:
 - kernel/proc.c
 - kernel/proc.h
@@ -12,12 +12,12 @@ interface:
   pre:
   - memory and kernel mappings are active
   post:
-  - every process slot and lock has a deterministic UNUSED state and a unique kernel stack mapping
+  - every process slot and lock has a deterministic UNUSED state and a unique kernel stack address
   errors:
   - kernel-stack allocation or mapping failure panics before scheduling
   properties:
   - id: process-init-public
-    text: kernel_process_boot_public observes process-table initialization before the first user process becomes RUNNABLE
+    text: kernel_process_boot_public observes that the compiled kernel initializes the process table before scheduler activation
 - name: allocproc
   pre:
   - called with no process lock held
@@ -28,6 +28,16 @@ interface:
   properties:
   - id: allocation-rollback-contract
     text: kernel_process_lifecycle_contract observes complete rollback on every allocation failure path
+- name: freeproc
+  pre:
+  - called with the target process lock held for a non-RUNNING slot
+  post:
+  - releases the trap frame and user page table exactly once and returns the slot to UNUSED; its index-keyed kernel stack mapping remains for reuse
+  errors:
+  - a partially initialized slot is rolled back without double release
+  properties:
+  - id: process-release-contract
+    text: kernel_process_lifecycle_contract observes complete and idempotence-guarded resource release
 - name: scheduler
   pre:
   - per-hart scheduler context is active with interrupts enabled between scans
@@ -36,8 +46,8 @@ interface:
   errors:
   - illegal lock, interrupt, or state conditions panic with evidence
   properties:
-  - id: scheduler-first-user-trace
-    text: kernel_process_scheduler_trace observes the bounded first-user RUNNABLE to RUNNING transition
+  - id: scheduler-runnable-trace
+    text: kernel_process_scheduler_trace observes the bounded RUNNABLE to RUNNING transition without requiring Lab 5 user-trap composition
   - id: scheduler-state-edge-fuzz
     text: kernel_process_state_fuzz rejects invalid edges among the lifecycle states reachable in Lab 5
 - name: sleep_wakeup
@@ -67,13 +77,13 @@ state:
   owned_state:
   - fixed process table and next pid
   - per-hart current-process and scheduler context
-  - init process identity
   resource_lifetime:
   - allocproc acquires and freeproc releases trap-frame and page-table resources
+  - procinit assigns one deterministic index-keyed kernel stack mapping to each slot for the kernel lifetime; allocproc and freeproc reuse it
 preconditions:
 - memory and supervisor traps are initialized
 postconditions:
-- a first user process is RUNNABLE and the scheduler can switch contexts without leaking privileged state
+- process allocation, lifecycle, sleep/wakeup, and scheduler primitives compile and can be composed with the syscall stage without leaking privileged state
 invariants:
 - id: process-lock-state
   text: every Lab 5 transition involving RUNNING, RUNNABLE, or SLEEPING holds the process lock; ZOMBIE enters scope only with a later exit and wait patch
@@ -86,7 +96,7 @@ dependencies:
 - toolchain
 rely:
 - memory provides page allocation and per-process page-table helpers
-- trap provides the mapped trap-frame ABI and supervisor return path
+- trap provides the trap-frame ABI shape later used by the user-return composition
 guarantee:
 - context switching preserves every RISC-V callee-saved register and stack pointer
 - lifecycle failure paths leave no allocated trap frame, page table, or stale state
@@ -104,7 +114,7 @@ concurrency:
     atomic_sections:
     - lifecycle state transition under the process lock
     interrupt_rules:
-    - sched requires interrupts disabled and exactly one process lock held
+    - interrupts are enabled between scheduler scans and disabled across each swtch while exactly one process lock is held
     rely:
     - Lab 5 runs one hart but preserves per-hart interfaces
     guarantee:
@@ -124,7 +134,7 @@ concurrency:
     sleep_wakeup:
       atomicity: caller-lock release and SLEEPING publication are protected by the process lock
       lock_order:
-      - caller lock then process lock handoff
+      - acquire the process lock as the caller lock is released; the two locks are not retained as a nested pair
       interrupt_state: managed by spinlocks
       wait_wakeup_rules:
       - a wakeup after SLEEPING publication changes the process to RUNNABLE
