@@ -41,4 +41,13 @@ SECTIONS
     . = ALIGN(16);
     _ebss = .;
   }
+
+  /* trampoline on its own page for the highest Sv39 kernel virtual page. */
+  . = ALIGN(0x1000);
+  .trampoline : {
+    *(.trampoline)
+  }
+  PROVIDE(trampoline = .);
+
+  PROVIDE(end = .);
 }

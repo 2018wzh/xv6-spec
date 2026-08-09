@@ -32,7 +32,10 @@ KERNEL_OBJS := \
   $(K)/start.o \
   $(K)/boot.o \
   $(K)/main.o \
-  $(K)/string.o
+  $(K)/string.o \
+  $(K)/spinlock.o \
+  $(K)/kalloc.o \
+  $(K)/vm.o
 
 .PHONY: all clean qemu ctf-qemu gen-fixture toolchain-probe
 
