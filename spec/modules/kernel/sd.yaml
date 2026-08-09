@@ -1,0 +1,37 @@
+id: kernel/sd
+module: kernel/sd
+level: 3
+purpose: Native polling driver for the JH7110 DesignWare SD controller and SDHC media.
+owns:
+- kernel/sd.c
+- tests/generated/kernel/sd
+interface: []
+properties:
+- id: sd-bounded-state-machine
+  text: reset command data and busy waits have finite failure bounds
+errors:
+- controller timeouts card errors and unsupported media panic
+state:
+  stage: device
+  owned_state:
+  - controller lock, card RCA and discovered partition offset
+  resource_lifetime:
+  - initialized once for the kernel lifetime
+preconditions:
+- DT identifies enabled sdio1 and inserted SDHC media
+postconditions:
+- reads and writes transfer complete 512-byte sectors
+invariants:
+- id: sd-serialized
+  text: one request owns the PIO FIFO at a time
+dependencies:
+- kernel/platform
+- kernel/gpt
+rely: []
+guarantee:
+- 'exported: jh7110_sd_init'
+- 'exported: jh7110_sd_rw'
+algorithm_intent: Implement the public DesignWare register protocol without GPL driver code.
+concurrency:
+  module: {}
+  operations: {}
