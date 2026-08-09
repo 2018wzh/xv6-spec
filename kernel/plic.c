@@ -3,6 +3,23 @@
 #include "memlayout.h"
 #include "riscv.h"
 #include "defs.h"
+#include "platform.h"
+
+static uint64
+plic_context_base(void)
+{
+  return platform_get()->plic_base + 0x201000 +
+         platform_hartid(cpuid()) * 0x2000;
+}
+
+static void
+plic_enable(uint32 irq)
+{
+  uint64 base = platform_get()->plic_base + 0x2080 +
+                platform_hartid(cpuid()) * 0x100;
+  volatile uint32 *word = (volatile uint32 *)(base + (irq / 32) * 4);
+  *word |= 1U << (irq % 32);
+}
 
 //
 // the riscv Platform Level Interrupt Controller (PLIC).
@@ -12,36 +29,32 @@ void
 plicinit(void)
 {
   // set desired IRQ priorities non-zero (otherwise disabled).
-  *(uint32 *)(PLIC + UART0_IRQ * 4) = 1;
-  *(uint32 *)(PLIC + VIRTIO0_IRQ * 4) = 1;
+  const struct platform_info *p = platform_get();
+  *(volatile uint32 *)(p->plic_base + p->uart_irq * 4) = 1;
+  *(volatile uint32 *)(p->plic_base + p->block_irq * 4) = 1;
 }
 
 void
 plicinithart(void)
 {
-  int hart = cpuid();
-
-  // set enable bits for this hart's S-mode
-  // for the uart and virtio disk.
-  *(uint32 *)PLIC_SENABLE(hart) = (1 << UART0_IRQ) | (1 << VIRTIO0_IRQ);
+  const struct platform_info *p = platform_get();
+  plic_enable(p->uart_irq);
+  plic_enable(p->block_irq);
 
   // set this hart's S-mode priority threshold to 0.
-  *(uint32 *)PLIC_SPRIORITY(hart) = 0;
+  *(volatile uint32 *)plic_context_base() = 0;
 }
 
 // ask the PLIC what interrupt we should serve.
 int
 plic_claim(void)
 {
-  int hart = cpuid();
-  int irq = *(uint32 *)PLIC_SCLAIM(hart);
-  return irq;
+  return *(volatile uint32 *)(plic_context_base() + 4);
 }
 
 // tell the PLIC we've served this IRQ.
 void
 plic_complete(int irq)
 {
-  int hart = cpuid();
-  *(uint32 *)PLIC_SCLAIM(hart) = irq;
+  *(volatile uint32 *)(plic_context_base() + 4) = irq;
 }

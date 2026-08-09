@@ -3,17 +3,29 @@
 #include "memlayout.h"
 #include "riscv.h"
 #include "defs.h"
+#include "platform.h"
 
 void main();
 void timerinit();
+extern void _entry_secondary(void);
 
 // entry.S needs one stack per CPU.
 __attribute__((aligned(16))) char stack0[4096 * NCPU];
 
-// entry.S jumps here in machine mode on stack0.
+static volatile int platform_ready;
+
+// entry.S jumps here in machine mode on QEMU.
 void
-start()
+start(uint64 hartid, uint64 dtb)
 {
+  if (hartid == 0) {
+    platform_early_init(hartid, dtb);
+    __atomic_store_n(&platform_ready, 1, __ATOMIC_RELEASE);
+  } else {
+    while (__atomic_load_n(&platform_ready, __ATOMIC_ACQUIRE) == 0)
+      ;
+  }
+
   // set M Previous Privilege mode to Supervisor, for mret.
   unsigned long x = r_mstatus();
   x &= ~MSTATUS_MPP_MASK;
@@ -41,12 +53,41 @@ start()
   timerinit();
 
   // keep each CPU's hartid in its tp register, for cpuid().
-  int id = r_mhartid();
+  int id = platform_cpu_index(hartid);
+  if (id < 0)
+    for (;;)
+      ;
   w_tp(id);
 
   // switch to supervisor mode and jump to main().
   asm volatile("mret");
 }
+
+#ifdef PLATFORM_VISIONFIVE2
+void
+supervisor_start(uint64 hartid, uint64 dtb)
+{
+  w_satp(0);
+  platform_early_init(hartid, dtb);
+  w_tp(0);
+  w_sie(r_sie() | SIE_SEIE | SIE_STIE | SIE_SSIE);
+  platform_set_timer(r_time() + platform_get()->timebase_frequency / 10);
+  platform_start_harts((uint64)_entry_secondary);
+  main();
+}
+
+void
+supervisor_secondary_start(uint64 hartid, uint64 cpu_index)
+{
+  if (platform_hartid((int)cpu_index) != hartid)
+    platform_shutdown();
+  w_satp(0);
+  w_tp(cpu_index);
+  w_sie(r_sie() | SIE_SEIE | SIE_STIE | SIE_SSIE);
+  platform_set_timer(r_time() + platform_get()->timebase_frequency / 10);
+  main();
+}
+#endif
 
 // ask each hart to generate timer interrupts.
 void
@@ -59,5 +100,5 @@ timerinit()
   w_mcounteren(r_mcounteren() | 2);
 
   // ask for the very first timer interrupt.
-  w_stimecmp(r_time() + 1000000);
+  platform_set_timer(r_time() + platform_get()->timebase_frequency / 10);
 }

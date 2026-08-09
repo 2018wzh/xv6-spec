@@ -57,6 +57,36 @@ memcpy(void *dst, const void *src, uint n)
   return memmove(dst, src, n);
 }
 
+void *
+memchr(const void *src, int c, uint n)
+{
+  const uchar *p = src;
+  for (uint i = 0; i < n; i++)
+    if (p[i] == (uchar)c)
+      return (void *)(p + i);
+  return 0;
+}
+
+uint
+strnlen(const char *s, uint max)
+{
+  uint n = 0;
+  while (n < max && s[n])
+    n++;
+  return n;
+}
+
+char *
+strrchr(const char *s, char c)
+{
+  const char *last = 0;
+  do {
+    if (*s == c)
+      last = s;
+  } while (*s++);
+  return (char *)last;
+}
+
 int
 strncmp(const char *p, const char *q, uint n)
 {
