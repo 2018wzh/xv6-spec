@@ -18,10 +18,10 @@ required_mechanisms:
 - traps
 - process scheduling
 - system calls
-- buffer cache
-- write-ahead log
-- inode filesystem
-- virtio block IO
+- filesystem
+- file descriptions
+- pipes
+- command shell
 composition_invariants:
 - every published check is deterministic and scoped to the current lab
 non_goals:
