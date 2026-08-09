@@ -4,12 +4,17 @@ CC = $(TOOLPREFIX)gcc
 LD = $(TOOLPREFIX)ld
 CFLAGS = -Wall -Werror -O -fno-omit-frame-pointer -ggdb -std=gnu99 -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I.
 OBJS = kernel/boot.o \
+  kernel/console.o \
   kernel/entry.o \
   kernel/kalloc.o \
   kernel/main.o \
+  kernel/plic.o \
+  kernel/printk.o \
   kernel/spinlock.o \
   kernel/start.o \
   kernel/string.o \
+  kernel/trap.o \
+  kernel/uart.o \
   kernel/vm.o
 
 all: $(K)/kernel
