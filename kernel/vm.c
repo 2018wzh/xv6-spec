@@ -404,6 +404,27 @@ copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
   return 0;
 }
 
+
+int
+copyincheck(pagetable_t pagetable, uint64 srcva, uint64 len)
+{
+  if (len == 0)
+    return 0;
+  if (srcva >= MAXVA || len > MAXVA - srcva)
+    return -1;
+  while (len > 0) {
+    uint64 va0 = PGROUNDDOWN(srcva);
+    if (walkaddr(pagetable, va0) == 0 && vmfault(pagetable, va0, 0) == 0)
+      return -1;
+    uint64 n = PGSIZE - (srcva - va0);
+    if (n > len)
+      n = len;
+    len -= n;
+    srcva += n;
+  }
+  return 0;
+}
+
 // Copy a null-terminated string from user to kernel.
 // Copy bytes to dst from virtual address srcva in a given page table,
 // until a '\0', or max.
