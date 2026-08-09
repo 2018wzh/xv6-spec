@@ -10,15 +10,14 @@ kernel:
   organization: monolithic teaching kernel
   execution: supervisor-mode kernel with deterministic interrupt handling
   protection: Sv39 page tables isolate mapped regions
-  communication: serial boot output only
+  communication: traps cross the user and kernel boundary
   resource_model: explicit ownership for resources introduced through this lab
 required_mechanisms:
 - deterministic early entry
-- serial boot output
-- physical page allocation
-- Sv39 mappings
-- supervisor traps
-- timer and external interrupts
+- virtual memory
+- traps
+- process scheduling
+- system calls
 composition_invariants:
 - every published check is deterministic and scoped to the current lab
 non_goals:
