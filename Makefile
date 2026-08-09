@@ -35,7 +35,13 @@ KERNEL_OBJS := \
   $(K)/string.o \
   $(K)/spinlock.o \
   $(K)/kalloc.o \
-  $(K)/vm.o
+  $(K)/vm.o \
+  $(K)/kernelvec.o \
+  $(K)/trap.o \
+  $(K)/plic.o \
+  $(K)/uart.o \
+  $(K)/console.o \
+  $(K)/printk.o
 
 .PHONY: all clean qemu ctf-qemu gen-fixture toolchain-probe
 

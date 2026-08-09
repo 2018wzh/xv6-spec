@@ -61,9 +61,64 @@
   x; })
 #define w_sepc(x) asm volatile("csrw sepc, %0" : : "r" (x))
 
+#define r_scause() ({ \
+  uint64 x; \
+  asm volatile("csrr %0, scause" : "=r" (x) ); \
+  x; })
+#define r_stval() ({ \
+  uint64 x; \
+  asm volatile("csrr %0, stval" : "=r" (x) ); \
+  x; })
+
+#define r_stvec() ({ \
+  uint64 x; \
+  asm volatile("csrr %0, stvec" : "=r" (x) ); \
+  x; })
+#define w_stvec(x) asm volatile("csrw stvec, %0" : : "r" (x))
+
+#define r_sie() ({ \
+  uint64 x; \
+  asm volatile("csrr %0, sie" : "=r" (x) ); \
+  x; })
+#define w_sie(x) asm volatile("csrw sie, %0" : : "r" (x))
+
+#define r_sip() ({ \
+  uint64 x; \
+  asm volatile("csrr %0, sip" : "=r" (x) ); \
+  x; })
+#define w_sip(x) asm volatile("csrw sip, %0" : : "r" (x))
+
+#define r_sscratch() ({ \
+  uint64 x; \
+  asm volatile("csrr %0, sscratch" : "=r" (x) ); \
+  x; })
+#define w_sscratch(x) asm volatile("csrw sscratch, %0" : : "r" (x))
+
+#define sret() asm volatile("sret")
+
 #define w_mepc(x) asm volatile("csrw mepc, %0" : : "r" (x))
 
 #define mret() asm volatile("mret")
+
+// Global supervisor interrupt enable/disable (single boot hart, Lab 4).
+static inline void
+intr_on(void)
+{
+  w_sstatus(r_sstatus() | SSTATUS_SIE);
+}
+
+static inline void
+intr_off(void)
+{
+  w_sstatus(r_sstatus() & ~SSTATUS_SIE);
+}
+
+static inline int
+intr_get(void)
+{
+  uint64 x = r_sstatus();
+  return (x & SSTATUS_SIE) != 0;
+}
 
 #define r_mhartid() ({ \
   uint64 x; \
