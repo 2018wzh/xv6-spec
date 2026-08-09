@@ -1,0 +1,15 @@
+id: kernel/trap
+module: kernel/trap
+level: 2
+purpose: supervisor trap and interrupt dispatch.
+owns:
+- kernel/trap.c
+- kernel/plic.c
+- kernel/uart.c
+- tests/generated/kernel/trap
+interface: []
+properties:
+- id: kernel-trap-deterministic
+  text: behavior is deterministic under the published lab checks
+errors:
+- invalid state fails explicitly
