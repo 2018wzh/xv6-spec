@@ -780,3 +780,63 @@ checks:
     verifies:
       - kernel/log
     workload: bounded QEMU virt serial capture booting the storage-layered kernel with an attached virtio block device; the redo log source is landed but composed with a mount in a later slice
+  kernel_inode_public:
+    args:
+      - tests/generated/kernel/inode/public_inode.sh
+    artifacts:
+      - fs.img
+    cwd: .
+    env:
+      - PATH
+    kind: public
+    program: sh
+    timeout: 120000
+    verifies:
+      - kernel/inode
+  kernel_inode_contract:
+    args:
+      - tests/generated/kernel/inode/contract_inode.sh
+    artifacts:
+      - tests/generated/kernel/inode/contract_report.txt
+    cwd: .
+    env:
+      - PATH
+    kind: contract
+    program: sh
+    timeout: 60000
+    verifies:
+      - kernel/inode
+  kernel_inode_fuzz:
+    args:
+      - tests/generated/kernel/inode/fuzz_inode.sh
+      - "42"
+      - "500"
+      - tests/generated/kernel/inode/repro/kernel_inode_fuzz.repro
+    artifacts:
+      - tests/generated/kernel/inode/repro/kernel_inode_fuzz.repro
+    cases: 500
+    cwd: .
+    env:
+      - PATH
+    kind: fuzz
+    program: sh
+    reproduction_artifact: tests/generated/kernel/inode/repro/kernel_inode_fuzz.repro
+    seed: 42
+    timeout: 60000
+    verifies:
+      - kernel/inode
+  kernel_inode_trace:
+    args:
+      - tests/generated/kernel/inode/trace_inode.sh
+    artifacts:
+      - fs.img
+    cwd: .
+    env:
+      - PATH
+    kind: trace
+    oracle: exactly one canonical XV6_BOOT_OK banner, no panic serial text, and no mount failure
+    program: sh
+    timeout: 120000
+    verifies:
+      - kernel/inode
+    workload: bounded QEMU virt serial capture booting the composite kernel with a real mkfs-generated fs.img on the virtio block device; fsinit must mount the deterministic root image and reach the scheduler

@@ -47,7 +47,10 @@ KERNEL_OBJS := \
   $(K)/swtch.o \
   $(K)/syscall.o \
   $(K)/sysproc.o \
-  $(K)/virtio_disk.o
+  $(K)/virtio_disk.o \
+  $(K)/log.o \
+  $(K)/bio.o \
+  $(K)/fs.o
 
 .PHONY: all clean qemu ctf-qemu gen-fixture toolchain-probe
 
@@ -90,8 +93,19 @@ $(LAB1_BUILD)/ctf-baremetal.elf: $(LAB1_BAREMETAL_SRCS) lab1/baremetal/sha256.h 
 toolchain-probe:
 	sh tests/generated/toolchain/probe_test.sh
 
-qemu: kernel/kernel
-	qemu-system-riscv64 -machine virt -bios none -kernel kernel/kernel -m 128M -smp 1 -nographic </dev/null
+# ---- kernel/inode: deterministic root image (mkfs) ----
+# mkfs is a host tool that deterministically writes the root fs.img consumed
+# by the kernel at mount time. fs.img is a disposable build artifact.
+mkfs/mkfs: mkfs/mkfs.c
+	$(HOST_CC) $(HOST_CFLAGS) -I kernel -o $@ $<
+
+fs.img: mkfs/mkfs
+	./mkfs/mkfs fs.img
+
+qemu: kernel/kernel fs.img
+	qemu-system-riscv64 -machine virt -bios none -kernel kernel/kernel -m 128M -smp 1 -nographic \
+		-drive file=fs.img,if=none,format=raw,id=x0 \
+		-device virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0 </dev/null
 
 ctf-qemu: $(LAB1_BUILD)/ctf-baremetal.elf
 	@set -o pipefail; \
@@ -101,4 +115,6 @@ ctf-qemu: $(LAB1_BUILD)/ctf-baremetal.elf
 
 clean:
 	rm -f $(K)/*.o $(K)/*.d kernel/kernel
+	rm -f mkfs/mkfs
+	rm -f fs.img
 	rm -rf $(LAB1_BUILD)

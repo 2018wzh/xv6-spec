@@ -3,6 +3,7 @@
 #include "types.h"
 #include "riscv.h"
 #include "memlayout.h"
+#include "buf.h"
 #include "defs.h"
 
 // Called from start() after it mret's into supervisor mode.
@@ -32,6 +33,15 @@ main(void)
   // transfers logical blocks runs (fsinit is a later slice; "before fsinit"
   // means before any storage consumer).
   virtio_disk_init();
+
+  // Lab 6 file-system mount (kernel/inode). The buffer cache and redo log are
+  // initialized here, and fsinit mounts the deterministic mkfs-generated root
+  // image (validating geometry and completing log recovery) before any user
+  // file operation is admitted (filesystem-admission-order). An unformatted
+  // root disk leaves the file system unmounted and still reaches the
+  // scheduler, so the storage-layered kernel boots on a bare lab disk.
+  binit();
+  fsinit(1);
 
   // Lab 5 process substrate: initialize the process table (and each slot's
   // index-keyed kernel stack mapping) before the scheduler can activate.

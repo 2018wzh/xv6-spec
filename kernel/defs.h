@@ -2,6 +2,7 @@
 
 // string.c
 int      strcmp(const char *, const char *);
+int      strncmp(const char *, const char *, uint);
 char*    strcpy(char *, const char *);
 char*    strncpy(char *, const char *, int);
 char*    safestrcpy(char *, const char *, int);
@@ -111,6 +112,9 @@ void     initlog(int);
 void     begin_op(void);
 void     log_write(struct buf *);
 void     end_op(void);
+
+// fs.c (kernel/inode)
+void     fsinit(int);
 
 // riscv.h interrupt helpers
 void     intr_on(void);
