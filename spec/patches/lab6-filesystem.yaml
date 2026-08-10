@@ -4,6 +4,7 @@ changes:
 - kernel/log
 - kernel/fs
 - kernel/boot
+- kernel/process
 - kernel/syscall
 - toolchain
 new_invariants:
@@ -11,3 +12,5 @@ new_invariants:
 - A persistent mutation may move home blocks only after all log data and the nonempty commit header are durable; recovery is idempotent.
 - Logical block size is 1024 bytes across log, fs, and mkfs.
 - File and inode table spinlocks are never retained across buffer, inode, or transaction-capacity waits.
+- Each live per-process descriptor slot holds exactly one reference to a global file object; allocation publishes the slot only after the reference exists, and close clears the slot before releasing that reference.
+- Each populated per-process current-directory slot holds exactly one inode reference; replacement acquires the new reference before clearing and releasing the old one, and process teardown releases the final reference exactly once when exit enters course scope.
