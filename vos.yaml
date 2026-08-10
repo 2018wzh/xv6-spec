@@ -18,6 +18,8 @@ runners:
       - PATH
     timeout: 120000
     artifacts: []
+    success_pattern: XV6_BOOT_OK
+    failure_pattern: "panic(?:[: ]|$)"
   hardware:
     program: sh
     args:
