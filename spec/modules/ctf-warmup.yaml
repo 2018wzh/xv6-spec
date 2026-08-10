@@ -26,15 +26,14 @@ interface:
   - invalid image geometry, missing entries, oversized contents, device failure, or UART failure produces a bounded diagnostic and never substitutes an expected value
   properties:
   - id: ctf-baremetal-public
-    text: QEMU reads both values from a generated image, reaches the completion marker, and exits without a panic marker
+    text: the guest reads both values from a generated image and emits the declared redacted metadata and alternating record sequence; toolchain owns the QEMU serial-oracle binding
 properties:
 - id: ctf-no-hardcoded-flags
-  text: implementation and test sources contain no expected course flag and tests use generated non-secret fixtures
+  text: a deterministic source-scan check confirms implementation and test sources contain no expected course flag while tests use generated non-secret fixtures
 - id: ctf-source-equivalence
-  text: Linux and bare-metal readers report the same generated fixture lengths, hashes, and alternating order
+  text: a contract check compares both readers and confirms the same generated fixture lengths, hashes, and alternating order
 errors:
 - malformed or incomplete inputs fail explicitly without exposing secret contents
-- unsupported host tools fail with an actionable diagnostic rather than silently skipping a gate
 state:
   stage: lab1-ctf-warmup
   owned_state:

@@ -5,6 +5,7 @@ purpose: Build and run the Linux and freestanding RISC-V CTF readers with reprod
 owns:
 - vos.yaml
 - Makefile
+- lab1/build
 - tests/generated/toolchain
 interface:
 - name: build_ctf_readers
@@ -16,17 +17,17 @@ interface:
   - a missing or incapable compiler fails before publishing a stale artifact
   properties:
   - id: ctf-toolchain-build
-    text: a clean build produces both declared reader artifacts from the current commit
+    text: a clean rebuild from tracked sources records the selected compiler and target identities and produces both declared reader artifacts
 - name: run_ctf_qemu
   pre:
   - the generated non-secret fixture image and freestanding guest artifact exist
   post:
   - QEMU runs without graphics and serial output reaches the declared completion marker
   errors:
-  - panic, fatal diagnostics, missing completion, and timeout remain distinct failures
+  - panic or fatal output is an oracle failure, absent completion is an oracle-missing failure, and deadline expiry remains timed_out evidence
   properties:
   - id: ctf-toolchain-qemu
-    text: the serial oracle accepts only the complete CTF_BAREMETAL_OK marker and rejects panic or fatal output
+    text: the runner binds the functional ctf-baremetal-public property to serial evidence, accepts only the complete CTF_BAREMETAL_OK marker, and preserves failure, missing, and timeout outcomes
 properties:
 - id: toolchain-deterministic
   text: unchanged sources and compiler identities reproduce the declared artifacts and fixture layout
@@ -40,6 +41,7 @@ state:
   - build outputs are disposable and never replace tracked source or Spec files
 preconditions:
 - PATH is explicitly allowed for build and QEMU targets
+- the selected RISC-V compiler records its version, target triple, RV64GC ISA, LP64 ABI, and matching binutils identity in check evidence
 postconditions:
 - vos build and vos run qemu execute only the declared argv projections
 invariants:
