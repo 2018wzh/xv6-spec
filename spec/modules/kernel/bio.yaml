@@ -1,0 +1,116 @@
+id: kernel/bio
+module: kernel/bio
+level: 3
+purpose: Own a fixed LRU buffer cache that gives each device block one in-memory identity and coordinates locking, pinning, reads, and writeback.
+owns:
+- kernel/bio.c
+- kernel/buf.h
+- tests/generated/kernel/bio
+interface:
+- name: bread
+  pre:
+  - binit has completed and the block lies within the device
+  post:
+  - returns the unique cached buffer locked and valid
+  errors:
+  - no reusable buffer panics rather than aliasing an active block
+  properties:
+  - id: bio-read-public
+    text: a public round trip reads a known file-system block through the cache
+  - id: bio-unique-contract
+    text: repeated and competing lookups of one device block resolve to one cache identity
+- name: bwrite
+  pre:
+  - caller holds the buffer sleep lock
+  post:
+  - current buffer contents have completed device writeback
+  errors:
+  - invalid lock ownership panics
+  properties:
+  - id: bio-write-contract
+    text: writeback preserves device and block identity and does not release the caller lock
+- name: brelse
+  pre:
+  - caller holds the buffer sleep lock and owns one reference
+  post:
+  - the sleep lock and caller reference are released; only a zero-reference unpinned buffer becomes an eviction candidate
+  errors:
+  - release without lock ownership or a live reference panics
+  properties:
+  - id: bio-lru-fuzz
+    text: fixed-seed acquire and release sequences preserve uniqueness, LRU order, and nonnegative references
+  - id: bio-eviction-trace
+    text: a bounded workload observes deterministic reuse without evicting pinned blocks
+- name: bpin_bunpin
+  pre:
+  - pin receives a cached buffer; unpin receives a positive independent pin reference
+  post:
+  - pin lifetime changes without releasing the caller's buffer lock or ordinary reference
+  errors:
+  - double unpin or a negative reference panics
+  properties:
+  - id: bio-pin-lifetime-contract
+    text: log pin ownership may outlive brelse and remains until checkpoint calls bunpin exactly once
+properties:
+- id: one-buffer-per-block
+  text: at most one cache entry represents a given device and block pair
+- id: active-buffer-not-evicted
+  text: a referenced or pinned buffer cannot be reassigned
+errors:
+- exhaustion, invalid ownership, and negative references panic with a diagnostic
+state:
+  stage: filesystem
+  owned_state:
+  - fixed NBUF entries, their LRU links, identities, validity, and references
+  resource_lifetime:
+  - entries and locks live for the kernel lifetime; identities change only while unreferenced
+preconditions:
+- virtio block I/O is initialized
+postconditions:
+- upper layers obtain a unique locked buffer for each active block
+invariants:
+- id: cache-identity-unique
+  text: no two entries have the same active device and block identity
+- id: cache-reference-nonnegative
+  text: every reference count is nonnegative and eviction selects only an unreferenced unpinned entry
+dependencies:
+- kernel/virtio
+- kernel/process
+- toolchain
+rely:
+- virtio transfers complete logical blocks while the buffer sleep lock is held
+- process sleep locks may block without holding the cache index spinlock
+guarantee:
+- bread returns exactly one locked valid identity and brelse ends that caller ownership
+- pinning prevents transaction buffers from eviction until commit unpins them
+algorithm_intent: Use a fixed doubly-linked LRU list guarded by one spinlock and one sleep lock per buffer.
+concurrency:
+  module:
+    module: kernel/bio
+    shared_state:
+    - LRU list, buffer identities, and reference counts
+    lock_types:
+    - cache spinlock for lookup and LRU metadata
+    - per-buffer sleep lock for contents
+    lock_order:
+    - release cache spinlock before waiting for a buffer sleep lock
+    atomic_sections:
+    - lookup or reassignment of one cache identity under the cache lock
+    interrupt_rules:
+    - no device wait occurs while the cache spinlock is held
+    rely:
+    - upper layers release every acquired buffer exactly once
+    guarantee:
+    - lookup and reassignment cannot create duplicate identities
+    wait_wakeup_rules:
+    - contention waits only on the selected buffer sleep lock
+    forbidden_patterns:
+    - sleeping or performing disk I/O while holding the cache spinlock
+  operations:
+    bread:
+      atomicity: identity selection is atomic under the cache lock; contents are protected by the selected sleep lock
+      lock_order:
+      - cache spinlock released before buffer sleep lock acquisition
+      interrupt_state: enabled while waiting
+      wait_wakeup_rules:
+      - sleep-lock waiters retry after the current holder releases

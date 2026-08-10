@@ -12,7 +12,7 @@ operations:
   - invalid MMIO behavior is reported by the trap-stage QEMU oracle
   properties:
   - id: plic-boot-hart-routing
-    text: UART IRQ 10 is enabled for supervisor context 1 on hart 0
+    text: UART IRQ 10 and virtio block IRQ 1 are enabled for supervisor context 1 on hart 0
 - name: plic_claim_complete
   pre:
   - called from supervisor external-interrupt dispatch
@@ -23,3 +23,5 @@ operations:
   properties:
   - id: plic-completion-matches-claim
     text: every nonzero claim is completed with the identical IRQ number
+  - id: plic-virtio-dispatch
+    text: claimed IRQ 1 dispatches virtio_disk_intr before the identical IRQ is completed
