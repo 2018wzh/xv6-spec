@@ -70,7 +70,7 @@ properties:
 - id: swtch-save-symmetry
   text: kernel_process_context_contract validates symmetric save and restore slots for sp and every RISC-V callee-saved register
 - id: process-descriptor-boundary
-  text: each occupied per-process descriptor slot contains one opaque reference owned by kernel/fs, and a cleared slot contains no live reference
+  text: each occupied per-process descriptor slot contains one opaque reference owned by kernel/file, and a cleared slot contains no live reference
 errors:
 - process-table exhaustion returns failure without corrupting existing slots
 - illegal scheduler and lock state transitions panic
@@ -83,7 +83,7 @@ state:
   resource_lifetime:
   - allocproc acquires and freeproc releases trap-frame and page-table resources
   - procinit assigns one deterministic index-keyed kernel stack mapping to each slot for the kernel lifetime; allocproc and freeproc reuse it
-  - kernel/fs creates and releases the file and current-directory references stored in process slots; kernel/process owns only their per-process storage and lifecycle boundary
+  - kernel/file creates and releases the file and current-directory references stored in process slots; kernel/process owns only their per-process storage and lifecycle boundary
 preconditions:
 - memory and supervisor traps are initialized
 postconditions:
@@ -103,11 +103,11 @@ dependencies:
 rely:
 - memory provides page allocation and per-process page-table helpers
 - trap provides the trap-frame ABI shape later used by the user-return composition
-- the committed Lab 6 filesystem patch may extend the process record with opaque file and current-directory references while kernel/fs remains responsible for their operations and release ordering
+- the committed Lab 6 filesystem patch may extend the process record with opaque file and current-directory references while kernel/file remains responsible for their operations and release ordering
 guarantee:
 - context switching preserves every RISC-V callee-saved register and stack pointer
 - lifecycle failure paths leave no allocated trap frame, page table, or stale state
-- descriptor slots are published and cleared only through the kernel/fs file ABI, so process scheduling never interprets file-object internals
+- descriptor slots are published and cleared only through the kernel/file ABI, so process scheduling never interprets file-object internals
 algorithm_intent: Use a fixed locked process table, per-process kernel stacks, and a round-robin scan; use swtch to exchange only the RISC-V callee-saved context.
 concurrency:
   module:

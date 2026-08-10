@@ -2,7 +2,8 @@ id: lab6-filesystem
 reason: The final Lab 6 slice composes the already-landed storage layers with inode storage, file syscalls, image construction, and mount ordering.
 changes:
 - kernel/log
-- kernel/fs
+- kernel/inode
+- kernel/file
 - kernel/boot
 - kernel/process
 - kernel/syscall
