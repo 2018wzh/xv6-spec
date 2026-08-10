@@ -8,6 +8,7 @@ owns:
 - kernel/sysfile.c
 - kernel/stat.h
 - kernel/fcntl.h
+- kernel/user.ld
 - user
 - tests/generated/kernel/file
 interface:
