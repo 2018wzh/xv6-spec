@@ -143,6 +143,28 @@ uvmcreate(void)
   return pagetable;
 }
 
+// Allocate one user page, copy the initial user program `src` (size `sz`,
+// at most one page) into it, and map it at user virtual address 0 with
+// user-addressed read/write/execute permissions so the first user process
+// can run it. Returns 0 on success, -1 on allocation failure.
+int
+uvmfirst(pagetable_t pagetable, uchar *src, uint sz)
+{
+  char *mem;
+
+  if (sz >= PGSIZE)
+    panic("uvmfirst: too big");
+  if ((mem = kalloc()) == 0)
+    return -1;
+  memset(mem, 0, PGSIZE);
+  memmove(mem, src, sz);
+  if (mappages(pagetable, 0, PGSIZE, (uint64)mem, PTE_W | PTE_X | PTE_R | PTE_U) != 0) {
+    kfree(mem);
+    return -1;
+  }
+  return 0;
+}
+
 // Free a process's user page table. Lab 5 user address spaces are empty
 // (sz == 0), so the root page-table page is released with no leaf pages;
 // a nonempty user address space is outside the current lab scope.
@@ -152,4 +174,137 @@ uvmfree(pagetable_t pagetable, uint64 sz)
   if (sz != 0)
     panic("uvmfree: nonempty user address space outside Lab 5 scope");
   kfree((void *)pagetable);
+}
+
+// Map the virtual address `va` to the physical `pa` for `sz` bytes with
+// permissions `perm` in the given (process) page table, panicking on a
+// mapping failure. Used by the syscall/trap composition to install the
+// per-process TRAMPOLINE and TRAPFRAME user mappings alongside the
+// kernel's TRAMPOLINE mapping.
+void
+uvmmap(pagetable_t pagetable, uint64 va, uint64 pa, uint64 sz, int perm)
+{
+  if (mappages(pagetable, va, sz, pa, perm) != 0)
+    panic("uvmmap");
+}
+
+// Translate a kernel virtual address to a physical address for a user page
+// table. Returns 0 when the virtual address is not mapped as a valid leaf
+// in the current user page table. Used only against user page tables and
+// never dereferences a raw user-supplied address.
+static uint64
+walkaddr(pagetable_t pagetable, uint64 va)
+{
+  pte_t *pte;
+  uint64 pa;
+
+  if (va >= MAXVA)
+    return 0;
+
+  pte = walk(pagetable, va, 0);
+  if (pte == 0)
+    return 0;
+  if ((*pte & PTE_V) == 0)
+    return 0;
+  if ((*pte & PTE_U) == 0)
+    return 0;
+  pa = PTE2PA(*pte);
+  return pa;
+}
+
+// Copy `len` bytes from the validated user address `srcva` (in the current
+// process page table) into a kernel buffer `dst`. Returns 0 on success or
+// -1 when the source range is not fully mapped or overflows; no byte is
+// read from an invalid user address (no raw user pointer is dereferenced).
+int
+copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
+{
+  uint64 n, va0, pa0;
+
+  while (len > 0) {
+    va0 = (uint64)PGROUNDDOWN(srcva);
+    pa0 = walkaddr(pagetable, va0);
+    if (pa0 == 0)
+      return -1;
+    n = PGSIZE - (srcva - va0);
+    if (n > len)
+      n = len;
+    memmove(dst, (void *)(pa0 + (srcva - va0)), n);
+
+    len -= n;
+    dst += n;
+    srcva = va0 + PGSIZE;
+  }
+  return 0;
+}
+
+// Copy a NUL-terminated string from the validated user address `srcva` into
+// the kernel buffer `dst`, copying through the first NUL byte within the
+// finite bound `max`. Returns 0 on success or -1 when the source is not
+// mapped, the string is unterminated within `max`, or the destination would
+// overrun. The destination is always NUL-terminated on success.
+int
+copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
+{
+  uint64 n, va0, pa0;
+  int got_null = 0;
+
+  while (got_null == 0) {
+    if (max == 0)
+      return -1;
+    va0 = (uint64)PGROUNDDOWN(srcva);
+    pa0 = walkaddr(pagetable, va0);
+    if (pa0 == 0)
+      return -1;
+    n = PGSIZE - (srcva - va0);
+    if (n > max) {
+      n = max;
+    }
+
+    {
+      char *p = (char *)pa0 + (srcva - va0);
+      uint64 i;
+      for (i = 0; i < n; i++) {
+        if (p[i] == '\0') {
+          *dst++ = '\0';
+          got_null = 1;
+          break;
+        } else {
+          *dst++ = p[i];
+        }
+      }
+    }
+
+    if (got_null)
+      break;
+    max -= n;
+    srcva = va0 + PGSIZE;
+  }
+  return 0;
+}
+
+// Copy `len` bytes from the kernel buffer `src` into the validated user
+// destination `dstva` (in the current process page table). Returns 0 on
+// success or -1 when the destination range is not fully mapped or
+// overflows; no byte is written outside the validated user pages.
+int
+copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
+{
+  uint64 n, va0, pa0;
+
+  while (len > 0) {
+    va0 = (uint64)PGROUNDDOWN(dstva);
+    pa0 = walkaddr(pagetable, va0);
+    if (pa0 == 0)
+      return -1;
+    n = PGSIZE - (dstva - va0);
+    if (n > len)
+      n = len;
+    memmove((void *)(pa0 + (dstva - va0)), src, n);
+
+    len -= n;
+    src += n;
+    dstva = va0 + PGSIZE;
+  }
+  return 0;
 }

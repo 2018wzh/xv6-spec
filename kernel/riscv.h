@@ -134,6 +134,17 @@ intr_get(void)
 // Sv39 mode (8) shifted into the satp MODE field.
 #define MAKE_SATP(pagetable) (((uint64)pagetable >> 12) | (8L << 60))
 
+#define r_satp() ({ \
+  uint64 x; \
+  asm volatile("csrr %0, satp" : "=r" (x) ); \
+  x; })
+
+// Thread pointer / hart id (single boot hart, Lab 4).
+#define r_tp() ({ \
+  uint64 x; \
+  asm volatile("mv %0, tp" : "=r" (x) ); \
+  x; })
+
 static inline uint64
 r_pmpcfg0(void)
 {

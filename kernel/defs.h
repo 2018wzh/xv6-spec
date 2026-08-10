@@ -40,6 +40,11 @@ void     kvminit(void);
 void     kvminithart(void);
 pagetable_t uvmcreate(void);
 void     uvmfree(pagetable_t, uint64);
+void     uvmmap(pagetable_t, uint64, uint64, uint64, int);
+int      uvmfirst(pagetable_t, uchar *, uint);
+int      copyin(pagetable_t, char *, uint64, uint64);
+int      copyinstr(pagetable_t, char *, uint64, uint64);
+int      copyout(pagetable_t, uint64, char *, uint64);
 
 // proc.c
 void     procinit(void);
@@ -51,12 +56,26 @@ void     sleep(void *, struct spinlock *);
 void     wakeup(void *);
 struct proc *myproc(void);
 void     swtch(struct context *, struct context *);
+void     userinit(void);
 
 // trap.c
 void     trapinit(void);
 void     kerneltrap(struct trapframe *);
 int      devintr(void);
 extern void kernelvec(void);
+void     usertrap(void);
+void     usertrapret(void);
+extern void uservec(void);
+extern void userret(void);
+
+// syscall.c / sysproc.c
+void     syscall(void);
+int      fetchaddr(uint64, uint64 *);
+int      fetchargint(int, uint64 *);
+int      fetchstr(uint64, char *, int);
+int      argint(int, int *);
+int      argaddr(int, uint64 *);
+int      argstr(int, char *, int);
 
 // plic.c
 void     plicinit(void);
@@ -89,3 +108,4 @@ int      intr_get(void);
 // physical memory delimiters
 extern char end[];
 extern char etext[];
+extern char trampoline[];   // kernel.ld: the shared trampoline page

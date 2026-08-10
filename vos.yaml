@@ -547,3 +547,61 @@ checks:
     verifies:
       - kernel/process
     workload: bounded QEMU virt serial capture of the booted Lab 5 kernel via vos_lab2_capture_serial (procinit + scheduler activated on the single boot hart)
+  kernel_syscall_dispatch_public:
+    kind: public
+    program: sh
+    args:
+      - tests/generated/kernel/syscall/public_syscall.sh
+    cwd: .
+    env:
+      - PATH
+    timeout: 120000
+    verifies:
+      - kernel/syscall
+    artifacts:
+      - kernel/kernel
+  kernel_syscall_dispatch_contract:
+    kind: contract
+    program: sh
+    args:
+      - tests/generated/kernel/syscall/contract_syscall.sh
+    cwd: .
+    env:
+      - PATH
+    timeout: 30000
+    verifies:
+      - kernel/syscall
+    artifacts: []
+  kernel_syscall_dispatch_fuzz:
+    kind: fuzz
+    program: sh
+    args:
+      - tests/generated/kernel/syscall/fuzz_dispatch.sh
+      - "42"
+      - "500"
+      - tests/generated/kernel/syscall/repro/kernel_syscall_dispatch_fuzz.repro
+    cwd: .
+    env:
+      - PATH
+    timeout: 30000
+    verifies:
+      - kernel/syscall
+    artifacts: []
+    seed: 42
+    cases: 500
+    reproduction_artifact: tests/generated/kernel/syscall/repro/kernel_syscall_dispatch_fuzz.repro
+  kernel_syscall_user_trace:
+    kind: trace
+    program: sh
+    args:
+      - tests/generated/kernel/syscall/trace_syscall.sh
+    cwd: .
+    env:
+      - PATH
+    timeout: 60000
+    verifies:
+      - kernel/syscall
+    artifacts:
+      - kernel/kernel
+    workload: bounded QEMU virt serial capture of the booted Lab 5 kernel via vos_lab2_capture_serial
+    oracle: captured serial must contain exactly one canonical XV6_BOOT_OK banner line and main.c must wire userinit() after procinit() and before scheduler(), and usertrapret must clear SPP before the trampoline userret so the first-user-ecall return cannot inherit supervisor privilege

@@ -32,6 +32,56 @@ struct context {
   uint64 s11;
 };
 
+// The user trap-frame ABI (interface/trap-frame). Every general register and
+// kernel handoff field crosses the user/kernel privilege boundary only through
+// the fixed offsets declared here. The trampoline save/restore slots in
+// kernel/trampoline.S use the identical offsets; a mismatch is rejected by the
+// kernel_syscall_trapframe_contract check before user execution.
+//
+// The canonical layout is byte-for-byte the xv6 user trap-frame ABI: the
+// kernel handoff fields occupy the first 4 slots, followed by epc and every
+// RISC-V general register in register-number order. (This is a distinct ABI
+// from the kernel-interrupt frame `struct trapframe` in types.h used by
+// kernelvec.)
+struct usertrapframe {
+  /*  0 */ uint64 kernel_satp;    // kernel page table (set by usertrapret)
+  /*  8 */ uint64 kernel_sp;      // top of the process's kernel stack
+  /* 16 */ uint64 kernel_trap;    // usertrap(), where uservec jumps
+  /* 24 */ uint64 epc;            // saved user program counter
+  /* 32 */ uint64 kernel_hartid;  // saved kernel tp (hart id)
+  /* 40 */ uint64 ra;
+  /* 48 */ uint64 sp;
+  /* 56 */ uint64 gp;
+  /* 64 */ uint64 tp;
+  /* 72 */ uint64 t0;
+  /* 80 */ uint64 t1;
+  /* 88 */ uint64 t2;
+  /* 96 */ uint64 s0;
+  /*104 */ uint64 s1;
+  /*112 */ uint64 a0;
+  /*120 */ uint64 a1;
+  /*128 */ uint64 a2;
+  /*136 */ uint64 a3;
+  /*144 */ uint64 a4;
+  /*152 */ uint64 a5;
+  /*160 */ uint64 a6;
+  /*168 */ uint64 a7;
+  /*176 */ uint64 s2;
+  /*184 */ uint64 s3;
+  /*192 */ uint64 s4;
+  /*200 */ uint64 s5;
+  /*208 */ uint64 s6;
+  /*216 */ uint64 s7;
+  /*224 */ uint64 s8;
+  /*232 */ uint64 s9;
+  /*240 */ uint64 s10;
+  /*248 */ uint64 s11;
+  /*256 */ uint64 t3;
+  /*264 */ uint64 t4;
+  /*272 */ uint64 t5;
+  /*280 */ uint64 t6;
+};
+
 // A process slot. Its lifecycle state and mutable fields are protected by
 // p->lock (process-slot-exclusivity). allocproc acquires the trap frame and
 // user page table; freeproc releases both exactly once.
