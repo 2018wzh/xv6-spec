@@ -465,3 +465,85 @@ checks:
       - kernel/kernel
     workload: bounded QEMU virt serial capture of the booted Lab 4 kernel via vos_lab2_capture_serial
     oracle: captured serial must contain exactly one canonical XV6_BOOT_OK banner line and kernel/main.c must wire trapinit before intr_on() so the vector is installed before supervisor interrupts are enabled
+  kernel_process_boot_public:
+    args:
+      - tests/generated/kernel/process/public_process_boot.sh
+    artifacts:
+      - kernel/kernel
+    cwd: .
+    env:
+      - PATH
+    kind: public
+    program: sh
+    timeout: 60000
+    verifies:
+      - kernel/process
+  kernel_process_lifecycle_contract:
+    args:
+      - tests/generated/kernel/process/contract_lifecycle.sh
+    artifacts: []
+    cwd: .
+    env:
+      - PATH
+    kind: contract
+    program: sh
+    timeout: 60000
+    verifies:
+      - kernel/process
+  kernel_process_context_contract:
+    args:
+      - tests/generated/kernel/process/contract_context.sh
+    artifacts: []
+    cwd: .
+    env:
+      - PATH
+    kind: contract
+    program: sh
+    timeout: 60000
+    verifies:
+      - kernel/process
+  kernel_process_wakeup_contract:
+    args:
+      - tests/generated/kernel/process/wakeup_contract.sh
+    artifacts: []
+    cwd: .
+    env:
+      - PATH
+    kind: contract
+    program: sh
+    timeout: 60000
+    verifies:
+      - kernel/process
+  kernel_process_state_fuzz:
+    args:
+      - tests/generated/kernel/process/fuzz_state.sh
+      - "42"
+      - "500"
+      - tests/generated/kernel/process/repro/kernel_process_state_fuzz.repro
+    artifacts: []
+    cases: 500
+    cwd: .
+    env:
+      - PATH
+    kind: fuzz
+    program: sh
+    reproduction_artifact: tests/generated/kernel/process/repro/kernel_process_state_fuzz.repro
+    seed: 42
+    timeout: 60000
+    verifies:
+      - kernel/process
+  kernel_process_scheduler_trace:
+    args:
+      - tests/generated/kernel/process/trace_scheduler.sh
+    artifacts:
+      - kernel/kernel
+    cwd: .
+    env:
+      - PATH
+    kind: trace
+    oracle: exactly one canonical XV6_BOOT_OK banner line and no partial/garbage banner; procinit precedes intr_on in boot order
+    program: sh
+    timeout: 60000
+    verifies:
+      - kernel/process
+    workload: bounded QEMU virt serial capture of the booted Lab 5 kernel via vos_lab2_capture_serial (procinit + scheduler activated on the single boot hart)

@@ -41,7 +41,9 @@ KERNEL_OBJS := \
   $(K)/plic.o \
   $(K)/uart.o \
   $(K)/console.o \
-  $(K)/printk.o
+  $(K)/printk.o \
+  $(K)/proc.o \
+  $(K)/swtch.o
 
 .PHONY: all clean qemu ctf-qemu gen-fixture toolchain-probe
 

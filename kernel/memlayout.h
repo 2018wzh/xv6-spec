@@ -44,3 +44,7 @@ extern char bootstacktop[];
 
 #define MAXVA (1L << (9 + 9 + 9 + 12))   // top of the Sv39 kernel space
 #define TRAMPOLINE (MAXVA - PGSIZE)      // highest kernel virtual page
+#define TRAPFRAME (TRAMPOLINE - PGSIZE)  // trap-frame page below the trampoline
+// Each process slot's kernel stack lives at a deterministic index-keyed
+// virtual address for the kernel lifetime (procinit maps and reuses it).
+#define KSTACK(i) (TRAMPOLINE - ((i) + 1) * 2 * PGSIZE)

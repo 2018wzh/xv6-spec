@@ -27,11 +27,19 @@ main(void)
   uartinit();            // re-establish UART config and enable FIFO interrupts
   consoleinit();         // console owns ordinary output after this handoff
 
-  // Only now, with stvec and device routing established, enable supervisor
-  // interrupts. The boot-to-console handoff preserves the Lab 2 banner.
+  // Lab 5 process substrate: initialize the process table (and each slot's
+  // index-keyed kernel stack mapping) before the scheduler can activate.
+  procinit();
+
+  // Only now, with stvec, device routing, and the process table established,
+  // enable supervisor interrupts.
   intr_on();
 
-  // Park the boot hart; later labs extend this loop.
+  // Lab 5 round-robin scheduler: the single boot hart scans the process
+  // table for RUNNABLE processes forever. No user program exists in this
+  // process-only commit, so the scheduler parks while there is nothing to
+  // run, preserving a buildable intermediate kernel.
+  scheduler();
   for (;;)
     ;
 }

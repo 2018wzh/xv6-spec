@@ -23,6 +23,8 @@ void     main(void);
 
 // spinlock.c
 struct spinlock;
+struct context;
+struct proc;
 void     initlock(struct spinlock*, const char*);
 void     acquire(struct spinlock*);
 void     release(struct spinlock*);
@@ -36,6 +38,19 @@ void     kfree(void*);
 // vm.c
 void     kvminit(void);
 void     kvminithart(void);
+pagetable_t uvmcreate(void);
+void     uvmfree(pagetable_t, uint64);
+
+// proc.c
+void     procinit(void);
+struct proc *allocproc(void);
+void     scheduler(void);
+void     sched(void);
+void     yield(void);
+void     sleep(void *, struct spinlock *);
+void     wakeup(void *);
+struct proc *myproc(void);
+void     swtch(struct context *, struct context *);
 
 // trap.c
 void     trapinit(void);
