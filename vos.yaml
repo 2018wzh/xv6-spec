@@ -1,24 +1,116 @@
 version: vos.project.v1
 build:
   program: make
-  args: [all]
+  args:
+    - all
   cwd: .
-  env: [PATH]
+  env:
+    - PATH
   timeout: 120000
   artifacts:
-  - lab1/build/flag-reader
-  - lab1/build/ctf-baremetal.elf
+    - lab1/build/flag-reader
+    - lab1/build/ctf-baremetal.elf
 runners:
   qemu:
     program: make
-    args: [qemu]
+    args:
+      - qemu
     cwd: .
-    env: [PATH]
+    env:
+      - PATH
     timeout: 30000
     artifacts:
-    - lab1/build/ctf-baremetal.elf
-    - lab1/build/flags.img
+      - lab1/build/ctf-baremetal.elf
+      - lab1/build/flags.img
     workload: ctf-baremetal-generated-fixture
-    success_pattern: 'CTF_BAREMETAL_OK(?:\r?\n|$)'
-    failure_pattern: 'panic|PANIC|fatal|FATAL|CTF_BAREMETAL_FAIL'
-checks: {}
+    success_pattern: CTF_BAREMETAL_OK(?:\r?\n|$)
+    failure_pattern: panic|PANIC|fatal|FATAL|CTF_BAREMETAL_FAIL
+checks:
+  ctf-warmup-linux-public:
+    args:
+      - tests/generated/lab/ctf-warmup/run-tests.sh
+      - linux
+      - "7"
+    artifacts:
+      - lab1/build/verify-linux.log
+    cwd: .
+    env:
+      - PATH
+    kind: public
+    program: bash
+    timeout: 60000
+    verifies:
+      - lab/ctf-warmup
+  ctf-warmup-baremetal-public:
+    args:
+      - tests/generated/lab/ctf-warmup/run-tests.sh
+      - baremetal
+      - "7"
+    artifacts:
+      - lab1/build/verify-baremetal.log
+      - lab1/build/ctf-baremetal.elf
+    cwd: .
+    env:
+      - PATH
+    kind: public
+    program: bash
+    timeout: 90000
+    verifies:
+      - lab/ctf-warmup
+  ctf-warmup-contract:
+    args:
+      - tests/generated/lab/ctf-warmup/run-tests.sh
+      - contract
+      - "11"
+    artifacts:
+      - lab1/build/verify-linux.log
+      - lab1/build/verify-baremetal.log
+    cwd: .
+    env:
+      - PATH
+    kind: contract
+    program: bash
+    timeout: 90000
+    verifies:
+      - lab/ctf-warmup
+  ctf-warmup-fuzz:
+    args:
+      - tests/generated/lab/ctf-warmup/run-tests.sh
+      - fuzz
+      - "7"
+      - "11"
+      - "13"
+      - "20240811"
+    artifacts:
+      - lab1/build/verify-linux.log
+      - lab1/build/verify-baremetal.log
+    cases: 4
+    cwd: .
+    env:
+      - PATH
+    kind: fuzz
+    program: bash
+    reproduction_artifact: lab1/build/fuzz-repro
+    seed: 7
+    timeout: 300000
+    verifies:
+      - lab/ctf-warmup
+  ctf-warmup-trace-oracle:
+    args:
+      - tests/generated/lab/ctf-warmup/run-tests.sh
+      - trace
+      - "5"
+      - "9"
+    artifacts:
+      - lab1/build/verify-linux.log
+      - lab1/build/verify-baremetal.log
+    cwd: .
+    env:
+      - PATH
+    kind: trace
+    oracle: The public ctf-fixture verify oracle checks that every alternating record from metadata.json appears in the indicated order in each reader log, and a diff confirms both readers emit identical record lines.
+    program: bash
+    timeout: 180000
+    verifies:
+      - lab/ctf-warmup
+    workload: Run both readers over fixed seeds 5 and 9 against the same generated non-secret fixture and record their redacted metadata plus alternating provenance records in order.
