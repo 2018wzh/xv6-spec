@@ -46,7 +46,7 @@ qemu: $(BUILD)/ctf-baremetal.elf
 	@mkdir -p $(BUILD)
 	@set -o pipefail; \
 	qemu-system-riscv64 -machine virt -m 128M -nographic -no-reboot -bios none \
-		-kernel $(BUILD)/ctf-baremetal.elf > $(BUILD)/baremetal.log 2>&1; \
+		-kernel $(BUILD)/ctf-baremetal.elf 2>&1 | tee $(BUILD)/baremetal.log; \
 	if grep -q 'CTF_BAREMETAL_OK' $(BUILD)/baremetal.log; then \
 		echo "qemu: completion marker observed"; \
 	else \
