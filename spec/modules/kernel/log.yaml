@@ -1,0 +1,117 @@
+id: kernel/log
+module: kernel/log
+level: 3
+purpose: Own the bounded physical redo log, admission control, commit record, checkpoint, and idempotent recovery for multi-block file-system updates.
+owns:
+- kernel/log.c
+- tests/generated/kernel/log
+interface:
+- name: begin_end_op
+  pre:
+  - log initialization and recovery have completed
+  post:
+  - admitted operations reserve worst-case capacity and the last end_op performs any required commit
+  errors:
+  - capacity pressure waits without exceeding LOGSIZE
+  properties:
+  - id: log-admission-contract
+    text: outstanding operations plus MAXOPBLOCKS per-operation reservations never exceed LOGSIZE; each end_op releases its admission and the last one commits
+- name: log_write
+  pre:
+  - called inside an admitted operation with a held buffer
+  post:
+  - the buffer block is recorded once in the current transaction and pinned until checkpoint
+  errors:
+  - an over-capacity transaction panics with evidence
+  properties:
+  - id: log-dedup-fuzz
+    text: fixed-seed repeated block writes consume one log slot per distinct block
+- name: recover_commit
+  pre:
+  - commit runs with no outstanding operation; recovery runs before new operations
+  post:
+  - committed blocks reach home locations, the header is cleared, and replaying recovery again is a no-op
+  errors:
+  - invalid header ranges or counts panic before writing home blocks
+  properties:
+  - id: log-recovery-public
+    text: a recovery-specific public probe remounts a committed or interrupted-log image twice and observes identical metadata after each recovery
+  - id: log-crash-trace
+    text: bounded pre-header, post-header, and mid-checkpoint oracles converge to an allowed complete state
+properties:
+- id: redo-ordering
+  text: log data reaches storage before the nonempty commit header, and home blocks change only after that header
+- id: recovery-idempotent
+  text: one or repeated recovery passes produce the same complete committed state
+errors:
+- corrupt headers, impossible block numbers, and oversized transactions panic before partial replay
+state:
+  stage: filesystem
+  owned_state:
+  - transaction header, outstanding count, commit flag, and on-disk log region
+  resource_lifetime:
+  - transaction buffers remain pinned from first log_write through checkpoint completion
+preconditions:
+- buffer cache and superblock geometry are available
+postconditions:
+- each completed transaction is wholly absent or wholly replayable after a crash
+invariants:
+- id: committed-header-boundary
+  text: a durable nonempty header is the sole commit point separating discardable and replayable transactions
+- id: logged-block-unique
+  text: each home block appears at most once in the current log header
+- id: recovery-before-admission
+  text: fsinit completes header validation and recovery before the first begin_op may be admitted
+dependencies:
+- kernel/bio
+- kernel/process
+- toolchain
+rely:
+- buffer pinning prevents eviction and bwrite completes before returning
+- superblock supplies an in-range fixed log region
+guarantee:
+- recovery validates every entry before changing any home block
+- commit clears the header only after all home blocks are installed and unpins each logged buffer once
+algorithm_intent: Use xv6 group commit with a bounded in-memory header, log absorption, write-ahead data, a durable header commit point, checkpoint, and header clear.
+concurrency:
+  module:
+    module: kernel/log
+    shared_state:
+    - outstanding count, committing flag, and in-memory log header
+    lock_types:
+    - one spinlock for transaction admission and header membership
+    lock_order:
+    - never wait for buffer or disk I/O while holding the log spinlock
+    atomic_sections:
+    - operation admission and distinct-block header insertion
+    interrupt_rules:
+    - commit disk waits occur with the log spinlock released
+    rely:
+    - each file-system mutation brackets log_write calls with begin_op and end_op
+    guarantee:
+    - at most one commit executes and new operations wait while it is active
+    wait_wakeup_rules:
+    - capacity and commit waiters sleep on log state and wake after commit or reservation release
+    forbidden_patterns:
+    - installing home blocks before the commit header is durable
+  operations:
+    begin_end_op:
+      atomicity: admission, reservation accounting, outstanding decrement, and last-operation commit election are atomic under the log lock
+      lock_order:
+      - release the log spinlock before sleeping for capacity or commit completion
+      interrupt_state: enabled while waiting
+      wait_wakeup_rules:
+      - wake capacity waiters after a reservation is released or commit finishes
+    log_write:
+      atomicity: search and insertion of one distinct home block are atomic under the log lock
+      lock_order:
+      - caller buffer sleep lock before the bounded log spinlock section
+      interrupt_state: managed by the log spinlock
+      wait_wakeup_rules: []
+    recover_commit:
+      atomicity: the durable header defines transaction atomicity across crashes
+      lock_order:
+      - log state lock is released before buffer-cache and disk operations
+      interrupt_state: enabled while waiting for I/O
+      wait_wakeup_rules:
+      - completion wakes admission waiters after state is cleared

@@ -1,0 +1,122 @@
+id: kernel/fs
+module: kernel/fs
+level: 3
+purpose: Own the on-disk xv6 layout, block and inode allocation, inode cache, directories, path traversal, global file table, and user-facing file system calls.
+owns:
+- kernel/fs.c
+- kernel/fs.h
+- kernel/file.c
+- kernel/file.h
+- kernel/sysfile.c
+- kernel/stat.h
+- kernel/fcntl.h
+- mkfs
+- user
+- tests/generated/kernel/fs
+interface:
+- name: fsinit
+  pre:
+  - virtio, buffer cache, and a valid root image are available
+  post:
+  - superblock geometry is validated, recovery is complete, and inode operations are ready
+  errors:
+  - invalid magic or overlapping or out-of-range regions panic before mutable access
+  properties:
+  - id: fs-mount-public
+    text: QEMU boots from the deterministic mkfs-generated image and reaches the image's bounded initial file workload
+- name: inode_block_lifecycle
+  pre:
+  - allocation and release run inside a log transaction with required inode locks
+  post:
+  - referenced blocks and inodes remain allocated; final unlink and close reclaim each resource once
+  errors:
+  - exhaustion returns failure without leaked bitmap, inode, or cache references
+  properties:
+  - id: fs-allocation-contract
+    text: bounded allocate, truncate, unlink, and recreate cycles restore expected free counts
+  - id: fs-capacity-fuzz
+    text: fixed-seed empty, direct, indirect, maximum-file, full-directory, full-disk, and full-log boundaries preserve consistency
+- name: path_file_operations
+  pre:
+  - user arguments and descriptor ranges have passed syscall validation
+  post:
+  - create, lookup, read, write, append, truncate, link, unlink, and close preserve directory and reference invariants
+  errors:
+  - invalid, too-long, missing, duplicate, cyclic, or exhausted operations fail without partial visible metadata
+  properties:
+  - id: fs-file-public
+    text: public user operations create, read, overwrite, append, truncate, delete, and recreate files
+  - id: fs-operation-trace
+    text: a bounded QEMU workload observes committed file contents after remount and no panic
+properties:
+- id: disk-layout-partition
+  text: superblock, log, inode, bitmap, and data regions are in range, non-overlapping, and cover only declared blocks
+- id: inode-cache-identity
+  text: each live device and inode pair has one cached identity with nonnegative references
+- id: directory-reference-integrity
+  text: each live directory entry names one allocated inode and link counts match persistent directory references
+errors:
+- malformed on-disk geometry fails before mutable mount
+- path, capacity, and descriptor errors return -1 without leaking resources or publishing a partial transaction
+- pipe creation and pipe-backed file objects are deferred beyond the Lab 6 file ABI
+state:
+  stage: filesystem
+  owned_state:
+  - validated superblock and allocation bitmap semantics
+  - fixed inode cache, global file table, and per-file offsets and references
+  resource_lifetime:
+  - iget and iput balance cache references; link count plus open references govern final reclamation
+preconditions:
+- lower storage layers and Lab 5 user syscall entry are available
+postconditions:
+- a writable root file system is reachable through validated file syscalls and survives committed remounts
+invariants:
+- id: allocation-reference-consistency
+  text: every referenced data block and inode is allocated, and no active objects own the same data block
+- id: path-lock-progress
+  text: traversal releases the current inode before waiting on a child in any order that could revisit the parent
+dependencies:
+- kernel/bio
+- kernel/log
+- kernel/memory
+- kernel/process
+- kernel/syscall
+- toolchain
+rely:
+- log brackets every persistent metadata mutation and buffer cache provides unique block identities
+- syscall copies paths and buffers only through validated user-memory helpers
+- the Lab 6 composition extends kernel/syscall dispatch and argument fetching with interface/kernel-file-abi before invoking these operations
+- mkfs and user paths are owned only to construct and exercise the deterministic root image, not as an unrestricted userland surface
+guarantee:
+- successful file operations expose only committed directory, inode, bitmap, and data relationships
+- all error paths balance inode, file, descriptor, buffer, and transaction references
+algorithm_intent: Use the xv6 superblock layout, direct plus single-indirect inode mapping, fixed inode and file tables, component-wise paths, and redo-logged metadata updates.
+concurrency:
+  module:
+    module: kernel/fs
+    shared_state:
+    - inode cache, file table, allocation maps, and directory contents
+    lock_types:
+    - cache and file-table spinlocks plus per-inode sleep locks
+    lock_order:
+    - table spinlocks are released before inode or buffer sleep-lock waits
+    atomic_sections:
+    - inode identity acquisition and file-reference changes under their table locks
+    interrupt_rules:
+    - persistent operations may sleep only without table spinlocks
+    rely:
+    - process descriptor-table changes are serialized by the current process context
+    guarantee:
+    - no persistent mutation escapes its begin_op and end_op transaction
+    wait_wakeup_rules:
+    - inode and buffer contention waits through their sleep locks
+    forbidden_patterns:
+    - retaining a parent inode lock while descending through a path cycle
+  operations:
+    path_file_operations:
+      atomicity: each persistent syscall is one or more bounded log transactions with no partially published metadata
+      lock_order:
+      - release table spinlocks before inode sleep locks and buffer acquisition
+      interrupt_state: enabled while waiting
+      wait_wakeup_rules:
+      - retry only after the contended inode or transaction becomes available

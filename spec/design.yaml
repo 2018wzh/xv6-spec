@@ -19,10 +19,11 @@ required_mechanisms:
 - deterministic Sv39 kernel mappings
 - supervisor trap-vector installation and external-interrupt dispatch
 - process lifecycle, context switching, user traps, and syscall dispatch
+- virtio block I/O, a unique buffer cache, transactional inode storage, and file system calls
 composition_invariants:
 - every published check is deterministic and scoped to the current lab
 - under an unchanged PATH prefix set, the toolchain and kernel bootstrap compose to reproduce the kernel/kernel content hash across clean builds
-- boot initializes memory and traps before the process table; user execution crosses privilege only through its mapped trap frame and validated syscall dispatch
+- boot initializes memory and traps before the process table; user execution crosses privilege only through its mapped trap frame and validated syscall dispatch; file-system metadata reaches home blocks only through a committed redo-log transaction, with each logical block mapped to exactly two adjacent 512-byte virtio sectors
 non_goals:
 - mechanisms assigned to later labs
 hardware_port:

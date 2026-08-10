@@ -1,0 +1,105 @@
+id: kernel/virtio
+module: kernel/virtio
+level: 3
+purpose: Own the virtio block queue, descriptor lifetime, interrupt completion, and conversion between 1024-byte xv6 blocks and 512-byte device sectors.
+owns:
+- kernel/virtio_disk.c
+- tests/generated/kernel/virtio
+interface:
+- name: virtio_disk_init
+  pre:
+  - memory allocation and VIRTIO0 mapping are available
+  post:
+  - the fixed descriptor, available, and used rings are ready for requests
+  errors:
+  - unsupported negotiation or invalid queue geometry panics
+  properties:
+  - id: virtio-init-public
+    text: the public boot test observes successful disk initialization before fsinit
+- name: virtio_disk_rw
+  pre:
+  - caller holds the target buffer and supplies a valid block and direction
+  post:
+  - both sectors of the logical block complete before return
+  errors:
+  - descriptor shortage waits without leaking a partial chain
+  properties:
+  - id: virtio-sector-contract
+    text: a host contract checks adjacent, non-overlapping two-sector ranges for bounded block numbers
+  - id: virtio-ring-fuzz
+    text: fixed-seed cases exercise descriptor allocation, wraparound, and reclamation
+- name: virtio_disk_intr
+  pre:
+  - invoked for the claimed virtio IRQ
+  post:
+  - completed chains are reclaimed and waiters awakened once
+  errors:
+  - malformed used entries panic
+  properties:
+  - id: virtio-completion-trace
+    text: a bounded QEMU trace observes boot-time disk traffic and completion without panic
+properties:
+- id: virtio-fixed-descriptor-ownership
+  text: every descriptor is either free or belongs to exactly one in-flight request
+- id: virtio-logical-block-unit
+  text: all callers use 1024-byte logical blocks; only this module translates them to two 512-byte sectors
+errors:
+- device identity, negotiation, or completion corruption produces a diagnostic panic
+- a temporary lack of descriptors blocks and resumes without loss
+state:
+  stage: filesystem
+  owned_state:
+  - negotiated device status and queue geometry
+  - fixed descriptor pool, rings, and in-flight request table
+  resource_lifetime:
+  - queue pages and descriptor metadata live for the kernel lifetime
+preconditions:
+- kernel memory, process sleep and wakeup, and external interrupts are available
+postconditions:
+- buffer-cache callers can synchronously transfer complete logical blocks
+invariants:
+- id: descriptor-partition
+  text: free and in-flight descriptor sets are disjoint and cover the fixed pool
+- id: sector-range-partition
+  text: block n uses sectors 2*n and 2*n+1, so adjacent logical blocks neither overlap nor leave gaps
+dependencies:
+- kernel/memory
+- kernel/process
+- kernel/trap
+- toolchain
+rely:
+- memory supplies DMA-visible pages and process supplies sleep and wakeup
+- trap enables QEMU virt virtio IRQ 1 for boot-hart supervisor context 1, then claims and completes that IRQ through PLIC
+guarantee:
+- successful return means the complete logical block transfer has completed
+- interrupt completion never exposes a descriptor to reuse before its waiter observes completion
+algorithm_intent: Use one xv6 legacy virtio MMIO queue with fixed three-descriptor chains per request and sleep/wakeup completion.
+concurrency:
+  module:
+    module: kernel/virtio
+    shared_state:
+    - descriptor free map, rings, and request table
+    lock_types:
+    - one spinlock around queue allocation and completion
+    lock_order:
+    - buffer sleep lock may be held before the virtio queue lock
+    atomic_sections:
+    - descriptor-chain allocation, publication, and reclamation
+    interrupt_rules:
+    - interrupt handling holds the queue lock only while consuming completions and waking waiters
+    rely:
+    - callers may sleep while retaining the buffer sleep lock
+    guarantee:
+    - queue indices advance monotonically modulo the negotiated ring size
+    wait_wakeup_rules:
+    - submitters sleep on their buffer until completion clears the in-flight marker; the process lock handoff permits supervisor interrupts while blocked so IRQ 1 can complete the request
+    forbidden_patterns:
+    - returning zero-filled data after an I/O failure
+  operations:
+    virtio_disk_rw:
+      atomicity: request publication and completion state transitions are protected by the queue lock
+      lock_order:
+      - buffer sleep lock before queue spinlock
+      interrupt_state: the queue spinlock masks interrupts only for bounded state changes; sleeping restores an interruptible process state
+      wait_wakeup_rules:
+      - release the queue lock while sleeping and recheck completion after wakeup
