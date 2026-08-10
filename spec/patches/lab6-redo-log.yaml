@@ -1,0 +1,9 @@
+id: lab6-redo-log
+reason: The third Lab 6 slice composes bounded redo transactions with the already-landed buffer pin and writeback boundary.
+changes:
+- kernel/log
+- kernel/bio
+new_invariants:
+- A logged buffer remains pinned from its first log_write until its checkpoint installs the home block and unpins it exactly once.
+- Log data is durable before the nonempty commit header, and home blocks change only after that header is durable.
+- The log spinlock is released before buffer or disk waits, and recovery completes before transaction admission.

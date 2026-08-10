@@ -1,0 +1,9 @@
+id: lab6-buffer-cache
+reason: The second Lab 6 slice composes the buffer cache only with the already-landed virtio transfer boundary.
+changes:
+- kernel/bio
+- kernel/virtio
+new_invariants:
+- The cache exposes one locked identity per active device block and never reassigns a referenced or pinned entry.
+- Bio and virtio use the same 1024-byte logical block unit; sector conversion remains exclusively inside virtio.
+- Cache metadata locks are released before buffer sleep-lock and device waits.

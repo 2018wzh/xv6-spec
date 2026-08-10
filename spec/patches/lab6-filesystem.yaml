@@ -1,17 +1,13 @@
 id: lab6-filesystem
-reason: Lab 6 composes virtio completion, unique cached blocks, redo logging, inode storage, file syscalls, image construction, boot ordering, and trap dispatch into one writable file system.
+reason: The final Lab 6 slice composes the already-landed storage layers with inode storage, file syscalls, image construction, and mount ordering.
 changes:
-- kernel/virtio
-- kernel/bio
 - kernel/log
 - kernel/fs
 - kernel/boot
-- kernel/trap
 - kernel/syscall
 - toolchain
 new_invariants:
-- Boot initializes virtio and the buffer cache before fsinit, and fsinit completes recovery before the first user file operation.
-- PLIC dispatch routes the virtio IRQ to virtio_disk_intr and completes exactly the claimed IRQ.
+- Boot initializes the already-landed buffer cache before fsinit, and fsinit completes recovery before the first user file operation.
 - A persistent mutation may move home blocks only after all log data and the nonempty commit header are durable; recovery is idempotent.
-- Logical block size is 1024 bytes across bio, log, fs, and mkfs, while only virtio maps it to two adjacent 512-byte sectors.
-- Table spinlocks are never retained across buffer, inode, transaction-capacity, or device waits.
+- Logical block size is 1024 bytes across log, fs, and mkfs.
+- File and inode table spinlocks are never retained across buffer, inode, or transaction-capacity waits.
