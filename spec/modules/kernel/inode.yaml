@@ -39,7 +39,7 @@ interface:
   - invalid, too-long, missing, duplicate, cyclic, or exhausted paths fail without partial visible metadata
   properties:
   - id: inode-path-trace
-    text: a bounded directory workload resolves create, link, unlink, dot, dot-dot, duplicate, and remount sequences without panic, lock cycle, or leaked references
+    text: a bounded directory-helper workload exercises dirlookup, dirlink, unlink, dot, dot-dot, duplicate, and remount sequences without panic, lock cycle, or leaked references; kernel/file aggregates these primitives into namespace_mutation
 properties:
 - id: disk-layout-partition
   text: superblock, log, inode, bitmap, and data regions are in range, non-overlapping, and cover only declared blocks
@@ -65,6 +65,8 @@ invariants:
   text: every referenced data block and inode is allocated, and no active objects own the same data block
 - id: path-lock-progress
   text: traversal releases the current inode before waiting on a child in any order that could revisit the parent
+- id: filesystem-admission-order
+  text: virtio and the buffer cache initialize before fsinit, and fsinit completes mount validation and redo recovery before any user file operation is admitted
 dependencies:
 - kernel/bio
 - kernel/log
@@ -76,7 +78,9 @@ rely:
 - log brackets every persistent metadata mutation and buffer cache provides unique block identities
 - process provides the sleep and wakeup primitive used by inode sleep locks
 - mkfs emits the same 1024-byte block layout consumed by the kernel
-- kernel/inode owns mkfs image semantics; toolchain owns Makefile and vos.yaml build and launch integration
+- kernel/inode owns mkfs image semantics and the deterministic fs.img contents; toolchain owns Makefile and vos.yaml build and launch integration, and fs.img remains a disposable build artifact
+- path_resolution plus dirlookup, dirlink, and unlink helpers are the inode primitives aggregated by kernel/file.namespace_mutation; inode_block_lifecycle supplies the raw capacity and exhaustion semantics exposed by kernel/file.file_capacity
+- virtio and the buffer cache are initialized before fsinit; fsinit finishes recovery before kernel/file admits user file operations
 guarantee:
 - successful inode and directory operations expose only committed bitmap, inode, directory, and data relationships
 - all error paths balance inode, buffer, allocation, and transaction references

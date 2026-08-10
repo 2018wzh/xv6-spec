@@ -58,6 +58,7 @@ interface:
 - name: file_capacity
   pre:
   - fixed global file-table and per-process descriptor capacities are known
+  - this internal aggregate is observed through open, read_write, and close rather than a separate syscall ABI operation
   post:
   - bounded table exhaustion returns failure and later close restores reusable file and descriptor slots
   errors:
@@ -99,7 +100,9 @@ dependencies:
 - kernel/syscall
 - toolchain
 rely:
-- kernel/inode provides balanced path and inode references and log brackets persistent mutations
+- kernel/inode provides balanced path and inode references; namespace_mutation aggregates inode path_resolution, dirlookup, dirlink, and unlink helpers, while file_capacity delegates raw inode, log, and disk exhaustion to inode_block_lifecycle
+- file_capacity aggregates descriptor and global file-table exhaustion exposed through the interface open, read_write, and close operations; it is not a separate ABI call
+- kernel/log brackets persistent mutations, and kernel/inode fsinit completes mount validation and recovery before user file operations are admitted
 - syscall copies paths and buffers only through validated user-memory helpers
 - the Lab 6 composition extends process descriptor and current-directory storage before publishing file operations
 guarantee:

@@ -21,7 +21,7 @@ operations:
   errors:
   - invalid direction, range, or storage failure returns -1 without advancing past committed data
   properties:
-  - id: file-offset-serialization
+  - id: file-offset-abi-contract
     text: each file object serializes offset changes across reads and writes
 - name: close
   pre:
