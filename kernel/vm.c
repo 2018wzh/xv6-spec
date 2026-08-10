@@ -128,3 +128,28 @@ kvminithart(void)
   w_satp(MAKE_SATP(kernel_pagetable));
   sfence_vma();
 }
+
+// Create an empty user page table: a single zeroed Sv39 root page with no
+// mappings. Each Lab 5 process owns one; user mappings land in a later lab.
+pagetable_t
+uvmcreate(void)
+{
+  pagetable_t pagetable;
+
+  pagetable = (pagetable_t)kalloc();
+  if (pagetable == 0)
+    return 0;
+  memset(pagetable, 0, PGSIZE);
+  return pagetable;
+}
+
+// Free a process's user page table. Lab 5 user address spaces are empty
+// (sz == 0), so the root page-table page is released with no leaf pages;
+// a nonempty user address space is outside the current lab scope.
+void
+uvmfree(pagetable_t pagetable, uint64 sz)
+{
+  if (sz != 0)
+    panic("uvmfree: nonempty user address space outside Lab 5 scope");
+  kfree((void *)pagetable);
+}

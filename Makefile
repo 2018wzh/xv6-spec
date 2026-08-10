@@ -17,7 +17,9 @@ OBJS = \
   $(K)/plic.o \
   $(K)/uart.o \
   $(K)/console.o \
-  $(K)/printk.o
+  $(K)/printk.o \
+  $(K)/proc.o \
+  $(K)/swtch.o
 
 # select_riscv_toolchain: probe candidate prefixes and pick the first one
 # that can compile an empty freestanding RV64 object. Empty on failure.
