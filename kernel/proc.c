@@ -93,6 +93,12 @@ found:
   p->sz = 0;
   p->chan = 0;
   safestrcpy(p->name, "proc", sizeof(p->name));
+  {
+    int i;
+    for (i = 0; i < NOFILE; i++)
+      p->ofile[i] = 0;   // Lab 6: a reused slot starts with no file refs.
+    p->cwd = 0;          // kernel/file set on the first chdir/open lifecycle.
+  }
 
   // Acquire a trap-frame page. In Lab 5 the trap frame is a physical page
   // owned by this process (its user page-table TRAPFRAME mapping lands with

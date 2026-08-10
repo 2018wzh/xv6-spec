@@ -116,6 +116,29 @@ void     end_op(void);
 // fs.c (kernel/inode)
 void     fsinit(int);
 
+// file.c (kernel/file)
+struct file;
+void         fileinit(void);
+struct file *filealloc(void);
+struct file *filedup(struct file *);
+void         fileclose(struct file *);
+int          filestat(struct file *, uint64);
+int          fileread(struct file *, uint64, int);
+int          filewrite(struct file *, uint64, int);
+
+// sysfile.c (kernel/file) syscall handlers
+uint64   sys_open(void);
+uint64   sys_read(void);
+uint64   sys_write(void);
+uint64   sys_close(void);
+uint64   sys_fstat(void);
+uint64   sys_dup(void);
+uint64   sys_mknod(void);
+uint64   sys_mkdir(void);
+uint64   sys_chdir(void);
+uint64   sys_link(void);
+uint64   sys_unlink(void);
+
 // riscv.h interrupt helpers
 void     intr_on(void);
 void     intr_off(void);

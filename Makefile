@@ -50,9 +50,11 @@ KERNEL_OBJS := \
   $(K)/virtio_disk.o \
   $(K)/log.o \
   $(K)/bio.o \
-  $(K)/fs.o
+  $(K)/fs.o \
+  $(K)/file.o \
+  $(K)/sysfile.o
 
-.PHONY: all clean qemu ctf-qemu gen-fixture toolchain-probe
+.PHONY: all clean qemu ctf-qemu gen-fixture toolchain-probe user-fstest
 
 all: kernel/kernel
 
@@ -113,8 +115,26 @@ ctf-qemu: $(LAB1_BUILD)/ctf-baremetal.elf
 		-kernel $(LAB1_BUILD)/ctf-baremetal.elf 2>&1 | tee $(LAB1_BUILD)/baremetal.log; \
 	grep -q 'CTF_BAREMETAL_OK' $(LAB1_BUILD)/baremetal.log
 
+# ---- kernel/file: bounded user workload (optional; not part of `all`) ----
+# The Lab 6 file ABI's bounded user workload (user/fstest.c) compiles as a
+# freestanding RISC-V binary linked with kernel/user.ld. It is not loaded by
+# the kernel yet (no exec/fork); building it validates the user ABI surface
+# without affecting the kernel image. The binary is a disposable artifact.
+USER_CFLAGS := -O2 -Wall -Wextra -march=rv64gc -mabi=lp64 -mcmodel=medany \
+  -static -nostdlib -nostartfiles -ffreestanding -fno-pic -mno-relax \
+  -fno-stack-protector
+
+user/_fstest: user/fstest.c user/entry.S user/user.h kernel/user.ld
+	mkdir -p user
+	$(RISCV_CC) $(USER_CFLAGS) -I kernel -T kernel/user.ld \
+		user/entry.S user/fstest.c -o $@
+
+user-fstest: user/_fstest
+	@echo "+ $<"
+
 clean:
 	rm -f $(K)/*.o $(K)/*.d kernel/kernel
 	rm -f mkfs/mkfs
 	rm -f fs.img
+	rm -f user/_fstest
 	rm -rf $(LAB1_BUILD)

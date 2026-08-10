@@ -103,9 +103,21 @@ argstr(int n, char *buf, int max)
 // as 0 is rejected by syscall() before being called.
 extern uint64 sys_exit(void);
 extern uint64 sys_getpid(void);
-extern uint64 sys_write(void);
 extern uint64 sys_sbrk(void);
 extern uint64 sys_uptime(void);
+
+// Pointers to the Lab 6 file syscall handlers in kernel/sysfile.c.
+extern uint64 sys_open(void);
+extern uint64 sys_read(void);
+extern uint64 sys_write(void);
+extern uint64 sys_close(void);
+extern uint64 sys_fstat(void);
+extern uint64 sys_dup(void);
+extern uint64 sys_mknod(void);
+extern uint64 sys_mkdir(void);
+extern uint64 sys_chdir(void);
+extern uint64 sys_link(void);
+extern uint64 sys_unlink(void);
 
 // The dispatch table, indexed by the validated syscall number. The table has
 // explicit SYS_MAX+1 entries so that every number up to SYS_MAX maps in-bounds.
@@ -114,23 +126,23 @@ static uint64 (*syscalls[SYS_MAX + 1])(void) = {
   [SYS_exit]    sys_exit,
   [SYS_wait]    0,
   [SYS_pipe]    0,
-  [SYS_read]    0,
+  [SYS_read]    sys_read,
   [SYS_kill]    0,
   [SYS_exec]    0,
-  [SYS_fstat]   0,
-  [SYS_chdir]   0,
-  [SYS_dup]     0,
+  [SYS_fstat]   sys_fstat,
+  [SYS_chdir]   sys_chdir,
+  [SYS_dup]     sys_dup,
   [SYS_getpid]  sys_getpid,
   [SYS_sbrk]    sys_sbrk,
   [SYS_sleep]   0,
   [SYS_uptime]  sys_uptime,
-  [SYS_open]    0,
+  [SYS_open]    sys_open,
   [SYS_write]   sys_write,
-  [SYS_mknod]   0,
-  [SYS_unlink]  0,
-  [SYS_link]    0,
-  [SYS_mkdir]   0,
-  [SYS_close]   0,
+  [SYS_mknod]   sys_mknod,
+  [SYS_unlink]  sys_unlink,
+  [SYS_link]    sys_link,
+  [SYS_mkdir]   sys_mkdir,
+  [SYS_close]   sys_close,
 };
 
 // Dispatch the current user ecall. num must be in [0, SYS_MAX]; the floor is

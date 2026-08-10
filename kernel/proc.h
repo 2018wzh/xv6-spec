@@ -7,6 +7,12 @@
 #ifndef __PROC_H__
 #define __PROC_H__
 
+// File-descriptor and current-directory storage shape composed by the Lab 6
+// filesystem patch (kernel/file owns the file/current-directory operations;
+// kernel/process owns only this per-process storage and lifecycle boundary).
+struct file;
+struct inode;
+
 // Process lifecycle states reachable in Lab 5. Every transition involving
 // RUNNING, RUNNABLE, or SLEEPING holds the owning process lock; ZOMBIE enters
 // scope only with a later exit/wait patch.
@@ -96,6 +102,12 @@ struct proc {
   pagetable_t pagetable;  // user page table (empty until later labs).
   struct context context; // scheduler saves/restores callee-saved state here.
   void *chan;             // sleep/wakeup channel.
+
+  // Lab 6 per-process file storage. Each populated descriptor slot owns one
+  // opaque kernel/file reference; a cleared slot owns no live reference
+  // (process-descriptor-boundary). cwd is the current-directory inode ref.
+  struct file *ofile[NOFILE];   // open files (NOFILE per process).
+  struct inode *cwd;            // current directory (kernel/file owns release).
 };
 
 // Per-hart state (Lab 5 runs a single boot hart but preserves per-hart

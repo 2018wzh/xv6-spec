@@ -840,3 +840,62 @@ checks:
     verifies:
       - kernel/inode
     workload: bounded QEMU virt serial capture booting the composite kernel with a real mkfs-generated fs.img on the virtio block device; fsinit must mount the deterministic root image and reach the scheduler
+  kernel_file_public:
+    kind: public
+    program: sh
+    args:
+      - tests/generated/kernel/file/public_file.sh
+    cwd: .
+    env:
+      - PATH
+    timeout: 120000
+    verifies:
+      - kernel/file
+    artifacts:
+      - kernel/kernel
+  kernel_file_contract:
+    kind: contract
+    program: sh
+    args:
+      - tests/generated/kernel/file/contract_file.sh
+    cwd: .
+    env:
+      - PATH
+    timeout: 60000
+    verifies:
+      - kernel/file
+    artifacts: []
+  kernel_file_fuzz:
+    kind: fuzz
+    program: sh
+    args:
+      - tests/generated/kernel/file/fuzz_file.sh
+      - "42"
+      - "200"
+      - tests/generated/kernel/file/repro/kernel_file_fuzz.repro
+    cwd: .
+    env:
+      - PATH
+    timeout: 60000
+    verifies:
+      - kernel/file
+    artifacts:
+      - tests/generated/kernel/file/repro/kernel_file_fuzz.repro
+    seed: 42
+    cases: 200
+    reproduction_artifact: tests/generated/kernel/file/repro/kernel_file_fuzz.repro
+  kernel_file_trace:
+    kind: trace
+    program: sh
+    args:
+      - tests/generated/kernel/file/trace_file.sh
+    cwd: .
+    env:
+      - PATH
+    timeout: 120000
+    verifies:
+      - kernel/file
+    artifacts:
+      - kernel/kernel
+    workload: Bounded QEMU virt serial capture booting the composite kernel with a real mkfs-generated fs.img on the virtio block device; the file module is initialized before process initialization and the file syscall surface is wired into dispatch.
+    oracle: Captured serial contains exactly one canonical XV6_BOOT_OK banner, no panic text, and the file module is wired in boot order (fileinit before process init) with the file syscall handlers present in the dispatch table.

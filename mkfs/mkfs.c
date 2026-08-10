@@ -24,6 +24,24 @@
 #include <string.h>
 #include <unistd.h>
 
+/* When this host tool is compiled with -I kernel, the angle `#include
+ * <fcntl.h>` above may resolve to the kernel's fcntl.h (which defines the
+ * syscall O_CREATE/O_TRUNC as 0x200/0x400 but not the host O_CREAT, nor the
+ * host `open` prototype). Supply the host-compatible image-creation globals
+ * only when the underlying header did not already provide them. */
+#ifndef O_RDWR
+#define O_RDWR 2
+#endif
+#ifndef O_CREAT
+#define O_CREAT 0x40
+#endif
+#ifndef O_TRUNC
+#define O_TRUNC 0x200
+#endif
+#ifndef open
+extern int open(const char *path, int flags, ...);
+#endif
+
 /* Mirror the kernel on-disk layout from kernel/fs.h. Deliberately re-declared
  * (not #included) so this host tool does not pull in kernel types.h/param.h
  * that conflict with the host toolchain. Field order and sizes match the

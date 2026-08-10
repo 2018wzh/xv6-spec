@@ -43,6 +43,10 @@ main(void)
   binit();
   fsinit(1);
 
+  // Lab 6 file ABI: initialize the global file table before any process
+  // descriptor can hold a file reference (kernel/file).
+  fileinit();
+
   // Lab 5 process substrate: initialize the process table (and each slot's
   // index-keyed kernel stack mapping) before the scheduler can activate.
   procinit();
