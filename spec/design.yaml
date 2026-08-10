@@ -5,7 +5,9 @@ system:
 machine:
   qemu:
     model: virt
-  hardware: {}
+  hardware:
+    board: not in current lab scope
+    status: not in current lab scope
 kernel:
   organization: monolithic teaching kernel
   execution: single boot hart reaches the current lab target
