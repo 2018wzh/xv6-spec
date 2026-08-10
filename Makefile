@@ -22,7 +22,8 @@ OBJS = \
   $(K)/proc.o \
   $(K)/swtch.o \
   $(K)/syscall.o \
-  $(K)/sysproc.o
+  $(K)/sysproc.o \
+  $(K)/virtio_disk.o
 
 # select_riscv_toolchain: probe candidate prefixes and pick the first one
 # that can compile an empty freestanding RV64 object. Empty on failure.

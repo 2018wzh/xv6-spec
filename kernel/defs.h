@@ -100,6 +100,11 @@ void     printf(char *, ...);
 // string.c
 void     panic(char*);
 
+// virtio_disk.c
+void     virtio_disk_init(void);
+void     virtio_disk_rw(uint64, void *, int);
+void     virtio_disk_intr(void);
+
 // riscv.h interrupt helpers
 void     intr_on(void);
 void     intr_off(void);

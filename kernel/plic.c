@@ -34,8 +34,9 @@
 void
 plicinit(void)
 {
-  // Set desired IRQ priorities (UART IRQ 10 is the only source in Lab 4).
+  // Set desired IRQ priorities (UART IRQ 10 and virtio block IRQ 1).
   *(uint32 *)(PLIC_PRIORITY + (UART0_IRQ - 1) * 4) = PLIC_PRIORITY_INIT;
+  *(uint32 *)(PLIC_PRIORITY + (VIRTIO0_IRQ - 1) * 4) = PLIC_PRIORITY_INIT;
 }
 
 // Enable the UART IRQ for the current hart's S-mode context and set the
@@ -46,8 +47,10 @@ plicinithart(void)
 {
   int hart = r_mhartid();
 
-  /* enable UART IRQ 10 for this hart's S-mode context (bit index = IRQ). */
+  /* enable UART IRQ 10 and virtio block IRQ 1 for this hart's S-mode
+     context (bit index = IRQ). */
   *(uint32 *)(PLIC_SENABLE + hart * 4) |= (1U << UART0_IRQ);
+  *(uint32 *)(PLIC_SENABLE + hart * 4) |= (1U << VIRTIO0_IRQ);
 
   /* threshold 0: deliver every pending, enabled, prioritized interrupt. */
   *(uint32 *)(PLIC_SPRIORITY + hart * 4) = 0;
