@@ -1,0 +1,8 @@
+id: lab1-ctf-toolchain
+reason: The warm-up reader and its QEMU evidence require one coordinated build and run projection without moving implementation semantics into vos.yaml.
+changes:
+- lab/ctf-warmup
+- toolchain
+new_invariants:
+- The Linux and bare-metal readers consume the same generated non-secret fixture values and never embed an expected flag.
+- The QEMU runner accepts only the complete CTF_BAREMETAL_OK serial marker and keeps panic, fatal output, and timeout as failures.

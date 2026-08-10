@@ -1,6 +1,24 @@
 version: vos.project.v1
-build: {program: bun, args: [--version], cwd: ., env: [], timeout: 30000, artifacts: []}
+build:
+  program: make
+  args: [all]
+  cwd: .
+  env: [PATH]
+  timeout: 120000
+  artifacts:
+  - lab1/build/flag-reader
+  - lab1/build/ctf-baremetal.elf
 runners:
-  qemu: {program: bun, args: [--version], cwd: ., env: [], timeout: 30000, artifacts: []}
-  hardware: {program: bun, args: [--version], cwd: ., env: [], timeout: 30000, artifacts: []}
+  qemu:
+    program: make
+    args: [qemu]
+    cwd: .
+    env: [PATH]
+    timeout: 30000
+    artifacts:
+    - lab1/build/ctf-baremetal.elf
+    - lab1/build/flags.img
+    workload: ctf-baremetal-generated-fixture
+    success_pattern: 'CTF_BAREMETAL_OK(?:\r?\n|$)'
+    failure_pattern: 'panic|PANIC|fatal|FATAL|CTF_BAREMETAL_FAIL'
 checks: {}
