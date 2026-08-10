@@ -27,6 +27,12 @@ main(void)
   uartinit();            // re-establish UART config and enable FIFO interrupts
   consoleinit();         // console owns ordinary output after this handoff
 
+  // Lab 6 virtio storage bootstrap: negotiate the block device and prepare
+  // the descriptor/available/used rings before any file-system layer that
+  // transfers logical blocks runs (fsinit is a later slice; "before fsinit"
+  // means before any storage consumer).
+  virtio_disk_init();
+
   // Lab 5 process substrate: initialize the process table (and each slot's
   // index-keyed kernel stack mapping) before the scheduler can activate.
   procinit();

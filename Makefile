@@ -46,7 +46,8 @@ KERNEL_OBJS := \
   $(K)/proc.o \
   $(K)/swtch.o \
   $(K)/syscall.o \
-  $(K)/sysproc.o
+  $(K)/sysproc.o \
+  $(K)/virtio_disk.o
 
 .PHONY: all clean qemu ctf-qemu gen-fixture toolchain-probe
 

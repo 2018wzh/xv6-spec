@@ -605,3 +605,61 @@ checks:
       - kernel/kernel
     workload: bounded QEMU virt serial capture of the booted Lab 5 kernel via vos_lab2_capture_serial
     oracle: captured serial must contain exactly one canonical XV6_BOOT_OK banner line and main.c must wire userinit() after procinit() and before scheduler(), and usertrapret must clear SPP before the trampoline userret so the first-user-ecall return cannot inherit supervisor privilege
+  kernel_virtio_public:
+    kind: public
+    program: sh
+    args:
+      - tests/generated/kernel/virtio/public_virtio.sh
+    cwd: .
+    env:
+      - PATH
+    timeout: 60000
+    verifies:
+      - kernel/virtio
+    artifacts:
+      - kernel/kernel
+  kernel_virtio_contract:
+    kind: contract
+    program: sh
+    args:
+      - tests/generated/kernel/virtio/contract_virtio.sh
+    cwd: .
+    env:
+      - PATH
+    timeout: 30000
+    verifies:
+      - kernel/virtio
+    artifacts: []
+  kernel_virtio_ring_fuzz:
+    kind: fuzz
+    program: sh
+    args:
+      - tests/generated/kernel/virtio/fuzz_ring.sh
+      - "42"
+      - "500"
+      - tests/generated/kernel/virtio/repro/kernel_virtio_ring_fuzz.repro
+    cwd: .
+    env:
+      - PATH
+    timeout: 30000
+    verifies:
+      - kernel/virtio
+    artifacts: []
+    seed: 42
+    cases: 500
+    reproduction_artifact: tests/generated/kernel/virtio/repro/kernel_virtio_ring_fuzz.repro
+  kernel_virtio_boot_trace:
+    kind: trace
+    program: sh
+    args:
+      - tests/generated/kernel/virtio/trace_virtio.sh
+    cwd: .
+    env:
+      - PATH
+    timeout: 60000
+    verifies:
+      - kernel/virtio
+    artifacts:
+      - kernel/kernel
+    workload: bounded QEMU virt serial capture with a 1MiB virtio-blk device attached
+    oracle: exactly one canonical XV6_BOOT_OK banner; no panic; virtio_disk_init wired before userinit; VIRTIO0_IRQ enabled in PLIC and dispatched in devintr

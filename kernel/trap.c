@@ -97,6 +97,8 @@ devintr(void)
 
     if (irq == UART0_IRQ) {
       uartintr();  // consume every currently available receive byte.
+    } else if (irq == VIRTIO0_IRQ) {
+      virtio_disk_intr();  // reclaim completed virtio block chains.
     } else {
       // Unknown external IRQ (e.g. a VIRTIO IRQ in a later lab): report it
       // in a bounded diagnostic, then complete without corrupting device
