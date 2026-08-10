@@ -31,14 +31,18 @@ main(void)
   // index-keyed kernel stack mapping) before the scheduler can activate.
   procinit();
 
-  // Only now, with stvec, device routing, and the process table established,
-  // enable supervisor interrupts.
+  // Lab 5 syscall composition: create the first user process (loads initcode
+  // and maps TRAMPOLINE/TRAPFRAME) so the scheduler can dispatch it across
+  // the trap-frame privilege boundary.
+  userinit();
+
+  // Only now, with stvec, device routing, the process table, and the first
+  // user process established, enable supervisor interrupts.
   intr_on();
 
   // Lab 5 round-robin scheduler: the single boot hart scans the process
-  // table for RUNNABLE processes forever. No user program exists in this
-  // process-only commit, so the scheduler parks while there is nothing to
-  // run, preserving a buildable intermediate kernel.
+  // table for RUNNABLE processes forever, dispatching the first user process
+  // which enters user mode, performs one validated syscall, and returns.
   scheduler();
   for (;;)
     ;

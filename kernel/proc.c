@@ -144,15 +144,14 @@ freeproc(struct proc *p)
 
 // Entered on the first dispatch into a newly allocated process. The
 // scheduler holds the process lock across the first swtch, so forkret
-// releases it; the process returns through sched on subsequent switches.
+// releases it. The process then returns to user mode for the first time via
+// usertrapret (the syscall/trap composition installs the uservec/userret
+// trampoline and its trap frame).
 static void
 forkret(void)
 {
   release(&myproc()->lock);
-  // In Lab 5 no user program exists yet, so a newly scheduled process has
-  // nothing further to run; park it on its kernel stack.
-  for (;;)
-    ;
+  usertrapret();  // enter user mode for the first time.
 }
 
 // Round-robin scheduler: scan the process table for RUNNABLE processes and
@@ -247,4 +246,64 @@ wakeup(void *chan)
       release(&p->lock);
     }
   }
+}
+
+// The first user program, as little-endian RV64 machine code (assembled from
+// the source below). It is loaded at user virtual address 0 into the first
+// process and makes one validated syscall: write(1, msg, 12) so the Lab 5
+// console-call surface is exercised and the ecall return path is observable
+// on serial. It then loops forever so the booted kernel stays live in QEMU.
+//
+//   li a7, 16      ; SYS_write
+//   li a0, 1       ; fd = console
+//   li a1, 14      ; msg address (offset 14 within code at VA 0)
+//   li a2, 12      ; len = "SYSCALL_OK\n"
+//   ecall
+// 1: j 1b
+// msg: .asciz "SYSCALL_OK\n"
+static uchar initcode[] = {
+  0xc1, 0x48, 0x05, 0x45, 0xb9, 0x45, 0x31, 0x46, 0x73, 0x00, 0x00, 0x00,
+  0x01, 0xa0, 0x53, 0x59, 0x53, 0x43, 0x41, 0x4c, 0x4c, 0x5f, 0x4f, 0x4b,
+  0x0a, 0x00
+};
+
+// Create and run the first user process. It acquires one USED slot, loads
+// initcode into its user page table at VA 0, maps TRAMPOLINE and TRAPFRAME
+// into that page table, initializes its trap frame for a first user-mode
+// entry, and publishes the slot as RUNNABLE for the scheduler.
+void
+userinit(void)
+{
+  struct proc *p;
+  uint64 trampoline_pa = (uint64)trampoline;
+
+  p = allocproc();  // returns with p->lock held.
+  if (p == 0)
+    panic("userinit: allocproc");
+
+  // Map the shared trampoline page (read-execute, no user bit) and the
+  // process's trap-frame page into the user page table at the canonical
+  // TRAMPOLINE/TRAPFRAME virtual addresses.
+  uvmmap(p->pagetable, TRAMPOLINE, trampoline_pa, PGSIZE, PTE_R | PTE_X);
+  uvmmap(p->pagetable, TRAPFRAME, p->trapframe, PGSIZE, PTE_R | PTE_W | PTE_U);
+
+  // Load the init user program into one page at user VA 0.
+  if (uvmfirst(p->pagetable, initcode, sizeof(initcode)) < 0)
+    panic("userinit: uvmfirst");
+  p->sz = PGSIZE;
+  safestrcpy(p->name, "initcode", sizeof(p->name));
+
+  // Set up the trap frame so the first usertrapret enters user mode at the
+  // start of initcode.
+  {
+    struct usertrapframe *tf = (struct usertrapframe *)p->trapframe;
+    memset(tf, 0, sizeof(*tf));
+    tf->kernel_sp = p->kstack + PGSIZE;  // set fresh by usertrapret too
+    tf->kernel_trap = (uint64)usertrap;
+    tf->epc = 0;                         // first user instruction
+  }
+
+  // Publish as runnable. The scheduler will dispatch it first.
+  p->state = RUNNABLE;
+  release(&p->lock);
 }

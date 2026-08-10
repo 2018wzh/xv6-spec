@@ -13,13 +13,16 @@ OBJS = \
   $(K)/kalloc.o \
   $(K)/vm.o \
   $(K)/kernelvec.o \
+  $(K)/trampoline.o \
   $(K)/trap.o \
   $(K)/plic.o \
   $(K)/uart.o \
   $(K)/console.o \
   $(K)/printk.o \
   $(K)/proc.o \
-  $(K)/swtch.o
+  $(K)/swtch.o \
+  $(K)/syscall.o \
+  $(K)/sysproc.o
 
 # select_riscv_toolchain: probe candidate prefixes and pick the first one
 # that can compile an empty freestanding RV64 object. Empty on failure.

@@ -16,6 +16,8 @@
 #include "memlayout.h"
 #include "riscv.h"
 #include "spinlock.h"
+#include "proc.h"
+#include "syscall.h"
 #include "defs.h"
 
 // installed by trapinit; kernelvec saves the interrupted frame in assembly.
@@ -106,4 +108,80 @@ devintr(void)
     return 1;
   }
   return 0;
+}
+
+// Supervisor trap cause value for a user-mode ecall.
+#define SCAUSE_USER_ECALL 8
+
+// Dispatch a trap from user mode. uservec has already saved the complete
+// user register set into the current process's trap frame and switched to
+// the kernel page table. A user ecall advances sepc, dispatches through
+// kernel/syscall, and reaches usertrapret; an unexpected user exception
+// terminates the process with evidence.
+void
+usertrap(void)
+{
+  struct proc *p = myproc();
+  uint64 scause = r_scause();
+  uint64 sepc = r_sepc();
+  struct usertrapframe *tf = (struct usertrapframe *)p->trapframe;
+
+  if ((r_sstatus() & SSTATUS_SPP) != 0)
+    panic("usertrap: not from user mode");
+  w_stvec((uint64)kernelvec);  // handle kernel traps while dispatching.
+
+  if (scause == SCAUSE_USER_ECALL) {
+    // Advance sepc past the ecall before dispatch.
+    tf->epc = sepc;
+    sepc += 4;
+    w_sepc(sepc);
+
+    // Dispatch the validated syscall and usertrapret returns to user mode.
+    syscall();
+    usertrapret();
+    return;
+  }
+
+  // An unexpected user-mode exception: terminate with diagnostic evidence.
+  printf("usertrap: exception scause=%lx sepc=%lx stval=%lx pid=%d\n",
+         scause, sepc, r_stval(), p->pid);
+  panic("unexpected user exception");
+}
+
+// Return to user mode. Configures the trap frame's kernel handoff fields,
+// sets stvec to uservec, clears SPP and sets SPIE so sret cannot inherit
+// supervisor privilege, then jumps into the trampoline's userret, which
+// switches to the user page table and restores the user register set.
+void
+usertrapret(void)
+{
+  struct proc *p = myproc();
+  struct usertrapframe *tf = (struct usertrapframe *)p->trapframe;
+  uint64 trampoline_userret =
+    TRAMPOLINE + ((uint64)userret - (uint64)trampoline);
+  uint64 user_pagetable = (uint64)p->pagetable;
+  uint64 sstatus = r_sstatus();
+
+  // Kernel must not write user memory after the page-table switch; publish
+  // the kernel handoff fields while still on the kernel page table.
+  tf->kernel_satp = r_satp();
+  tf->kernel_sp = p->kstack + PGSIZE;
+  tf->kernel_trap = (uint64)usertrap;
+  tf->kernel_hartid = r_tp();
+
+  // Prepare sstatus: SPP clear (return to user), SPIE set so the next
+  // user-mode trap re-enables interrupts.
+  sstatus &= ~SSTATUS_SPP;
+  sstatus |= SSTATUS_SPIE;
+  w_sstatus(sstatus);
+
+  // Save the user program counter and tell uservec where the trap frame is.
+  w_sepc(tf->epc);
+  w_sscratch(TRAPFRAME);
+
+  // On user traps, uservec handles user traps.
+  w_stvec(TRAMPOLINE + ((uint64)uservec - (uint64)trampoline));
+
+  // Switch to the user page table and restore user registers via userret.
+  ((void (*)(uint64, uint64))trampoline_userret)(TRAPFRAME, user_pagetable);
 }

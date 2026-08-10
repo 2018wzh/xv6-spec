@@ -11,4 +11,13 @@ extern pagetable_t kernel_pagetable;
 // by procinit to install each process slot's index-keyed kernel stack.
 void kvmmap(pagetable_t, uint64, uint64, uint64, int);
 
+// Map `va` to `pa` for `sz` bytes in a user (process) page table, panicking
+// on failure. Used by the syscall/trap composition to install the per-process
+// TRAMPOLINE and TRAPFRAME user mappings.
+void uvmmap(pagetable_t, uint64, uint64, uint64, int);
+
+// Allocate one user page, copy `src` (size `sz`) into it, and map it at user
+// virtual address 0 with user read/write/execute permissions.
+int uvmfirst(pagetable_t, uchar *, uint);
+
 #endif // __VM_H__
