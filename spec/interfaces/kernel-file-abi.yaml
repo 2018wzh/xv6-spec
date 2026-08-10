@@ -1,7 +1,7 @@
 id: interface/kernel-file-abi
 name: user and kernel file operation boundary
 boundary: syscall
-module: kernel/fs
+module: kernel/file
 operations:
 - name: open
   pre:
@@ -33,3 +33,13 @@ operations:
   properties:
   - id: close-release-once
     text: the final close releases the underlying inode-backed file resource exactly once; pipes are not in the Lab 6 ABI scope
+- name: namespace_mutation
+  pre:
+  - every user path has been copied through the validated syscall boundary
+  post:
+  - create, link, unlink, mkdir, mknod, and chdir expose only committed namespace changes
+  errors:
+  - invalid, missing, duplicate, nonempty, or exhausted operations return -1 without a partial directory mutation
+  properties:
+  - id: namespace-commit-visibility
+    text: successful namespace syscalls become visible together and failed syscalls leave no partial directory entry
