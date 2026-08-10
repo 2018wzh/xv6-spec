@@ -515,3 +515,61 @@ checks:
       - kernel/kernel
     workload: bounded QEMU virt serial capture with a 1MiB virtio-blk device attached
     oracle: exactly one canonical XV6_BOOT_OK banner; no panic; virtio_disk_init wired before userinit; VIRTIO0_IRQ enabled in PLIC and dispatched in devintr
+  kernel_bio_public:
+    args:
+      - tests/generated/kernel/bio/public_bio.sh
+    artifacts: []
+    cwd: .
+    env:
+      - PATH
+    kind: public
+    program: sh
+    timeout: 120000
+    verifies:
+      - kernel/bio
+  kernel_bio_contract:
+    args:
+      - tests/generated/kernel/bio/contract_bio.sh
+    artifacts: []
+    cwd: .
+    env:
+      - PATH
+    kind: contract
+    program: sh
+    timeout: 60000
+    verifies:
+      - kernel/bio
+  kernel_bio_fuzz:
+    args:
+      - tests/generated/kernel/bio/fuzz_lru.sh
+      - "42"
+      - "500"
+      - tests/generated/kernel/bio/repro/kernel_bio_fuzz.repro
+    artifacts:
+      - tests/generated/kernel/bio/repro/kernel_bio_fuzz.repro
+    cases: 500
+    cwd: .
+    env:
+      - PATH
+    kind: fuzz
+    program: sh
+    reproduction_artifact: tests/generated/kernel/bio/repro/kernel_bio_fuzz.repro
+    seed: 42
+    timeout: 60000
+    verifies:
+      - kernel/bio
+  kernel_bio_trace:
+    args:
+      - tests/generated/kernel/bio/trace_bio.sh
+    artifacts:
+      - tests/generated/kernel/bio/repro/kernel_bio_trace.out
+    cwd: .
+    env:
+      - PATH
+    kind: trace
+    oracle: exactly one XV6_BOOT_OK banner and no panic text
+    program: sh
+    timeout: 120000
+    verifies:
+      - kernel/bio
+    workload: bounded QEMU virt serial capture with attached virtio block device
