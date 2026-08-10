@@ -105,6 +105,13 @@ void     virtio_disk_init(void);
 void     virtio_disk_rw(uint64, void *, int);
 void     virtio_disk_intr(void);
 
+// log.c (kernel/log)
+struct buf;
+void     initlog(int);
+void     begin_op(void);
+void     log_write(struct buf *);
+void     end_op(void);
+
 // riscv.h interrupt helpers
 void     intr_on(void);
 void     intr_off(void);

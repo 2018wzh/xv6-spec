@@ -721,3 +721,62 @@ checks:
     verifies:
       - kernel/bio
     workload: bounded QEMU virt serial capture with attached virtio block device
+  kernel_log_public:
+    artifacts:
+      - kernel/kernel
+    args:
+      - tests/generated/kernel/log/public_log.sh
+    cwd: .
+    env:
+      - PATH
+    kind: public
+    program: sh
+    timeout: 120000
+    verifies:
+      - kernel/log
+  kernel_log_contract:
+    artifacts: []
+    args:
+      - tests/generated/kernel/log/contract_log.sh
+    cwd: .
+    env:
+      - PATH
+    kind: contract
+    program: sh
+    timeout: 60000
+    verifies:
+      - kernel/log
+  kernel_log_fuzz:
+    artifacts:
+      - tests/generated/kernel/log/repro/kernel_log_fuzz.repro
+    args:
+      - tests/generated/kernel/log/fuzz_log.sh
+      - "42"
+      - "500"
+      - tests/generated/kernel/log/repro/kernel_log_fuzz.repro
+    cases: 500
+    cwd: .
+    env:
+      - PATH
+    kind: fuzz
+    program: sh
+    reproduction_artifact: tests/generated/kernel/log/repro/kernel_log_fuzz.repro
+    seed: 42
+    timeout: 60000
+    verifies:
+      - kernel/log
+  kernel_log_trace:
+    artifacts:
+      - kernel/kernel
+    args:
+      - tests/generated/kernel/log/trace_log.sh
+    cwd: .
+    env:
+      - PATH
+    kind: trace
+    oracle: exactly one canonical XV6_BOOT_OK banner and no panic text; log data write_log precedes the durable nonempty commit header write_head
+    program: sh
+    timeout: 120000
+    verifies:
+      - kernel/log
+    workload: bounded QEMU virt serial capture booting the storage-layered kernel with an attached virtio block device; the redo log source is landed but composed with a mount in a later slice
