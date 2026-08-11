@@ -26,7 +26,7 @@ interface:
   - stage-transition faults occur before boot_banner can be called
   properties:
   - id: boot-banner-check-binding
-    text: bootstrap_banner_not_null observes the XV6_BOOT_OK banner
+    text: bootstrap_banner_not_null statically confirms that the boot implementation references boot_banner; bootstrap_qemu_single_banner is the runtime oracle that observes exactly one XV6_BOOT_OK banner
   - id: boot-pmp-before-mret
     text: start configures one unlocked NAPOT PMP entry for the physical address space with supervisor read write and execute permissions before mret so bootstrap_banner_not_null can observe supervisor execution; PMP locking is outside Lab 2 scope
 - name: publish_boot_banner
@@ -42,7 +42,7 @@ interface:
     text: the ns16550a is accessed as byte-addressed MMIO; THR is byte offset 0 and LSR is byte offset 5 with transmitter-ready bit 5
 properties:
 - id: kernel-boot-deterministic
-  text: the single boot hart reaches boot_banner deterministically under bootstrap_banner_not_null
+  text: the single boot hart reaches boot_banner deterministically under the bootstrap_qemu_single_banner runtime oracle
 errors:
 - invalid state fails explicitly
 - entering supervisor mode without PMP access causes an instruction access fault
@@ -64,5 +64,7 @@ invariants:
   text: when QEMU runs with -bios none, machine mode writes the maximal pmpaddr0 NAPOT region and pmpcfg0 read write execute permissions before mret
 - id: lab2-uart-abi
   text: serial publication uses the QEMU virt ns16550a byte-register ABI and never scales register offsets by a C word size
+- id: lab2-banner-oracle-ownership
+  text: toolchain owns the shared tests/public serial capture framework, while kernel/boot owns generated module checks; bootstrap_qemu_single_banner is the canonical shared single-banner runtime oracle
 dependencies:
 - toolchain

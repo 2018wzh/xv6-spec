@@ -6,6 +6,8 @@ owns:
 - vos.yaml
 - Makefile
 - lab1/build
+- tests/public/verify.sh
+- tests/public/lab2-boot.sh
 - tests/generated/toolchain
 interface:
 - name: build_ctf_readers
@@ -68,4 +70,6 @@ invariants:
   text: toolchain_capability_probe invokes the generated probe and rejects a prefix that cannot compile a freestanding RV64 object
 - id: lab2-toolchain-clean-rebuild
   text: toolchain_clean_rebuild performs two clean builds under the unchanged PATH allowlist and compares both the selected prefix and kernel/kernel content hash; QEMU behavior is verified by kernel/boot checks
+- id: lab2-shared-test-framework
+  text: toolchain owns tests/public/verify.sh and tests/public/lab2-boot.sh as the shared bootstrap test framework; module-specific generated checks delegate serial capture to this framework rather than owning a second host runner
 dependencies: []
