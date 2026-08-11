@@ -899,3 +899,62 @@ checks:
       - kernel/kernel
     workload: Bounded QEMU virt serial capture booting the composite kernel with a real mkfs-generated fs.img on the virtio block device; the file module is initialized before process initialization and the file syscall surface is wired into dispatch.
     oracle: Captured serial contains exactly one canonical XV6_BOOT_OK banner, no panic text, and the file module is wired in boot order (fileinit before process init) with the file syscall handlers present in the dispatch table.
+  kernel_file_abi_public:
+    kind: public
+    program: sh
+    args:
+      - tests/generated/kernel/file/kernel_file_abi_public.sh
+    cwd: .
+    env:
+      - PATH
+    timeout: 120000
+    verifies:
+      - kernel/file
+    artifacts:
+      - kernel/kernel
+  kernel_file_abi_contract:
+    kind: contract
+    program: sh
+    args:
+      - tests/generated/kernel/file/kernel_file_abi_contract.sh
+    cwd: .
+    env:
+      - PATH
+    timeout: 60000
+    verifies:
+      - kernel/file
+    artifacts: []
+  kernel_file_abi_fuzz:
+    kind: fuzz
+    program: sh
+    args:
+      - tests/generated/kernel/file/kernel_file_abi_fuzz.sh
+      - "42"
+      - "200"
+      - tests/generated/kernel/file/repro/kernel_file_abi_fuzz.repro
+    cwd: .
+    env:
+      - PATH
+    timeout: 60000
+    verifies:
+      - kernel/file
+    artifacts:
+      - tests/generated/kernel/file/repro/kernel_file_abi_fuzz.repro
+    seed: 42
+    cases: 200
+    reproduction_artifact: tests/generated/kernel/file/repro/kernel_file_abi_fuzz.repro
+  kernel_file_abi_trace:
+    kind: trace
+    program: sh
+    args:
+      - tests/generated/kernel/file/kernel_file_abi_trace.sh
+    cwd: .
+    env:
+      - PATH
+    timeout: 120000
+    verifies:
+      - kernel/file
+    artifacts:
+      - kernel/kernel
+    workload: Bounded QEMU virt serial capture booting the composite kernel with a real mkfs-generated fs.img on the virtio block device; the file module is initialized before process initialization and the file syscall surface is wired into dispatch.
+    oracle: Captured serial contains exactly one canonical XV6_BOOT_OK banner, no panic text, and the file module is wired in boot order (fileinit before process init) with the file printf syscall handlers (sys_open/sys_read) present in the dispatch table and the validated file ABI headers (O_CREATE, struct stat) present.
