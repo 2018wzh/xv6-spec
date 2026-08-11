@@ -958,3 +958,63 @@ checks:
       - kernel/kernel
     workload: Bounded QEMU virt serial capture booting the composite kernel with a real mkfs-generated fs.img on the virtio block device; the file module is initialized before process initialization and the file syscall surface is wired into dispatch.
     oracle: Captured serial contains exactly one canonical XV6_BOOT_OK banner, no panic text, and the file module is wired in boot order (fileinit before process init) with the file printf syscall handlers (sys_open/sys_read) present in the dispatch table and the validated file ABI headers (O_CREATE, struct stat) present.
+  kernel_file_syscall_public:
+    kind: public
+    program: sh
+    args:
+      - tests/generated/kernel/file/kernel_file_syscall_public.sh
+    cwd: .
+    env:
+      - PATH
+    timeout: 120000
+    verifies:
+      - kernel/file
+    artifacts:
+      - kernel/kernel
+      - user/_fstest
+  kernel_file_reference_contract:
+    kind: contract
+    program: sh
+    args:
+      - tests/generated/kernel/file/kernel_file_reference_contract.sh
+    cwd: .
+    env:
+      - PATH
+    timeout: 60000
+    verifies:
+      - kernel/file
+    artifacts: []
+  kernel_file_shared_offset_fuzz:
+    kind: fuzz
+    program: sh
+    args:
+      - tests/generated/kernel/file/kernel_file_shared_offset_fuzz.sh
+      - "7"
+      - "33"
+      - tests/generated/kernel/file/repro/kernel_file_shared_offset.repro
+    cwd: .
+    env:
+      - PATH
+    timeout: 60000
+    verifies:
+      - kernel/file
+    artifacts:
+      - tests/generated/kernel/file/repro/kernel_file_shared_offset.repro
+    seed: 7
+    cases: 33
+    reproduction_artifact: tests/generated/kernel/file/repro/kernel_file_shared_offset.repro
+  kernel_file_boot_trace:
+    kind: trace
+    program: sh
+    args:
+      - tests/generated/kernel/file/kernel_file_boot_trace.sh
+    cwd: .
+    env:
+      - PATH
+    timeout: 120000
+    verifies:
+      - kernel/file
+    artifacts:
+      - kernel/kernel
+    workload: bounded QEMU virt serial capture booting the composite kernel with a real mkfs-generated fs.img on the virtio block device; the file module is initialized before process init, fileinit wires before procinit, and the validated file syscall surface is present in dispatch
+    oracle: captured serial must contain exactly one canonical XV6_BOOT_OK banner, no panic text, main.c must call fileinit() before procinit(), and kernel/syscall.c must wire sys_open/sys_read/sys_write while fcntl.h O_CREATE and stat.h struct stat are present
