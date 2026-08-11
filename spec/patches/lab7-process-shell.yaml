@@ -1,0 +1,13 @@
+id: lab7-process-shell
+reason: The Lab 7 shell requires complete fork, exec, exit, and wait lifecycle semantics in addition to the independently specified pipe object.
+changes:
+- kernel/process
+- kernel/syscall
+- kernel/file
+- kernel/pipe
+- toolchain
+new_invariants:
+- Fork either publishes one child with copied address space and balanced descriptor and current-directory references or leaves no child visible.
+- Exit closes every descriptor and releases the current directory before publishing ZOMBIE; wait reaps each child exactly once.
+- Exec replaces the user image atomically after validating the complete ELF image and preserves the process identity and descriptor table.
+- The shell composes commands, redirections, and one or more pipes only through the declared syscall and resource ABI.

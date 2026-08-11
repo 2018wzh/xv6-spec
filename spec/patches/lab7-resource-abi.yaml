@@ -1,0 +1,14 @@
+id: lab7-resource-abi
+reason: Anonymous pipes adopt the existing file-description and process wait contracts across the resource ABI boundary.
+changes:
+- kernel/pipe
+- kernel/file
+- kernel/syscall
+- kernel/process
+- toolchain
+new_invariants:
+- Every pipe-backed descriptor owns exactly one global file reference, and every such file reference owns exactly one readable or writable endpoint reference.
+- Pipe read, write, and close never retain the file-table lock across a pipe-lock acquisition or process sleep.
+- Closing the final peer publishes EOF or broken-pipe state and wakes blocked operations before the pipe can be freed.
+- Allocation publishes both descriptors atomically or releases all provisional file, endpoint, and buffer resources.
+- A Lab 7 process-tree workload binds pipe, file, inode, page, and process-slot teardown to one cumulative resource-balance check.

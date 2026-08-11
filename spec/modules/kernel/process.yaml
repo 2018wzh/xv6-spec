@@ -1,7 +1,7 @@
 id: kernel/process
 module: kernel/process
 level: 3
-purpose: Own the fixed process table, per-process address spaces, trap frames, descriptor slots, lifecycle transitions, and round-robin context-switching primitives on the current course hart configuration.
+purpose: Own the fixed process table, process trees, per-process address spaces and resources, complete exit/wait lifecycle, and round-robin context switching on the current course hart configuration.
 owns:
 - kernel/proc.c
 - kernel/proc.h
@@ -62,6 +62,18 @@ interface:
     text: kernel_process_state_fuzz exercises fixed-seed valid and invalid SLEEPING and RUNNABLE transitions
   - id: no-lost-wakeup-contract
     text: kernel_process_wakeup_contract observes the caller-lock handoff and a wakeup after SLEEPING publication
+- name: fork_exit_wait
+  pre:
+  - fork operates on the current live process; exit and wait run with no unrelated process lock held
+  post:
+  - fork publishes one fully initialized child or none; exit releases descriptors, current directory, and address-space resources before ZOMBIE; wait reaps each child once
+  errors:
+  - allocation or copy failure rolls back an unpublished child; wait without children returns -1 without sleeping
+  properties:
+  - id: process-tree-public
+    text: the Lab 7 kernel_process_tree_public target boots a bounded user workload that forks, execs, exits, and is reaped with the expected status
+  - id: process-fork-rollback-contract
+    text: the Lab 7 kernel_process_fork_rollback_contract target observes that failed fork never publishes a partial child and wait reaps one ZOMBIE child exactly once
 properties:
 - id: process-slot-exclusivity
   text: each process slot has exactly one lifecycle state and its mutable fields are protected by that slot's lock
@@ -75,7 +87,7 @@ errors:
 - process-table exhaustion returns failure without corrupting existing slots
 - illegal scheduler and lock state transitions panic
 state:
-  stage: process
+  stage: resource-abi
   owned_state:
   - fixed process table and next pid
   - per-hart current-process and scheduler context
@@ -87,14 +99,16 @@ state:
 preconditions:
 - memory and supervisor traps are initialized
 postconditions:
-- process allocation, lifecycle, sleep/wakeup, and scheduler primitives compile and can be composed with the syscall stage without leaking privileged state
+- process allocation, fork/exec composition, exit/wait lifecycle, sleep/wakeup, and scheduling complete without leaking privileged or resource state
 invariants:
 - id: process-lock-state
-  text: every Lab 5 transition involving RUNNING, RUNNABLE, or SLEEPING holds the process lock; ZOMBIE enters scope only with a later exit and wait patch
+  text: every transition involving USED, RUNNABLE, RUNNING, SLEEPING, ZOMBIE, or UNUSED holds the affected process lock and preserves parent-child visibility
 - id: one-running-process
   text: the single Lab 5 hart has at most one RUNNING process
 - id: descriptor-slot-reference
   text: a nonempty descriptor slot corresponds to exactly one live global file reference, and close clears the slot before releasing that reference
+- id: zombie-reap-once
+  text: exit publishes ZOMBIE only after resource teardown and wait is the only transition that reclaims a ZOMBIE child slot
 dependencies:
 - kernel/boot
 - kernel/memory
@@ -103,11 +117,13 @@ dependencies:
 rely:
 - memory provides page allocation and per-process page-table helpers
 - trap provides the trap-frame ABI shape later used by the user-return composition
-- the committed Lab 6 filesystem patch may extend the process record with opaque file and current-directory references while kernel/file remains responsible for their operations and release ordering
+- fork_exit_wait aggregates the fork, exit, and wait syscall ABI operations; exec image replacement is dispatched by kernel/syscall and committed by the filesystem layer
+- kernel/file and kernel/pipe provide balanced opaque references for inheritance and teardown; process code never interprets their internal objects
 guarantee:
 - context switching preserves every RISC-V callee-saved register and stack pointer
 - lifecycle failure paths leave no allocated trap frame, page table, or stale state
 - descriptor slots are published and cleared only through the kernel/file ABI, so process scheduling never interprets file-object internals
+- exit releases each inherited descriptor and current-directory reference before waking its parent; wait reaps each child exactly once
 algorithm_intent: Use a fixed locked process table, per-process kernel stacks, and a round-robin scan; use swtch to exchange only the RISC-V callee-saved context.
 concurrency:
   module:

@@ -1,0 +1,149 @@
+id: kernel/pipe
+module: kernel/pipe
+level: 3
+purpose: Own bounded anonymous pipes, endpoint lifetime, FIFO transfer, blocking wakeups, and their composition with file descriptors and the command shell.
+owns:
+- kernel/pipe.c
+- tests/generated/kernel/pipe
+interface:
+- name: pipealloc
+  pre:
+  - called without a file-table, process, or pipe lock held
+  post:
+  - returns one readable file object and one writable file object owning opposite references to one empty initialized pipe, or fails without a reference leak
+  errors:
+  - memory or file-table exhaustion releases every provisional allocation and returns -1
+  properties:
+  - id: pipe-allocation-rollback-contract
+    text: every failed allocation path restores pipe, file-table, and descriptor capacity to its prior value
+- name: piperead
+  pre:
+  - the caller owns a readable endpoint and supplies a validated destination range
+  post:
+  - bytes leave the ring in FIFO order; empty-with-writer waits without a lost wakeup and empty-without-writer returns EOF
+  errors:
+  - invalid ranges or interrupted waits fail without consuming unreported bytes
+  properties:
+  - id: pipe-read-order-public
+    text: bounded producer and consumer workloads preserve byte order across wraparound
+  - id: pipe-reader-wakeup-trace
+    text: closing the final writer wakes an empty reader and the trace terminates at EOF
+- name: pipewrite
+  pre:
+  - the caller owns a writable endpoint and supplies a validated source range
+  post:
+  - accepted bytes enter the ring in FIFO order and full-with-reader waits until space is published
+  errors:
+  - a closed read side or invalid range returns -1 without publishing unreported bytes
+  properties:
+  - id: pipe-capacity-fuzz
+    text: fixed-seed bounded writes, reads, wraparound, and peer closes preserve capacity and ordering invariants
+  - id: pipe-writer-wakeup-trace
+    text: closing the final reader wakes a full-buffer writer and the trace observes stable failure
+- name: pipeclose
+  pre:
+  - the caller releases exactly one readable or writable endpoint reference
+  post:
+  - endpoint liveness is updated under the pipe lock, blocked peers are awakened, and the pipe is freed only after both sides have no live references
+  errors:
+  - duplicate close is rejected by descriptor validation before entering the pipe module
+  properties:
+  - id: pipe-final-release-contract
+    text: explicit close, dup, fork inheritance, and process teardown release each endpoint once and free one pipe once
+properties:
+- id: pipe-fifo-order
+  text: the bounded ring exposes every accepted byte exactly once and in acceptance order
+- id: pipe-no-lost-wakeup
+  text: condition checks, sleep publication, peer state changes, and wakeups use one lock handoff that cannot miss a transition
+- id: pipe-resource-balance
+  text: each live pipe-backed file reference contributes to exactly one endpoint lifetime and no freed pipe remains reachable
+- id: pipe-process-teardown-contract
+  text: the Lab 7 kernel_pipe_process_teardown_contract target repeatedly forks and exits pipe users and observes file, pipe, inode, page, and process-slot counts return to baseline
+errors:
+- invalid direction, user range, peer state, or exhausted capacity fails explicitly without leaking a file, descriptor, endpoint, or buffer
+state:
+  stage: resource-abi
+  owned_state:
+  - one bounded byte ring with monotonic read and write positions
+  - readable-side and writable-side liveness protected by one pipe lock
+  resource_lifetime:
+  - pipealloc publishes two initialized file references only after the pipe and both endpoints exist
+  - the final reference on each side publishes closure and wakes peers; the backing pipe is freed after both sides are closed
+preconditions:
+- process sleep and wakeup, file references, syscall copy helpers, and descriptor storage are available
+postconditions:
+- user programs and the shell compose producers and consumers with ordinary read, write, dup, close, fork, and exec operations
+invariants:
+- id: pipe-capacity-bound
+  text: the write position never precedes the read position and their distance never exceeds the fixed ring capacity
+- id: pipe-endpoint-reference-consistency
+  text: readable and writable liveness remain true exactly while at least one corresponding file reference exists
+- id: pipe-peer-close-termination
+  text: no reader or writer remains asleep after the condition it awaits becomes impossible because its final peer closed
+dependencies:
+- kernel/file
+- kernel/memory
+- kernel/process
+- kernel/syscall
+- toolchain
+rely:
+- pipealloc, piperead, pipewrite, and pipeclose implement the interface/kernel-pipe-abi pipe, read, write, and close operations respectively; kernel/syscall validates user arguments and kernel/file publishes descriptors and dispatches by file type
+- kernel/file publishes and clears descriptor references before calling endpoint release
+- kernel/process provides the lock-handoff sleep and wakeup contract and closes inherited descriptors during teardown
+- kernel/syscall validates descriptor direction and copies only through checked user ranges
+guarantee:
+- pipe code never holds the file-table lock while acquiring the pipe lock or sleeping
+- close publishes endpoint state and wakes every affected waiter before the backing buffer can be freed
+algorithm_intent: Use one spinlock-protected bounded ring with monotonic positions, file-backed endpoint references, and condition loops around process sleep and wakeup.
+concurrency:
+  module:
+    module: kernel/pipe
+    shared_state:
+    - ring positions, buffered bytes, and readable and writable endpoint liveness
+    lock_types:
+    - one spinlock per pipe
+    lock_order:
+    - descriptor and file-table references are stabilized before acquiring the pipe lock; the file-table lock is not retained
+    atomic_sections:
+    - condition check, byte transfer, endpoint close publication, and wakeup decision under the pipe lock
+    interrupt_rules:
+    - pipe operations may sleep only through the process lock-handoff primitive
+    rely:
+    - file references keep the pipe reachable for the duration of an operation
+    guarantee:
+    - every wait rechecks its condition after wakeup and every state transition wakes the opposite side when progress or termination becomes possible
+    wait_wakeup_rules:
+    - empty readers wait only while a writer remains live; full writers wait only while a reader remains live
+    - endpoint close wakes both read-position and write-position wait channels
+    forbidden_patterns:
+    - sleeping while holding the file-table lock
+    - returning EOF while a writer remains live
+    - retaining a pointer after the final dual-side close frees the pipe
+  operations:
+    pipealloc:
+      atomicity: publish both file references together or publish neither
+      lock_order:
+      - allocate backing memory before publishing file references and descriptors
+      interrupt_state: enabled outside short spinlock regions
+      wait_wakeup_rules: []
+    piperead:
+      atomicity: remove and report each byte under one pipe-lock critical section
+      lock_order:
+      - pipe lock, then process sleep handoff without retaining an unrelated lock
+      interrupt_state: managed by the pipe and process spinlocks
+      wait_wakeup_rules:
+      - wait on the read position only while the ring is empty and a writer remains live
+    pipewrite:
+      atomicity: add and report each accepted byte under one pipe-lock critical section
+      lock_order:
+      - pipe lock, then process sleep handoff without retaining an unrelated lock
+      interrupt_state: managed by the pipe and process spinlocks
+      wait_wakeup_rules:
+      - wait on the write position only while the ring is full and a reader remains live
+    pipeclose:
+      atomicity: publish endpoint closure and wake peers before deciding whether both sides are closed
+      lock_order:
+      - pipe lock; free backing memory only after releasing the lock
+      interrupt_state: managed by the pipe spinlock
+      wait_wakeup_rules:
+      - wake readers and writers whenever an endpoint becomes permanently unavailable

@@ -1,7 +1,7 @@
 id: kernel/syscall
 module: kernel/syscall
 level: 3
-purpose: Cross from user mode through the trampoline and trap frame, validate syscall numbers and arguments, and provide the minimal Lab 5 process-control and console-call surface.
+purpose: Cross from user mode through the trampoline and trap frame, validate syscall numbers and arguments, and dispatch the complete process, file, pipe, and console ABI used by the command shell.
 owns:
 - kernel/syscall.c
 - kernel/syscall.h
@@ -57,7 +57,7 @@ state:
 preconditions:
 - process and trap stages have initialized the current process and trap frame
 postconditions:
-- the first user process can enter and return from a validated minimal syscall
+- user processes and the shell can enter and return from every declared process, file, pipe, and console syscall without exposing supervisor memory
 invariants:
 - id: no-raw-user-pointer
   text: C code never directly dereferences an address supplied by user mode

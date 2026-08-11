@@ -32,7 +32,7 @@ operations:
   - an invalid descriptor returns -1 and leaves unrelated descriptors unchanged
   properties:
   - id: close-release-once
-    text: the final close releases the underlying inode-backed file resource exactly once; pipes are not in the Lab 6 ABI scope
+    text: the final close releases the underlying inode-backed resource or pipe endpoint exactly once according to its declared resource type
 - name: namespace_mutation
   pre:
   - every user path has been copied through the validated syscall boundary

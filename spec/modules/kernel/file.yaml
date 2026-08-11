@@ -1,7 +1,7 @@
 id: kernel/file
 module: kernel/file
 level: 3
-purpose: Own the global file table, per-file offsets and references, validated user file syscalls, and the bounded user workload that exercises the Lab 6 file ABI.
+purpose: Own the global file table, inode and pipe-backed file references, shared offsets, validated file syscalls, and user-space file-description support.
 owns:
 - kernel/file.c
 - kernel/file.h
@@ -76,14 +76,14 @@ properties:
   text: file syscalls copy only through validated user ranges and never dereference raw user pointers in supervisor mode
 errors:
 - invalid path, mode, descriptor, direction, range, or capacity returns -1 without leaking resources
-- pipe creation and pipe-backed file objects are deferred beyond the Lab 6 file ABI
+- invalid pipe direction or a closed peer returns failure through the kernel/pipe contract without leaking the global file reference
 state:
   stage: filesystem
   owned_state:
   - fixed global file table, per-file offset and reference state, and syscall-visible file operation semantics
   resource_lifetime:
   - kernel/process owns descriptor-slot storage; kernel/file owns the one-reference-per-populated-slot lifecycle
-  - each inode-backed global file contributes one inode reference until final close
+  - each inode-backed global file contributes one inode reference until final close; each pipe-backed file contributes one endpoint reference
 preconditions:
 - kernel/inode is mounted and Lab 5 process and syscall entry are available
 postconditions:
@@ -102,12 +102,12 @@ dependencies:
 - toolchain
 rely:
 - kernel/inode provides balanced path and inode references; namespace_mutation aggregates inode path_resolution, dirlookup, dirlink, and unlink helpers, while file_capacity delegates raw inode, log, and disk exhaustion to inode_block_lifecycle
-- file_capacity aggregates descriptor and global file-table exhaustion exposed through the interface open, read_write, and close operations; it is not a separate ABI call
+- file_capacity aggregates descriptor and global file-table exhaustion exposed through open, pipe, read_write, and close; it is not a separate ABI call
 - kernel/log brackets persistent mutations, and kernel/inode fsinit completes mount validation and recovery before user file operations are admitted
 - syscall copies paths and buffers only through validated user-memory helpers
-- the Lab 6 composition extends process descriptor and current-directory storage before publishing file operations
+- kernel/pipe owns pipe buffer and peer-state semantics while kernel/file dispatches pipe-backed reads, writes, and final close
 guarantee:
-- successful file operations expose only committed directory, inode, offset, and content relationships
+- successful file operations expose only committed directory, inode, offset, pipe ordering, and content relationships
 - all error paths balance file, descriptor, inode, user-buffer, and transaction references
 algorithm_intent: Use a fixed global file table, one reference per process descriptor, serialized shared offsets, and bounded redo-logged file syscalls.
 concurrency:

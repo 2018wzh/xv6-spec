@@ -10,10 +10,10 @@ machine:
     status: not in current lab scope
 kernel:
   organization: monolithic teaching kernel
-  execution: single boot hart schedules the first user process
+  execution: single boot hart schedules process trees and an interactive command shell
   protection: per-process Sv39 page tables and a trap-frame privilege boundary
-  communication: validated system calls plus the UART console
-  resource_model: locked physical memory, process table, and per-process address spaces
+  communication: validated system calls, the UART console, file descriptions, and bounded pipes
+  resource_model: process-local descriptor slots reference shared files and pipe endpoints with balanced lifetime
 required_mechanisms:
 - deterministic early entry
 - serial boot output
@@ -22,10 +22,12 @@ required_mechanisms:
 - supervisor trap-vector installation and external-interrupt dispatch
 - process lifecycle, context switching, user traps, and syscall dispatch
 - virtio block I/O, a unique buffer cache, transactional inode storage, and file system calls
+- fork, exec, exit, and wait lifecycle with descriptor inheritance and teardown
+- bounded pipes and shell composition through ordinary file descriptors
 composition_invariants:
-- every published check is deterministic and scoped to the current lab
-- under an unchanged PATH prefix set, the toolchain and kernel bootstrap compose to reproduce the kernel/kernel content hash across clean builds
+- every published check is deterministic and scoped to the current lab; under an unchanged PATH prefix set, clean builds reproduce the kernel/kernel content hash
 - boot initializes memory and traps before the process table; user execution crosses privilege only through its mapped trap frame and validated syscall dispatch; file-system metadata reaches home blocks only through a committed redo-log transaction, with each logical block mapped to exactly two adjacent 512-byte virtio sectors
+- each populated descriptor slot owns exactly one shared resource reference; pipe close and process teardown wake blocked peers and release each endpoint exactly once
 non_goals:
 - mechanisms assigned to later labs
 hardware_port:
