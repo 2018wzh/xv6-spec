@@ -43,6 +43,18 @@ interface:
     text: selection tests basic freestanding RV64 compilation capability and never relies on command presence or objdump presence alone; the full kernel build and kernel/boot checks remain the behavioral gate
   - id: toolchain-path-allowlist
     text: VOS structured commands expose PATH explicitly so build scripts and test helpers resolve the same host tools as the capability probe
+- name: validate_host_portability
+  pre:
+  - the host provides POSIX make and sh, either natively or through the documented Windows POSIX-shell layer
+  - the existing toolchain, inode, and virtio check inputs are unchanged
+  post:
+  - two mkfs runs over identical inputs produce byte-identical fs.img files with the declared geometry
+  - the existing virtio fixed-seed fuzz target preserves its seed, case count, reproduction format, and oracle outcome
+  errors:
+  - an unavailable host API, executable-name mismatch, image difference, or changed fuzz oracle fails with the original command evidence
+  properties:
+  - id: toolchain-host-portability-contract
+    text: toolchain_host_portability_contract compares two independently generated fs.img files and confirms that kernel_virtio_ring_fuzz retains its declared fixed-seed evidence on POSIX and documented Windows POSIX-shell hosts
 properties:
 - id: toolchain-deterministic
   text: under an unchanged PATH prefix set, two clean builds select the same capable prefix and reproduce the declared Lab 1 artifacts and kernel/kernel content hash

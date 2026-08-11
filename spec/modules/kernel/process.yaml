@@ -74,6 +74,10 @@ interface:
     text: the Lab 7 kernel_process_tree_public target boots a bounded user workload that forks, execs, exits, and is reaped with the expected status
   - id: process-fork-rollback-contract
     text: the Lab 7 kernel_process_fork_rollback_contract target observes that failed fork never publishes a partial child and wait reaps one ZOMBIE child exactly once
+  - id: process-tree-fuzz
+    text: the Lab 7 kernel_process_tree_fuzz target applies a fixed seed to valid and invalid process-tree lifecycle edges and records a minimal reproduction artifact for any oracle failure
+  - id: process-tree-trace
+    text: the Lab 7 kernel_process_tree_trace target runs a bounded fork, exec, exit, and wait workload and rejects a missing, duplicated, or out-of-order reap event
 properties:
 - id: process-slot-exclusivity
   text: each process slot has exactly one lifecycle state and its mutable fields are protected by that slot's lock

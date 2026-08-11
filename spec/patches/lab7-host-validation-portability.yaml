@@ -1,0 +1,12 @@
+id: lab7-host-validation-portability
+reason: Lab 7 cumulative validation must preserve the existing process, syscall, virtio, inode, and toolchain contracts while making their host C tools portable across POSIX hosts and Windows hosts that provide the documented POSIX shell layer; the existing sh-based command contract remains unchanged.
+changes:
+- kernel/process
+- kernel/syscall
+- kernel/virtio
+- kernel/inode
+- toolchain
+new_invariants:
+- The toolchain_host_portability_contract check builds fs.img twice from identical inputs and requires byte-identical images with the existing superblock geometry; host adaptation may change build flags and executable naming but not image contents.
+- The existing kernel_virtio_ring_fuzz target passes on POSIX and documented Windows POSIX-shell hosts with the same seed, case count, reproduction artifact format, descriptor oracle, and sector-range oracle; adapting the host harness must not change kernel/virtio_disk.c semantics.
+- The declared kernel_process_tree_public and kernel_process_fork_rollback_contract checks retain their fork, exec, exit, wait, rollback, and single-reap semantics on each supported host; additional process fuzz and trace checks must preserve the same oracle rather than replace either declared check.
