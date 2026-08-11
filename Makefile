@@ -20,10 +20,12 @@ endif
 RISCV_CC := $(TOOLCHAIN)gcc
 RISCV_LD := $(TOOLCHAIN)ld
 RISCV_OBJCOPY := $(TOOLCHAIN)objcopy
-RISCV_CFLAGS := -Wall -Werror -O -fno-omit-frame-pointer -ggdb \
+KERNEL_CFLAGS := -Wall -Werror -O -fno-omit-frame-pointer -ggdb \
   -gdwarf-2 -MD -mcmodel=medany -ffreestanding -fno-common \
   -nostdlib -fno-pic -mno-relax -fno-stack-protector -march=rv64gc -mabi=lp64
 RISCV_LDFLAGS := -z max-page-size=4096
+CTF_RISCV_CFLAGS := -O2 -Wall -Wextra -march=rv64gc -mabi=lp64 -mcmodel=medany \
+  -static -nostdlib -nostartfiles -ffreestanding
 
 KERNEL_OBJS := \
   $(K)/entry.o \
@@ -41,10 +43,10 @@ kernel/kernel: $(KERNEL_OBJS) $(K)/kernel.ld
 	@echo "+ $@"
 
 $(K)/%.o: $(K)/%.c
-	$(RISCV_CC) $(RISCV_CFLAGS) -c $< -o $@
+	$(RISCV_CC) $(KERNEL_CFLAGS) -c $< -o $@
 
 $(K)/%.o: $(K)/%.S
-	$(RISCV_CC) $(RISCV_CFLAGS) -c $< -o $@
+	$(RISCV_CC) $(KERNEL_CFLAGS) -c $< -o $@
 
 $(LAB1_BUILD):
 	mkdir -p $(LAB1_BUILD)
@@ -67,7 +69,7 @@ $(LAB1_BUILD)/flags_img.o: $(LAB1_BUILD)/flags.img
 	cd $(LAB1_BUILD) && $(RISCV_OBJCOPY) -I binary -O elf64-littleriscv -B riscv flags.img flags_img.o
 
 $(LAB1_BUILD)/ctf-baremetal.elf: $(LAB1_BAREMETAL_SRCS) lab1/baremetal/sha256.h lab1/baremetal/uart.h lab1/baremetal/linker.ld $(LAB1_BUILD)/flags_img.o | $(LAB1_BUILD)/.dir-stamp
-	$(RISCV_CC) $(RISCV_CFLAGS) -I lab1/baremetal -T lab1/baremetal/linker.ld \
+	$(RISCV_CC) $(CTF_RISCV_CFLAGS) -I lab1/baremetal -T lab1/baremetal/linker.ld \
 		$(LAB1_BAREMETAL_SRCS) $(LAB1_BUILD)/flags_img.o -o $@
 
 toolchain-probe:
