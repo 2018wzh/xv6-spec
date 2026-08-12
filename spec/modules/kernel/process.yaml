@@ -5,6 +5,7 @@ purpose: Own the fixed process table, process trees, per-process address spaces 
 owns:
 - kernel/proc.c
 - kernel/proc.h
+- kernel/exec.c
 - kernel/swtch.S
 - tests/generated/kernel/process
 interface:
@@ -80,9 +81,9 @@ interface:
     text: the Lab 7 kernel_process_tree_trace target runs a bounded fork, exec, exit, and wait workload and rejects a missing, duplicated, or out-of-order reap event
 properties:
 - id: process-slot-exclusivity
-  text: each process slot has exactly one lifecycle state and its mutable fields are protected by that slot's lock
+  text: kernel_process_tree_fuzz observes that each process slot has exactly one lifecycle state and its mutable fields are protected by that slot's lock
 - id: address-space-ownership
-  text: each live process exclusively owns its trap frame and user page table; freeproc releases both exactly once
+  text: kernel_process_fork_rollback_contract observes that each live process exclusively owns its trap frame and user page table and that freeproc releases both exactly once
 - id: swtch-save-symmetry
   text: kernel_process_context_contract validates symmetric save and restore slots for sp and every RISC-V callee-saved register
 - id: process-descriptor-boundary
@@ -110,7 +111,7 @@ invariants:
 - id: one-running-process
   text: the single Lab 5 hart has at most one RUNNING process
 - id: descriptor-slot-reference
-  text: a nonempty descriptor slot corresponds to exactly one live global file reference, and close clears the slot before releasing that reference
+  text: kernel_process_tree_trace observes that a nonempty descriptor slot corresponds to exactly one live global file reference and that close clears the slot before releasing that reference
 - id: zombie-reap-once
   text: exit publishes ZOMBIE only after resource teardown and wait is the only transition that reclaims a ZOMBIE child slot
 dependencies:

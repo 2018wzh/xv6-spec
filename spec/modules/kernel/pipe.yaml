@@ -52,11 +52,11 @@ interface:
     text: the Lab 7 kernel_pipe_contract target proves explicit close, dup, fork inheritance, and process teardown release each endpoint once and free one pipe once
 properties:
 - id: pipe-fifo-order
-  text: the bounded ring exposes every accepted byte exactly once and in acceptance order
+  text: kernel_pipe_public and kernel_pipe_fuzz observe that the bounded ring exposes every accepted byte exactly once and in acceptance order
 - id: pipe-no-lost-wakeup
-  text: condition checks, sleep publication, peer state changes, and wakeups use one lock handoff that cannot miss a transition
+  text: kernel_pipe_trace observes that condition checks, sleep publication, peer state changes, and wakeups use one lock handoff that cannot miss a transition
 - id: pipe-resource-balance
-  text: each live pipe-backed file reference contributes to exactly one endpoint lifetime and no freed pipe remains reachable
+  text: kernel_pipe_process_teardown_contract observes that each live pipe-backed file reference contributes to exactly one endpoint lifetime and no freed pipe remains reachable
 - id: pipe-process-teardown-contract
   text: the Lab 7 kernel_pipe_process_teardown_contract target uses seed 7 and 32 bounded fork-and-exit pipe-user cases and observes file, pipe, inode, page, and process-slot counts return to baseline
 errors:
@@ -89,6 +89,7 @@ dependencies:
 rely:
 - pipealloc, piperead, pipewrite, and pipeclose implement the interface/kernel-pipe-abi pipe, read, write, and close operations respectively; kernel/syscall validates user arguments and kernel/file publishes descriptors and dispatches by file type
 - kernel/file publishes and clears descriptor references before calling endpoint release
+- a test-only accounting snapshot, enabled only for generated contract workloads and not exposed as a student syscall ABI, reports locked file, pipe, inode, allocated-page, and occupied-process-slot counts separately immediately before and after the bounded teardown workload at the same clean commit
 - kernel/process provides the lock-handoff sleep and wakeup contract and closes inherited descriptors during teardown
 - kernel/syscall validates descriptor direction and copies only through checked user ranges
 guarantee:

@@ -80,6 +80,16 @@ interface:
   properties:
   - id: copyinstr-bound-validation
     text: kernel_syscall_argument_fuzz observes page-boundary and unterminated-string failures
+- name: process_address_space
+  pre:
+  - the caller owns a live process page table, its current byte size, and any source image pages referenced by the operation
+  post:
+  - allocation, deallocation, cloning, and complete teardown preserve page ownership; a successful clone contains private copies of every mapped user page and a successful image replacement publishes one complete address space
+  errors:
+  - allocation, mapping, or image-copy failure releases every page and intermediate page-table page acquired by the failed operation without changing the caller's previously published address space
+  properties:
+  - id: process-address-space-rollback
+    text: kernel_process_fork_rollback_contract uses a test-only deterministic allocation-failure seam to observe that a mid-clone failure leaves no child-visible mapping or leaked page, while kernel_process_tree_trace observes that exec replaces the old image only after the new image is complete
 properties:
 - id: page-exclusive-ownership
   text: memory_freelist_contract observes that a physical page is either allocated or on the freelist, never both
@@ -116,9 +126,11 @@ dependencies:
 rely:
 - the linker symbol end and PHYSTOP delimit usable physical memory
 - the boot stage calls initialization before concurrent allocation
+- generated contract builds may enable a deterministic allocation-failure seam scoped to one address-space clone; production and ordinary public builds contain no student-visible control path for that seam
 guarantee:
 - allocator mutations hold the allocator spinlock after initialization
 - all installed kernel leaf mappings use the least privilege declared by their region
+- process address-space helpers either publish a complete private mapping set or release all provisional leaf and page-table pages before returning failure
 algorithm_intent: Use a spinlock-protected singly linked freelist for physical pages and a conventional three-level Sv39 walk for mappings. Zero-fill on every successful allocation is an intentional determinism and isolation tradeoff with one page clear of cost per allocation.
 concurrency:
   module:
