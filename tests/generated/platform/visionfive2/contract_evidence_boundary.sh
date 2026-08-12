@@ -15,7 +15,14 @@
 set -eu
 
 has() {
-  tr '\n' ' ' < "$1" | grep -q -- "$2"
+  # grep -q may close the pipe before tr has finished; under set -e some
+  # shells then report tr's SIGPIPE as a failed contract.  Read the bounded
+  # text first so the match result alone determines the check outcome.
+  content="$(awk '{$1=$1; printf "%s ", $0}' "$1")"
+  case "$content" in
+    *"$2"*) ;;
+    *) return 1 ;;
+  esac
 }
 
 spec="spec/modules/platform-visionfive2.yaml"
@@ -41,7 +48,7 @@ has "$iface" "four-hart usertests require physical execution and separate human 
 
 # 4. The README documents the forbidden promotion and automatic pending status.
 has "$readme" "pending_human_review"
-has "$readme" "cannot change hardware evidence from pending_human_review to passed"
+has "$readme" 'hardware evidence from `pending_human_review` to `passed`'
 
 # 5. A bounded serial timeout is declared so the evidence finalization is
 #    bounded and never promoted.

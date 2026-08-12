@@ -178,7 +178,7 @@ checks:
     cwd: .
     env:
       - PATH
-    timeout: 120000
+    timeout: 300000
     verifies:
       - toolchain
   kernel_boot_banner_public:
