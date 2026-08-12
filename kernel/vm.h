@@ -19,5 +19,10 @@ void uvmmap(pagetable_t, uint64, uint64, uint64, int);
 // Allocate one user page, copy `src` (size `sz`) into it, and map it at user
 // virtual address 0 with user read/write/execute permissions.
 int uvmfirst(pagetable_t, uchar *, uint);
+uint64 uvmalloc(pagetable_t, uint64, uint64, int);
+uint64 uvmdealloc(pagetable_t, uint64, uint64);
+int uvmcopy(pagetable_t, pagetable_t, uint64);
+void uvmunmap(pagetable_t, uint64, uint64, int);
+void freewalk(pagetable_t);
 
 #endif // __VM_H__

@@ -171,9 +171,113 @@ uvmfirst(pagetable_t pagetable, uchar *src, uint sz)
 void
 uvmfree(pagetable_t pagetable, uint64 sz)
 {
-  if (sz != 0)
-    panic("uvmfree: nonempty user address space outside Lab 5 scope");
+  if (sz > 0)
+    uvmunmap(pagetable, 0, PGROUNDUP(sz) / PGSIZE, 1);
+  freewalk(pagetable);
+}
+
+void
+uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
+{
+  uint64 a;
+  pte_t *pte;
+
+  if ((va % PGSIZE) != 0 || va >= MAXVA || npages > (MAXVA - va) / PGSIZE)
+    panic("uvmunmap");
+  for (a = va; a < va + npages * PGSIZE; a += PGSIZE) {
+    pte = walk(pagetable, a, 0);
+    if (pte == 0 || (*pte & PTE_V) == 0)
+      continue;
+    if ((*pte & (PTE_R | PTE_W | PTE_X)) == 0)
+      panic("uvmunmap: not leaf");
+    if (do_free)
+      kfree((void *)PTE2PA(*pte));
+    *pte = 0;
+  }
+}
+
+void
+freewalk(pagetable_t pagetable)
+{
+  int i;
+
+  for (i = 0; i < 512; i++) {
+    pte_t pte = pagetable[i];
+    if ((pte & PTE_V) && (pte & (PTE_R | PTE_W | PTE_X)) == 0) {
+      uint64 child = PTE2PA(pte);
+      freewalk((pagetable_t)child);
+      pagetable[i] = 0;
+    } else if (pte & PTE_V) {
+      panic("freewalk: leaf");
+    }
+  }
   kfree((void *)pagetable);
+}
+
+uint64
+uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm)
+{
+  char *mem;
+  uint64 a;
+
+  if (newsz < oldsz || newsz >= MAXVA)
+    return oldsz;
+  oldsz = PGROUNDUP(oldsz);
+  for (a = oldsz; a < newsz; a += PGSIZE) {
+    mem = kalloc();
+    if (mem == 0)
+      goto fail;
+    if (mappages(pagetable, a, PGSIZE, (uint64)mem, PTE_R | PTE_U | xperm) != 0) {
+      kfree(mem);
+      goto fail;
+    }
+  }
+  return newsz;
+fail:
+  uvmunmap(pagetable, oldsz, (a - oldsz) / PGSIZE, 1);
+  return 0;
+}
+
+uint64
+uvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
+{
+  if (newsz >= oldsz)
+    return oldsz;
+  if (PGROUNDUP(newsz) < PGROUNDUP(oldsz))
+    uvmunmap(pagetable, PGROUNDUP(newsz),
+             (PGROUNDUP(oldsz) - PGROUNDUP(newsz)) / PGSIZE, 1);
+  return newsz;
+}
+
+int
+uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
+{
+  pte_t *pte;
+  uint64 i, pa;
+  uint flags;
+  char *mem;
+
+  for (i = 0; i < sz; i += PGSIZE) {
+    pte = walk(old, i, 0);
+    if (pte == 0 || (*pte & PTE_V) == 0)
+      continue;
+    if ((*pte & (PTE_R | PTE_W | PTE_X)) == 0)
+      panic("uvmcopy: not leaf");
+    pa = PTE2PA(*pte);
+    flags = PTE_FLAGS(*pte);
+    mem = kalloc();
+    if (mem == 0)
+      goto fail;
+    memmove(mem, (void *)pa, PGSIZE);
+    if (mappages(new, i, PGSIZE, (uint64)mem, flags) != 0) {
+      kfree(mem);
+      goto fail;
+    }
+  }
+  return 0;
+fail:
+  uvmunmap(new, 0, i / PGSIZE, 1);
+  return -1;
 }
 
 // Map the virtual address `va` to the physical `pa` for `sz` bytes with
