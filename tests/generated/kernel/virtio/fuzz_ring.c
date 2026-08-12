@@ -26,6 +26,7 @@
  *
  * Usage: fuzz_ring SEED CASES [REPRO]
  */
+static const char *repro_path = 0;
 #define NUM 8
 
 static struct desc_pool {
@@ -110,9 +111,8 @@ free_chain(int *idx)
 static void
 write_repro_file(const char *msg)
 {
-  const char *path = getenv("FUZZ_REPRO");
-  if (path && path[0]) {
-    FILE *f = fopen(path, "w");
+  if (repro_path && repro_path[0]) {
+    FILE *f = fopen(repro_path, "w");
     if (f) { fputs(msg, f); fclose(f); }
   }
 }
@@ -131,7 +131,7 @@ main(int argc, char **argv)
   seed = strtoull(argv[1], 0, 10);
   cases = strtoull(argv[2], 0, 10);
   if (argc > 3)
-    setenv("FUZZ_REPRO", argv[3], 1);
+    repro_path = argv[3];
   rng_state = seed ? seed : 1;
 
   for (i = 0; i < NUM; i++) {

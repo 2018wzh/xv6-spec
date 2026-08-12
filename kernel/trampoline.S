@@ -16,7 +16,7 @@
 # switching back to the user page table, leaves sscratch equal to TRAPFRAME
 # (so the next user trap can find it), and sret's into user mode with a0 set
 # to the saved user a0.
-  .section .trampoline
+  .section .trampoline,"ax"
   .globl uservec
   .globl userret
 

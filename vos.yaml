@@ -1018,3 +1018,108 @@ checks:
       - kernel/kernel
     workload: bounded QEMU virt serial capture booting the composite kernel with a real mkfs-generated fs.img on the virtio block device; the file module is initialized before process init, fileinit wires before procinit, and the validated file syscall surface is present in dispatch
     oracle: captured serial must contain exactly one canonical XV6_BOOT_OK banner, no panic text, main.c must call fileinit() before procinit(), and kernel/syscall.c must wire sys_open/sys_read/sys_write while fcntl.h O_CREATE and stat.h struct stat are present
+  toolchain_build_readers_public:
+    args:
+      - tests/generated/toolchain/ctf_build_public.sh
+    artifacts:
+      - lab1/build/flag-reader
+      - lab1/build/ctf-baremetal.elf
+      - lab1/build/fixture/flags.img
+      - lab1/build/fixture/metadata.json
+    cwd: .
+    env:
+      - PATH
+    kind: public
+    program: sh
+    timeout: 120000
+    verifies:
+      - toolchain
+      - lab/ctf-warmup
+  toolchain_host_portability_contract:
+    args:
+      - tests/generated/toolchain/host_portability_contract.sh
+    artifacts: []
+    cwd: .
+    env:
+      - PATH
+    kind: contract
+    program: sh
+    timeout: 60000
+    verifies:
+      - toolchain
+  kernel_boot_link_section_flags_contract:
+    args:
+      - tests/generated/kernel/boot/kernel_boot_link_section_flags_contract.sh
+    artifacts:
+      - kernel/kernel
+    cwd: .
+    env:
+      - PATH
+    kind: contract
+    program: sh
+    timeout: 60000
+    verifies:
+      - kernel/boot
+      - toolchain
+  toolchain_linker_diagnostic_contract:
+    args:
+      - tests/generated/toolchain/linker_diagnostic_contract.sh
+    artifacts: []
+    cwd: .
+    env:
+      - PATH
+    kind: contract
+    program: sh
+    timeout: 30000
+    verifies:
+      - toolchain
+  ctf-warmup-artifact-portability-contract:
+    args:
+      - tests/generated/lab/ctf-warmup/artifact_portability_contract.sh
+    artifacts:
+      - lab1/build/ctf-baremetal.elf
+    cwd: .
+    env:
+      - PATH
+    kind: contract
+    program: sh
+    timeout: 120000
+    verifies:
+      - lab/ctf-warmup
+      - toolchain
+  toolchain_mkfs_layout_fuzz:
+    args:
+      - tests/generated/toolchain/mkfs_layout_fuzz.sh
+      - "42"
+      - "500"
+      - tests/generated/toolchain/repro/toolchain_mkfs_layout_fuzz.repro
+    artifacts: []
+    cases: 500
+    cwd: .
+    env:
+      - PATH
+    kind: fuzz
+    program: sh
+    reproduction_artifact: tests/generated/toolchain/repro/toolchain_mkfs_layout_fuzz.repro
+    seed: 42
+    timeout: 30000
+    verifies:
+      - toolchain
+  toolchain_build_projection_trace:
+    args:
+      - tests/generated/toolchain/build_projection_trace.sh
+    artifacts:
+      - kernel/kernel
+      - fs.img
+      - lab1/build/flag-reader
+      - lab1/build/ctf-baremetal.elf
+    cwd: .
+    env:
+      - PATH
+    kind: trace
+    oracle: the selected RISC-V prefix is stable, a second clean rebuild reproduces the same kernel/kernel content hash, and the declared artifacts exist
+    program: sh
+    timeout: 120000
+    verifies:
+      - toolchain
+    workload: bounded sequence of two clean make builds and the Lab 1 reader / fs.img builds, tracing the Makefile build projection and kernel-image linkage

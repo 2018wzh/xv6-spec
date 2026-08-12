@@ -22,7 +22,8 @@ RISCV_LD := $(TOOLCHAIN)ld
 RISCV_OBJCOPY := $(TOOLCHAIN)objcopy
 KERNEL_CFLAGS := -Wall -Werror -O -fno-omit-frame-pointer -ggdb \
   -gdwarf-2 -MD -mcmodel=medany -ffreestanding -fno-common \
-  -nostdlib -fno-pic -mno-relax -fno-stack-protector -march=rv64gc -mabi=lp64
+  -nostdlib -fno-pic -fno-stack-protector -march=rv64gc -mabi=lp64 \
+  -Wno-gnu-designator
 RISCV_LDFLAGS := -z max-page-size=4096
 CTF_RISCV_CFLAGS := -O2 -Wall -Wextra -march=rv64gc -mabi=lp64 -mcmodel=medany \
   -static -nostdlib -nostartfiles -ffreestanding
@@ -99,7 +100,7 @@ toolchain-probe:
 # mkfs is a host tool that deterministically writes the root fs.img consumed
 # by the kernel at mount time. fs.img is a disposable build artifact.
 mkfs/mkfs: mkfs/mkfs.c
-	$(HOST_CC) $(HOST_CFLAGS) -I kernel -o $@ $<
+	$(HOST_CC) $(HOST_CFLAGS) -o $@ $<
 
 fs.img: mkfs/mkfs
 	./mkfs/mkfs fs.img
@@ -134,7 +135,7 @@ user-fstest: user/_fstest
 
 clean:
 	rm -f $(K)/*.o $(K)/*.d kernel/kernel
-	rm -f mkfs/mkfs
+	rm -f mkfs/mkfs mkfs/mkfs.exe
 	rm -f fs.img
 	rm -f user/_fstest
 	rm -rf $(LAB1_BUILD)

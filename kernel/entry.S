@@ -16,7 +16,7 @@ spin:
   # provides `trampoline` at its start; the kernel page table maps the
   # highest virtual page (TRAMPOLINE) here as read/execute. Not executed
   # until a later trap lab.
-  .section .trampoline
+  .section .trampoline,"ax"
   .globl trampoline
 trampoline:
   j trampoline

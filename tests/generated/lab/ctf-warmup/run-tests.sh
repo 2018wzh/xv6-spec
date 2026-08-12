@@ -51,7 +51,7 @@ build_baremetal_for_seed() {
         (cd "$ROOT" && make SEED="$seed" lab1/build/ctf-baremetal.elf >/dev/null)
         printf '%s' "$seed" >"$BM_SEED_FILE"
     fi
-    test -x "$ROOT/lab1/build/ctf-baremetal.elf"
+    test -s "$ROOT/lab1/build/ctf-baremetal.elf"
 }
 
 gen_fixture() {

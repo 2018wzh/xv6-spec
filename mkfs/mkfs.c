@@ -17,30 +17,18 @@
 // fs.img. The kernel's fsinit and initlog validate this geometry before any
 // mutable mount (disk-layout-partition).
 
-#include <fcntl.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 
-/* When this host tool is compiled with -I kernel, the angle `#include
- * <fcntl.h>` above may resolve to the kernel's fcntl.h (which defines the
- * syscall O_CREATE/O_TRUNC as 0x200/0x400 but not the host O_CREAT, nor the
- * host `open` prototype). Supply the host-compatible image-creation globals
- * only when the underlying header did not already provide them. */
-#ifndef O_RDWR
-#define O_RDWR 2
-#endif
-#ifndef O_CREAT
-#define O_CREAT 0x40
-#endif
-#ifndef O_TRUNC
-#define O_TRUNC 0x200
-#endif
-#ifndef open
-extern int open(const char *path, int flags, ...);
-#endif
+/* The image is emitted through stdio fopen/fwrite rather than POSIX open/write
+ * so this host tool is robust to its own compiles. The test harness and some
+ * module tests compile mkfs with `-I kernel`, which shadows the host
+ * <fcntl.h> with the kernel's user-facing fcntl.h (different O_CREAT/O_TRUNC
+ * values); stdio does not depend on those constants. `"wb"` also guarantees
+ * binary output on documented Windows POSIX-shell hosts, so embedded LF bytes
+ * are never translated to CRLF and the on-disk layout stays byte-exact. */
 
 /* Mirror the kernel on-disk layout from kernel/fs.h. Deliberately re-declared
  * (not #included) so this host tool does not pull in kernel types.h/param.h
@@ -206,7 +194,8 @@ dir_entry(uint32_t dirmum, const char *name, uint32_t inum)
 int
 main(int argc, char *argv[])
 {
-  int fd, i;
+  FILE *fp;
+  int i;
 
   if (argc != 2)
     fatal("usage: mkfs fs.img");
@@ -299,14 +288,14 @@ main(int argc, char *argv[])
   /* ---- write the bitmap block ---- */
   memcpy(img_block(bmapstart), g_bbuf, sizeof(g_bbuf));
 
-  /* ---- emit fs.img ---- */
-  fd = open(argv[1], O_RDWR | O_CREAT | O_TRUNC, 0666);
-  if (fd < 0)
+  /* ---- emit fs.img (binary stdio; robust to -I kernel shadowing fcntl) ---- */
+  fp = fopen(argv[1], "wb");
+  if (fp == 0)
     fatal("cannot create image");
-  if (write(fd, g_img, (size_t)FSSIZE * BSIZE) != (ssize_t)((size_t)FSSIZE * BSIZE))
+  if (fwrite(g_img, 1, (size_t)FSSIZE * BSIZE, fp) != (size_t)((size_t)FSSIZE * BSIZE))
     fatal("short write to image");
 
   printf("mkfs: wrote %s (%d blocks)\n", argv[1], FSSIZE);
-  close(fd);
+  fclose(fp);
   return 0;
 }
