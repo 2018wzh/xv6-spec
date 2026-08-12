@@ -1143,8 +1143,8 @@ checks:
     verifies: [kernel/process]
   kernel_process_tree_fuzz:
     artifacts: [tests/generated/kernel/process/repro/kernel_process_tree_fuzz.repro]
-    args: [tests/generated/kernel/process/run_model.sh, "42", "500"]
-    cases: 500
+    args: [tests/generated/kernel/process/run_model.sh, "42", "5000"]
+    cases: 5000
     cwd: .
     env: [PATH]
     kind: fuzz
@@ -1152,7 +1152,7 @@ checks:
     reproduction_artifact: tests/generated/kernel/process/repro/kernel_process_tree_fuzz.repro
     seed: 42
     timeout: 30000
-    verifies: [kernel/process]
+    verifies: [kernel/process, process-tree-reliability]
   kernel_process_tree_trace:
     artifacts: [kernel/kernel]
     args: [tests/generated/kernel/process/trace_process_tree.sh]

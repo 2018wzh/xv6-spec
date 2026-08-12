@@ -76,7 +76,7 @@ interface:
   - id: process-fork-rollback-contract
     text: the Lab 7 kernel_process_fork_rollback_contract target observes that failed fork never publishes a partial child and wait reaps one ZOMBIE child exactly once
   - id: process-tree-fuzz
-    text: the Lab 7 kernel_process_tree_fuzz target applies a fixed seed to valid and invalid process-tree lifecycle edges and records a minimal reproduction artifact for any oracle failure
+    text: the kernel_process_tree_fuzz target applies seed 42 to 5000 valid and invalid process-tree lifecycle cases, records a minimal reproduction artifact for any oracle failure, and binds the process-tree-reliability goal
   - id: process-tree-trace
     text: the Lab 7 kernel_process_tree_trace target runs a bounded fork, exec, exit, and wait workload and rejects a missing, duplicated, or out-of-order reap event
 properties:
