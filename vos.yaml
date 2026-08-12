@@ -31,6 +31,15 @@ runners:
     timeout: 1000
     artifacts: []
 checks:
+  platform_visionfive2_candidate_contract:
+    artifacts: [spec/design.yaml, spec/modules/platform-visionfive2.yaml]
+    args: [tests/generated/platform/visionfive2/candidate_contract.sh]
+    cwd: .
+    env: [PATH]
+    kind: contract
+    program: sh
+    timeout: 30000
+    verifies: [platform/visionfive2, interface/visionfive2-board]
   ctf-warmup-linux-public:
     args:
       - tests/generated/lab/ctf-warmup/run-tests.sh

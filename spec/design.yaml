@@ -6,8 +6,8 @@ machine:
   qemu:
     model: virt
   hardware:
-    board: not in current lab scope
-    status: not in current lab scope
+    board: StarFive VisionFive 2
+    status: candidate; physical four-hart usertests and human review pending
 kernel:
   organization: monolithic teaching kernel
   execution: single boot hart schedules process trees and an interactive command shell
@@ -31,7 +31,7 @@ composition_invariants:
 non_goals:
 - mechanisms assigned to later labs
 hardware_port:
-  board: not in current lab scope
-  boot: not in current lab scope
-  console: not in current lab scope
-  interrupt: not in current lab scope
+  board: StarFive VisionFive 2 with JH7110 and four U74 application harts
+  boot: OpenSBI and U-Boot load a FIT image; exact firmware, DTB, image, and partition hashes are evidence inputs
+  console: board serial adapter and baud rate are explicit runner inputs; simulated serial is never hardware evidence
+  interrupt: SBI TIME, IPI, HSM, RFENCE, and SRST capabilities plus board interrupt topology must be probed before workload execution

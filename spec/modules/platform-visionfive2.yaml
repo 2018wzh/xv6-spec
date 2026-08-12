@@ -1,0 +1,51 @@
+id: platform/visionfive2
+module: platform/visionfive2
+level: 3
+purpose: Define the fail-closed VisionFive 2 port boundary and the evidence required before board execution can be reviewed.
+owns:
+  - platform/visionfive2/README.md
+  - tests/generated/platform/visionfive2
+interface:
+  - name: validate_board_inputs
+    pre:
+      - board identity, firmware, DTB, image, serial device, and workload are explicitly supplied
+    post:
+      - the runner either records their hashes and launches the declared workload or fails before claiming hardware execution
+    errors:
+      - missing physical-board inputs fail without producing passed hardware evidence
+    properties:
+      - id: vf2-candidate-contract
+        text: platform_visionfive2_candidate_contract checks the canonical board and pending-human-review boundary
+properties:
+  - id: hardware-evidence-boundary
+    text: Local QEMU, fixture serial, and image inspection cannot change hardware evidence from pending_human_review to passed
+errors:
+  - unknown board identity, firmware, DTB, serial endpoint, or workload fails closed
+state:
+  acceptance: candidate
+  human_review: pending_human_review
+preconditions:
+  - the QEMU regression remains passing
+postconditions:
+  - candidate evidence names the board, build identity, serial log, workload, and unresolved human review
+invariants:
+  - id: no-simulated-hardware-pass
+    text: platform_visionfive2_candidate_contract rejects any automatic passed hardware conclusion
+dependencies:
+  - toolchain
+concurrency:
+  module:
+    shared_state: [serial session and four-hart workload evidence]
+    lock_types: [runner process ownership]
+    lock_order: [one hardware runner owns one serial endpoint]
+    atomic_sections: [evidence finalization]
+    interrupt_rules: [board interrupt behavior is observed, not inferred from QEMU]
+    rely: [firmware exposes the declared SBI extensions]
+    guarantee: [automatic evidence remains pending_human_review]
+    wait_wakeup_rules: [bounded serial timeout terminates the run]
+    forbidden_patterns: [fixture output promoted to hardware acceptance]
+rely:
+  - the operator supplies physical board and serial inputs
+guarantee:
+  - missing inputs or probes never become a successful board claim
+algorithm_intent: Validate immutable board inputs, run a bounded serial workload, record hashes and logs, and leave acceptance to human review.
