@@ -296,7 +296,7 @@ uvmmap(pagetable_t pagetable, uint64 va, uint64 pa, uint64 sz, int perm)
 // table. Returns 0 when the virtual address is not mapped as a valid leaf
 // in the current user page table. Used only against user page tables and
 // never dereferences a raw user-supplied address.
-static uint64
+uint64
 walkaddr(pagetable_t pagetable, uint64 va)
 {
   pte_t *pte;

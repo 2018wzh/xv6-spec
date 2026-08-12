@@ -13,14 +13,18 @@
 #include "memlayout.h"
 #include "riscv.h"
 #include "spinlock.h"
+#include "buf.h"
 #include "proc.h"
 #include "vm.h"
+#include "fs.h"
+#include "file.h"
 #include "defs.h"
 
 struct cpu cpus[NCPU];       // per-hart state (single boot hart is cpus[0]).
 struct proc proc[NPROC];     // the fixed process table.
 
 static int nextpid = 1;      // next unique process id.
+static struct spinlock wait_lock;
 
 static void allocpid(struct proc *p);
 static void freeproc(struct proc *p);
@@ -50,6 +54,7 @@ procinit(void)
 {
   struct proc *p;
 
+  initlock(&wait_lock, "wait_lock");
   for (p = proc; p < &proc[NPROC]; p++) {
     uint64 pa;
     initlock(&p->lock, "proc");
@@ -92,6 +97,9 @@ found:
   p->state = USED;
   p->sz = 0;
   p->chan = 0;
+  p->killed = 0;
+  p->xstate = 0;
+  p->parent = 0;
   safestrcpy(p->name, "proc", sizeof(p->name));
   {
     int i;
@@ -144,6 +152,9 @@ freeproc(struct proc *p)
   p->sz = 0;
   p->pid = 0;
   p->chan = 0;
+  p->killed = 0;
+  p->xstate = 0;
+  p->parent = 0;
   memset(&p->context, 0, sizeof(p->context));
   p->state = UNUSED;
 }
@@ -200,11 +211,155 @@ sched(void)
     panic("sched: process lock not held");
   if (intr_get())
     panic("sched: interruptible");
-  if (p->state != RUNNING)
-    panic("sched: not RUNNING");
+  if (p->state == RUNNING)
+    panic("sched: still RUNNING");
 
   swtch(&p->context, &cpus[0].context);
   // Reacquired p->lock is restored by the caller on return from yield/sleep.
+}
+
+// Clone the current process. The child is not published RUNNABLE until its
+// address space, trap frame, descriptors, cwd, and parent link are complete.
+int
+fork(void)
+{
+  int i, pid;
+  struct proc *p = myproc();
+  struct proc *np = allocproc();
+
+  if (np == 0)
+    return -1;
+  uvmmap(np->pagetable, TRAMPOLINE, (uint64)trampoline, PGSIZE, PTE_R | PTE_X);
+  uvmmap(np->pagetable, TRAPFRAME, np->trapframe, PGSIZE, PTE_R | PTE_W | PTE_U);
+  if (uvmcopy(p->pagetable, np->pagetable, p->sz) < 0) {
+    uvmunmap(np->pagetable, TRAPFRAME, 1, 0);
+    uvmunmap(np->pagetable, TRAMPOLINE, 1, 0);
+    freeproc(np);
+    release(&np->lock);
+    return -1;
+  }
+  np->sz = p->sz;
+  *(struct usertrapframe *)np->trapframe = *(struct usertrapframe *)p->trapframe;
+  ((struct usertrapframe *)np->trapframe)->a0 = 0;
+  for (i = 0; i < NOFILE; i++)
+    if (p->ofile[i])
+      np->ofile[i] = filedup(p->ofile[i]);
+  if (p->cwd)
+    np->cwd = idup(p->cwd);
+  safestrcpy(np->name, p->name, sizeof(np->name));
+  pid = np->pid;
+  release(&np->lock);
+
+  acquire(&wait_lock);
+  np->parent = p;
+  acquire(&np->lock);
+  np->state = RUNNABLE;
+  release(&np->lock);
+  release(&wait_lock);
+  return pid;
+}
+
+static void
+reparent(struct proc *p)
+{
+  struct proc *pp;
+  for (pp = proc; pp < &proc[NPROC]; pp++)
+    if (pp->parent == p) {
+      pp->parent = &proc[0];
+      wakeup(&proc[0]);
+    }
+}
+
+void
+exit(int status)
+{
+  int fd;
+  struct proc *p = myproc();
+  if (p == &proc[0])
+    panic("init exiting");
+  for (fd = 0; fd < NOFILE; fd++)
+    if (p->ofile[fd]) {
+      struct file *f = p->ofile[fd];
+      p->ofile[fd] = 0;
+      fileclose(f);
+    }
+  begin_op();
+  if (p->cwd) {
+    iput(p->cwd);
+    p->cwd = 0;
+  }
+  end_op();
+  acquire(&wait_lock);
+  reparent(p);
+  wakeup(p->parent);
+  acquire(&p->lock);
+  p->xstate = status;
+  p->state = ZOMBIE;
+  release(&wait_lock);
+  sched();
+  panic("zombie exit");
+  for (;;)
+    ;
+}
+
+int
+wait(uint64 addr)
+{
+  struct proc *pp;
+  struct proc *p = myproc();
+  int havekids, pid;
+
+  acquire(&wait_lock);
+  for (;;) {
+    havekids = 0;
+    for (pp = proc; pp < &proc[NPROC]; pp++) {
+      if (pp->parent != p)
+        continue;
+      acquire(&pp->lock);
+      havekids = 1;
+      if (pp->state == ZOMBIE) {
+        pid = pp->pid;
+        if (addr && copyout(p->pagetable, addr, (char *)&pp->xstate,
+                            sizeof(pp->xstate)) < 0) {
+          release(&pp->lock);
+          release(&wait_lock);
+          return -1;
+        }
+        if (pp->pagetable) {
+          uvmunmap(pp->pagetable, TRAPFRAME, 1, 0);
+          uvmunmap(pp->pagetable, TRAMPOLINE, 1, 0);
+        }
+        freeproc(pp);
+        release(&pp->lock);
+        release(&wait_lock);
+        return pid;
+      }
+      release(&pp->lock);
+    }
+    if (!havekids || p->killed) {
+      release(&wait_lock);
+      return -1;
+    }
+    sleep(p, &wait_lock);
+  }
+}
+
+int
+kill(int pid)
+{
+  struct proc *p;
+  for (p = proc; p < &proc[NPROC]; p++) {
+    acquire(&p->lock);
+    if (p->pid == pid && p->state != UNUSED) {
+      p->killed = 1;
+      if (p->state == SLEEPING)
+        p->state = RUNNABLE;
+      release(&p->lock);
+      return 0;
+    }
+    release(&p->lock);
+  }
+  return -1;
 }
 
 // Give up the CPU for one scheduling round while holding p->lock.

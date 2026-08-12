@@ -95,6 +95,9 @@ struct proc {
   struct spinlock lock;
   int state;              // procstate; transitions hold p->lock.
   int pid;                // unique process id.
+  int killed;             // nonzero after kill requests termination.
+  int xstate;             // exit status published while ZOMBIE.
+  struct proc *parent;    // parent process; protected by wait_lock.
   char name[16];
   uint64 sz;              // user memory size (0 until a later exec lab).
   uint64 kstack;          // virtual address of the slot's kernel stack.

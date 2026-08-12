@@ -1123,6 +1123,47 @@ checks:
     verifies:
       - toolchain
     workload: bounded sequence of two clean make builds and the Lab 1 reader / fs.img builds, tracing the Makefile build projection and kernel-image linkage
+  kernel_process_tree_public:
+    artifacts: [kernel/kernel]
+    args: [tests/generated/kernel/process/public_process_tree.sh]
+    cwd: .
+    env: [PATH]
+    kind: public
+    program: sh
+    timeout: 60000
+    verifies: [kernel/process]
+  kernel_process_fork_rollback_contract:
+    artifacts: [tests/generated/kernel/process/process_tree_model.c]
+    args: [tests/generated/kernel/process/run_model.sh, "42", "100"]
+    cwd: .
+    env: [PATH]
+    kind: contract
+    program: sh
+    timeout: 30000
+    verifies: [kernel/process]
+  kernel_process_tree_fuzz:
+    artifacts: [tests/generated/kernel/process/repro/kernel_process_tree_fuzz.repro]
+    args: [tests/generated/kernel/process/run_model.sh, "42", "500"]
+    cases: 500
+    cwd: .
+    env: [PATH]
+    kind: fuzz
+    program: sh
+    reproduction_artifact: tests/generated/kernel/process/repro/kernel_process_tree_fuzz.repro
+    seed: 42
+    timeout: 30000
+    verifies: [kernel/process]
+  kernel_process_tree_trace:
+    artifacts: [kernel/kernel]
+    args: [tests/generated/kernel/process/trace_process_tree.sh]
+    cwd: .
+    env: [PATH]
+    kind: trace
+    oracle: One canonical boot marker, no panic, and fork, exec, exit, and wait dispatch are linked.
+    program: sh
+    timeout: 60000
+    verifies: [kernel/process]
+    workload: Bounded QEMU boot plus deterministic process lifecycle wiring inspection.
   kernel_pipe_public:
     artifacts:
       - kernel/kernel

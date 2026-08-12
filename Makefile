@@ -45,6 +45,7 @@ KERNEL_OBJS := \
   $(K)/console.o \
   $(K)/printk.o \
   $(K)/proc.o \
+  $(K)/exec.o \
   $(K)/swtch.o \
   $(K)/syscall.o \
   $(K)/sysproc.o \

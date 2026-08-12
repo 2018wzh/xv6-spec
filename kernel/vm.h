@@ -26,3 +26,4 @@ void uvmunmap(pagetable_t, uint64, uint64, int);
 void freewalk(pagetable_t);
 
 #endif // __VM_H__
+#include "types.h"

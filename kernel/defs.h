@@ -51,6 +51,7 @@ void     freewalk(pagetable_t);
 int      copyin(pagetable_t, char *, uint64, uint64);
 int      copyinstr(pagetable_t, char *, uint64, uint64);
 int      copyout(pagetable_t, uint64, char *, uint64);
+uint64   walkaddr(pagetable_t, uint64);
 
 // proc.c
 void     procinit(void);
@@ -63,6 +64,11 @@ void     wakeup(void *);
 struct proc *myproc(void);
 void     swtch(struct context *, struct context *);
 void     userinit(void);
+int      fork(void);
+void     exit(int) __attribute__((noreturn));
+int      wait(uint64);
+int      kill(int);
+int      exec(char *, char **);
 
 // trap.c
 void     trapinit(void);
