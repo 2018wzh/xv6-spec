@@ -126,6 +126,14 @@ int          filestat(struct file *, uint64);
 int          fileread(struct file *, uint64, int);
 int          filewrite(struct file *, uint64, int);
 
+// pipe.c (kernel/pipe)
+struct file;
+struct pipe;
+int          pipealloc(struct file **, struct file **);
+void         pipeclose(struct pipe *, int);
+int          pipewrite(struct pipe *, uint64, int);
+int          piperead(struct pipe *, uint64, int);
+
 // sysfile.c (kernel/file) syscall handlers
 uint64   sys_open(void);
 uint64   sys_read(void);
@@ -138,6 +146,7 @@ uint64   sys_mkdir(void);
 uint64   sys_chdir(void);
 uint64   sys_link(void);
 uint64   sys_unlink(void);
+uint64   sys_pipe(void);
 
 // riscv.h interrupt helpers
 void     intr_on(void);

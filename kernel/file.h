@@ -24,14 +24,17 @@
 // Directions for file operations (validation rejects anything else).
 #define FD_NONE   0
 #define FD_INODE  1
-#define FD_PIPE   2   // pipe-backed files are deferred beyond Lab 6.
+#define FD_PIPE   2
+
+struct pipe;  // defined in kernel/pipe.c; owned by kernel/pipe.
 
 struct file {
-  int type;            // FD_INODE in Lab 6 (FD_PIPE is deferred).
+  int type;            // FD_INODE, FD_PIPE, or FD_NONE.
   int ref;             // number of live references (global table).
   char readable;       // 1 if the file is readable.
   char writable;       // 1 if the file is writable.
   struct inode *ip;    // FD_INODE: the underlying inode.
+  struct pipe *pipe;   // FD_PIPE: the anonymous pipe endpoint.
   uint off;            // shared per-file offset (serialized by transfer).
 };
 

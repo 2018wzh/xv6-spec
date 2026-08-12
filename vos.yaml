@@ -1123,3 +1123,63 @@ checks:
     verifies:
       - toolchain
     workload: bounded sequence of two clean make builds and the Lab 1 reader / fs.img builds, tracing the Makefile build projection and kernel-image linkage
+  kernel_pipe_public:
+    artifacts:
+      - kernel/kernel
+    args:
+      - tests/generated/kernel/pipe/public_pipe.sh
+    cwd: .
+    env:
+      - PATH
+    kind: public
+    program: sh
+    timeout: 60000
+    verifies:
+      - kernel/pipe
+  kernel_pipe_contract:
+    artifacts:
+      - tests/generated/kernel/pipe/pipe_test.c
+    args:
+      - tests/generated/kernel/pipe/contract_pipe.sh
+    cwd: .
+    env:
+      - PATH
+    kind: contract
+    program: sh
+    timeout: 30000
+    verifies:
+      - kernel/pipe
+  kernel_pipe_fuzz:
+    artifacts:
+      - tests/generated/kernel/pipe/repro/kernel_pipe_fuzz.repro
+    args:
+      - tests/generated/kernel/pipe/fuzz_pipe.sh
+      - "42"
+      - "500"
+      - tests/generated/kernel/pipe/repro/kernel_pipe_fuzz.repro
+    cases: 500
+    cwd: .
+    env:
+      - PATH
+    kind: fuzz
+    program: sh
+    reproduction_artifact: tests/generated/kernel/pipe/repro/kernel_pipe_fuzz.repro
+    seed: 42
+    timeout: 30000
+    verifies:
+      - kernel/pipe
+  kernel_pipe_trace:
+    artifacts:
+      - kernel/kernel
+    args:
+      - tests/generated/kernel/pipe/trace_pipe.sh
+    cwd: .
+    env:
+      - PATH
+    kind: trace
+    oracle: Exactly one canonical XV6_BOOT_OK banner line, no panic text on serial, and the pipe operation surface (pipealloc/piperead/pipewrite/pipeclose/sys_pipe) wired into the kernel build and dispatch
+    program: sh
+    timeout: 60000
+    verifies:
+      - kernel/pipe
+    workload: Bounded QEMU virt serial capture booting the composite kernel with the pipe module linked

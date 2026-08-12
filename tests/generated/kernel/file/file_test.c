@@ -192,7 +192,36 @@ argaddr(int n, uint64 *ip)
   }
 }
 
-/* kernel/log and kernel/bio internals for remount / reference checks. */
+/* ---- pipe module stubs (this harness tests FD_INODE only) ----
+ * kernel/pipe.c is owned by kernel/pipe and is not linked here; these stubs
+ * satisfy the linker for the FD_PIPE dispatch paths in file.c / sysfile.c,
+ * which the FD_INODE workload never reaches. */
+int
+pipealloc(struct file **f0, struct file **f1)
+{
+  (void)f0; (void)f1;
+  return -1;
+}
+void
+pipeclose(struct pipe *pi, int writable)
+{
+  (void)pi; (void)writable;
+  panic("pipeclose: not linked (FD_PIPE never used in this harness)");
+}
+int
+pipewrite(struct pipe *pi, uint64 addr, int n)
+{
+  (void)pi; (void)addr; (void)n;
+  return -1;
+}
+int
+piperead(struct pipe *pi, uint64 addr, int n)
+{
+  (void)pi; (void)addr; (void)n;
+  return -1;
+}
+
+/* ---- kernel/log and kernel/bio internals for remount / reference checks. ---- */
 struct logheader { int n; int block[LOGSIZE]; };
 struct log {
   struct spinlock lock;

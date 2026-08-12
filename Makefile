@@ -53,7 +53,8 @@ KERNEL_OBJS := \
   $(K)/bio.o \
   $(K)/fs.o \
   $(K)/file.o \
-  $(K)/sysfile.o
+  $(K)/sysfile.o \
+  $(K)/pipe.o
 
 .PHONY: all clean qemu ctf-qemu gen-fixture toolchain-probe user-fstest
 

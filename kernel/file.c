@@ -90,6 +90,11 @@ fileclose(struct file *f)
     begin_op();
     iput(ff.ip);
     end_op();
+  } else if (ff.type == FD_PIPE) {
+    // Release one endpoint reference of the anonymous pipe. The readable
+    // side is closed when this file was writable (the peer of a reader);
+    // the writable side is closed when this file was readable.
+    pipeclose(ff.pipe, ff.writable);
   }
 }
 
@@ -121,9 +126,14 @@ fileread(struct file *f, uint64 addr, int n)
 {
   int r = 0;
 
-  if (f->type != FD_INODE || !f->readable)
+  if (!f->readable)
     return -1;
-  if (f->ip == 0 || f->ip->type == T_DEVICE)
+  if (f->type == FD_PIPE) {
+    // Forward to the bounded anonymous-pipe read (FIFO, blocking on empty
+    // with a live writer; EOF when the write side is permanently closed).
+    return piperead(f->pipe, addr, n);
+  }
+  if (f->type != FD_INODE || f->ip == 0 || f->ip->type == T_DEVICE)
     return -1;   // device-backed reads are outside the Lab 6 file ABI.
 
   ilock(f->ip);
@@ -142,9 +152,14 @@ filewrite(struct file *f, uint64 src, int n)
 {
   int r, ret = 0, max = ((MAXOPBLOCKS - 1) / 2) * BSIZE;
 
-  if (f->type != FD_INODE || !f->writable)
+  if (!f->writable)
     return -1;
-  if (f->ip == 0 || f->ip->type == T_DEVICE)
+  if (f->type == FD_PIPE) {
+    // Forward to the bounded anonymous-pipe write (FIFO, blocking on full
+    // with a live reader; stable broken-pipe failure on a closed read side).
+    return pipewrite(f->pipe, src, n);
+  }
+  if (f->type != FD_INODE || f->ip == 0 || f->ip->type == T_DEVICE)
     return -1;   // device-backed writes are outside the Lab 6 file ABI.
 
   ilock(f->ip);

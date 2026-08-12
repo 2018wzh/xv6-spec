@@ -118,6 +118,7 @@ extern uint64 sys_mkdir(void);
 extern uint64 sys_chdir(void);
 extern uint64 sys_link(void);
 extern uint64 sys_unlink(void);
+extern uint64 sys_pipe(void);
 
 // The dispatch table, indexed by the validated syscall number. The table has
 // explicit SYS_MAX+1 entries so that every number up to SYS_MAX maps in-bounds.
@@ -125,7 +126,7 @@ static uint64 (*syscalls[SYS_MAX + 1])(void) = {
   [SYS_fork]    0,
   [SYS_exit]    sys_exit,
   [SYS_wait]    0,
-  [SYS_pipe]    0,
+  [SYS_pipe]    sys_pipe,
   [SYS_read]    sys_read,
   [SYS_kill]    0,
   [SYS_exec]    0,

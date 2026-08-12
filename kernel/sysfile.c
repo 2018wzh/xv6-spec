@@ -422,3 +422,48 @@ sys_dup(void)
   filedup(f);   // the duplicated slot shares one extra file reference.
   return nd;
 }
+
+// sys_pipe: create one anonymous pipe and publish both endpoints in the
+// current process descriptor table. Returns 0 on success after writing the
+// two descriptor integers into the validated user array at `addr`; -1 on
+// invalid user storage or exhausted file/descriptor/pipe capacity without
+// leaking a provisional pipe, file, or descriptor reference.
+uint64
+sys_pipe(void)
+{
+  struct proc *p = myproc();
+  struct file *rf, *wf;
+  uint64 addr;
+  int fd0, fd1;
+
+  if (argaddr(0, &addr) < 0)
+    return -1;
+
+  if (pipealloc(&rf, &wf) < 0)
+    return -1;
+  fd0 = -1;
+  if ((fd0 = fdalloc(rf)) < 0) {
+    fileclose(rf);   // fdalloc failed: never leak the readable endpoint.
+    fileclose(wf);   // never leak the writable endpoint either.
+    return -1;
+  }
+  if ((fd1 = fdalloc(wf)) < 0) {
+    // The readable slot is already published; close it before returning.
+    p->ofile[fd0] = 0;
+    fileclose(rf);
+    fileclose(wf);
+    return -1;
+  }
+
+  if (copyout(p->pagetable, addr, (char *)&fd0, sizeof(fd0)) < 0 ||
+      copyout(p->pagetable, addr + sizeof(fd0), (char *)&fd1, sizeof(fd1)) < 0) {
+    // The descriptors were published, but the user buffer is invalid. Clean
+    // up both slots and their pipe endpoint references to leave no leak.
+    p->ofile[fd0] = 0;
+    p->ofile[fd1] = 0;
+    fileclose(rf);
+    fileclose(wf);
+    return -1;
+  }
+  return 0;
+}
