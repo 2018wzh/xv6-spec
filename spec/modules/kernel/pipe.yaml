@@ -15,7 +15,7 @@ interface:
   - memory or file-table exhaustion releases every provisional allocation and returns -1
   properties:
   - id: pipe-allocation-rollback-contract
-    text: every failed allocation path restores pipe, file-table, and descriptor capacity to its prior value
+    text: the Lab 7 kernel_pipe_contract target proves every failed allocation path restores pipe, file-table, and descriptor capacity to its prior value
 - name: piperead
   pre:
   - the caller owns a readable endpoint and supplies a validated destination range
@@ -25,9 +25,9 @@ interface:
   - invalid ranges or interrupted waits fail without consuming unreported bytes
   properties:
   - id: pipe-read-order-public
-    text: bounded producer and consumer workloads preserve byte order across wraparound
+    text: the Lab 7 kernel_pipe_public target runs bounded producer and consumer workloads that preserve byte order across wraparound
   - id: pipe-reader-wakeup-trace
-    text: closing the final writer wakes an empty reader and the trace terminates at EOF
+    text: the Lab 7 kernel_pipe_trace target shows closing the final writer wakes an empty reader and the trace terminates at EOF
 - name: pipewrite
   pre:
   - the caller owns a writable endpoint and supplies a validated source range
@@ -37,9 +37,9 @@ interface:
   - a closed read side or invalid range returns -1 without publishing unreported bytes
   properties:
   - id: pipe-capacity-fuzz
-    text: fixed-seed bounded writes, reads, wraparound, and peer closes preserve capacity and ordering invariants
+    text: the Lab 7 kernel_pipe_fuzz target uses fixed-seed bounded writes, reads, wraparound, and peer closes to preserve capacity and ordering invariants
   - id: pipe-writer-wakeup-trace
-    text: closing the final reader wakes a full-buffer writer and the trace observes stable failure
+    text: the Lab 7 kernel_pipe_trace target shows closing the final reader wakes a full-buffer writer and the trace observes stable failure
 - name: pipeclose
   pre:
   - the caller releases exactly one readable or writable endpoint reference
@@ -49,7 +49,7 @@ interface:
   - duplicate close is rejected by descriptor validation before entering the pipe module
   properties:
   - id: pipe-final-release-contract
-    text: explicit close, dup, fork inheritance, and process teardown release each endpoint once and free one pipe once
+    text: the Lab 7 kernel_pipe_contract target proves explicit close, dup, fork inheritance, and process teardown release each endpoint once and free one pipe once
 properties:
 - id: pipe-fifo-order
   text: the bounded ring exposes every accepted byte exactly once and in acceptance order
@@ -58,7 +58,7 @@ properties:
 - id: pipe-resource-balance
   text: each live pipe-backed file reference contributes to exactly one endpoint lifetime and no freed pipe remains reachable
 - id: pipe-process-teardown-contract
-  text: the Lab 7 kernel_pipe_process_teardown_contract target repeatedly forks and exits pipe users and observes file, pipe, inode, page, and process-slot counts return to baseline
+  text: the Lab 7 kernel_pipe_process_teardown_contract target uses seed 7 and 32 bounded fork-and-exit pipe-user cases and observes file, pipe, inode, page, and process-slot counts return to baseline
 errors:
 - invalid direction, user range, peer state, or exhausted capacity fails explicitly without leaking a file, descriptor, endpoint, or buffer
 state:
