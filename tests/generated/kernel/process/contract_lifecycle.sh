@@ -52,6 +52,6 @@ grep -q 'p->state = RUNNING' kernel/proc.c
 # sched panics on illegal lock/interrupt/state conditions.
 grep -q 'panic("sched: process lock not held")' kernel/proc.c
 grep -q 'panic("sched: interruptible")' kernel/proc.c
-grep -q 'panic("sched: not RUNNING")' kernel/proc.c
+grep -q 'panic("sched: still RUNNING")' kernel/proc.c
 
 echo "ok: process lifecycle, resource ownership, and lock-guarded transitions present"
