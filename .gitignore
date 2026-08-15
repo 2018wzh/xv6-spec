@@ -30,3 +30,6 @@ platform/visionfive2/user/*.sym
 platform/visionfive2/user/_*
 platform/visionfive2/user/usys.S
 platform/visionfive2/mkfs/mkfs
+third_party/libfdt/*.o
+third_party/libfdt/*.d
+.tmp-vf2-*.log

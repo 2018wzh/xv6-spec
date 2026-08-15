@@ -78,18 +78,19 @@ uartinit(void)
   // disable interrupts.
   WriteReg(IER, 0x00);
 
-  // special mode to set baud rate.
-  WriteReg(LCR, LCR_BAUD_LATCH);
-
-  // LSB for baud rate of 38.4K.
-  WriteReg(0, 0x03);
-
-  // MSB for baud rate of 38.4K.
-  WriteReg(1, 0x00);
-
-  // leave set-baud mode,
-  // and set word length to 8 bits, no parity.
+#ifdef PLATFORM_VISIONFIVE2
+  // Do not reprogram the divisor: U-Boot already configured the physical
+  // UART clock for the operator's 115200 baud link. Rewriting the QEMU
+  // divisor against the JH7110 clock corrupts the physical link.
   WriteReg(LCR, LCR_EIGHT_BITS);
+#else
+  // QEMU virt uses the fixed xv6 divisor so the host serial oracle stays
+  // 115200 8N1.
+  WriteReg(LCR, LCR_BAUD_LATCH);
+  WriteReg(0, 0x03);
+  WriteReg(1, 0x00);
+  WriteReg(LCR, LCR_EIGHT_BITS);
+#endif
 
   // reset and enable FIFOs.
   WriteReg(FCR, FCR_FIFO_ENABLE | FCR_FIFO_CLEAR);

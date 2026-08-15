@@ -7,7 +7,17 @@
 
 void main();
 void timerinit();
+void kernelvec(void);
 extern void _entry_secondary(void);
+extern char bss[];
+extern char end[];
+
+static void
+zerobss(void)
+{
+  for (char *p = bss; p < end; ++p)
+    *p = 0;
+}
 
 // entry.S needs one stack per CPU.
 __attribute__((aligned(16))) char stack0[4096 * NCPU];
@@ -19,6 +29,7 @@ void
 start(uint64 hartid, uint64 dtb)
 {
   if (hartid == 0) {
+    zerobss();
     platform_early_init(hartid, dtb);
     __atomic_store_n(&platform_ready, 1, __ATOMIC_RELEASE);
   } else {
@@ -68,8 +79,12 @@ void
 supervisor_start(uint64 hartid, uint64 dtb)
 {
   w_satp(0);
+  zerobss();
   platform_early_init(hartid, dtb);
   w_tp(0);
+  // Install the supervisor trap vector before paging is enabled. A handoff
+  // trap with stvec==0 is an invisible hang on physical hardware.
+  w_stvec((uint64)kernelvec);
   w_sie(r_sie() | SIE_SEIE | SIE_STIE | SIE_SSIE);
   platform_set_timer(r_time() + platform_get()->timebase_frequency / 10);
   platform_start_harts((uint64)_entry_secondary);

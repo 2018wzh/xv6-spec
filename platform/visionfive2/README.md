@@ -18,7 +18,7 @@ physical input to be explicit before any hardware workload can be reviewed:
 5. **serial device** — the physical UART endpoint and its baud rate.
 6. **workload** — the exact four-hart usertest workload to run.
 
-The runner records SHA-256 hashes of the FIT, kernel image, DTB, and xv6
+The runner is fail-closed by construction: nobody claims a passed hardware result without physical execution and human review. The runner records SHA-256 hashes of the FIT, kernel image, DTB, and xv6
 filesystem image before it opens the serial endpoint. Missing inputs, a dirty
 Git HEAD, an unknown board alias, or a hash mismatch fail closed and produce
 no passed hardware evidence.

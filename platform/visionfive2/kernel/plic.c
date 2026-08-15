@@ -39,7 +39,11 @@ plicinithart(void)
 {
   const struct platform_info *p = platform_get();
   plic_enable(p->uart_irq);
-  plic_enable(p->block_irq);
+  // SD I/O is polled with a global spinlock. Only the boot hart enables the
+  // block IRQ so a pending SD/PLIC event cannot be claimed by a secondary
+  // hart while the boot hart is mid-command.
+  if (cpuid() == 0)
+    plic_enable(p->block_irq);
 
   // set this hart's S-mode priority threshold to 0.
   *(volatile uint32 *)plic_context_base() = 0;

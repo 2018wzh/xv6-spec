@@ -50,6 +50,35 @@ node_u32(const void *fdt, int node, const char *name, uint32 fallback)
   return value && len >= 4 ? fdt32_to_cpu(*value) : fallback;
 }
 
+static void reserve_range(uint64 start, uint64 size);
+
+static void
+parse_reserved_memory(const void *fdt)
+{
+  int reserved = fdt_path_offset(fdt, "/reserved-memory");
+  if (reserved < 0)
+    return;
+  int child;
+  fdt_for_each_subnode(child, fdt, reserved) {
+    int property_len = 0;
+    if (fdt_getprop(fdt, child, "reg", &property_len)) {
+      uint64 size = 0;
+      uint64 start = node_reg(fdt, child, &size);
+      reserve_range(start, size);
+      continue;
+    }
+    const fdt32_t *size_cells = fdt_getprop(fdt, child, "size", &property_len);
+    int ranges_len = 0;
+    const fdt32_t *ranges =
+      fdt_getprop(fdt, child, "alloc-ranges", &ranges_len);
+    if (!size_cells || property_len != 8 || !ranges || ranges_len < 16)
+      panic("platform: unsupported dynamic reserved-memory node");
+    uint64 dyn_start = read_cells(ranges, 2);
+    uint64 dyn_size = read_cells(size_cells, 2);
+    reserve_range(dyn_start, dyn_size);
+  }
+}
+
 static int
 find_compatible(const void *fdt, const char *compatible)
 {
@@ -107,26 +136,13 @@ parse_visionfive2(uint64 dtb)
       panic("platform: invalid DT reservation entry");
     reserve_range(start, size);
   }
-  int reserved = fdt_path_offset(fdt, "/reserved-memory");
-  if (reserved >= 0) {
-    int child;
-    fdt_for_each_subnode(child, fdt, reserved) {
-      int property_len = 0;
-      if (fdt_getprop(fdt, child, "reg", &property_len)) {
-        uint64 size = 0;
-        uint64 start = node_reg(fdt, child, &size);
-        reserve_range(start, size);
-        continue;
-      }
-      const fdt32_t *size_cells = fdt_getprop(fdt, child, "size", &property_len);
-      int ranges_len = 0;
-      const fdt32_t *ranges =
-        fdt_getprop(fdt, child, "alloc-ranges", &ranges_len);
-      if (!size_cells || property_len != 8 || !ranges || ranges_len < 16)
-        panic("platform: unsupported dynamic reserved-memory node");
-      reserve_range(read_cells(ranges, 2), read_cells(size_cells, 2));
-    }
-  }
+  parse_reserved_memory(fdt);
+  // Bound the allocator to the first 128 MiB of DRAM (QEMU PHYSTOP-sized).
+  // Zeroing/mapping the full 4 GiB DTB node before paging is unboundedly
+  // slow on the physical board and unnecessary for four-hart usertests.
+  uint64 ram_cap = active.ram_base + 128 * 1024 * 1024;
+  if (active.ram_end > ram_cap)
+    active.ram_end = ram_cap;
   if (active.ram_end <= PGROUNDUP((uint64)end))
     panic("platform: no allocatable RAM after reservations");
 
@@ -183,8 +199,18 @@ platform_early_init(uint64 hartid, uint64 dtb)
 {
 #ifdef PLATFORM_VISIONFIVE2
   parse_visionfive2(dtb);
-  if (platform_cpu_index(hartid) != 0)
-    panic("platform: firmware released an unordered secondary hart");
+  int boot_cpu = platform_cpu_index(hartid);
+  if (boot_cpu < 0)
+    panic("platform: firmware released an unlisted boot hart");
+  if (boot_cpu != 0) {
+    // U-Boot may enter from any U74. Rotate the discovered DT hart order so
+    // the actual boot hart is logical CPU 0 for main() and SBI HSM starts
+    // every other logical hart in order.
+    uint64 boot = active.hart_ids[boot_cpu];
+    for (int i = boot_cpu; i > 0; i--)
+      active.hart_ids[i] = active.hart_ids[i - 1];
+    active.hart_ids[0] = boot;
+  }
 #else
   active = (struct platform_info){
     .name = "qemu-virt",

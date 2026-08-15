@@ -34,6 +34,8 @@ SECTIONS
     *(.data .data.*)
   }
 
+  PROVIDE(bss = .);
+
   .bss : {
     . = ALIGN(16);
     *(.sbss .sbss.*) /* do not need to distinguish this from .bss */
