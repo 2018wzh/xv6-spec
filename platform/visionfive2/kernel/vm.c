@@ -24,46 +24,29 @@ kvmmake(void)
 {
   pagetable_t kpgtbl;
 
-  printk("vm: kvmmake start\n");
   kpgtbl = (pagetable_t)kalloc();
   memset(kpgtbl, 0, PGSIZE);
-  printk("vm: root table ok\n");
-
   const struct platform_info *p = platform_get();
 
   // uart registers
   kvmmap(kpgtbl, PGROUNDDOWN(p->uart_base), PGROUNDDOWN(p->uart_base),
          PGSIZE, PTE_R | PTE_W);
-  printk("vm: uart map ok\n");
-
   // virtio mmio disk interface
   kvmmap(kpgtbl, PGROUNDDOWN(p->block_base), PGROUNDDOWN(p->block_base),
          PGSIZE, PTE_R | PTE_W);
-  printk("vm: block map ok\n");
-
   // PLIC
   kvmmap(kpgtbl, p->plic_base, p->plic_base, 0x4000000, PTE_R | PTE_W);
-  printk("vm: plic map ok\n");
-
   // map kernel text executable and read-only.
   kvmmap(kpgtbl, KERNBASE, KERNBASE, (uint64)etext - KERNBASE, PTE_R | PTE_X);
-  printk("vm: text map ok\n");
-
   // map kernel data and the physical RAM we'll make use of.
   kvmmap(kpgtbl, (uint64)etext, (uint64)etext,
          p->ram_end - (uint64)etext,
          PTE_R | PTE_W);
-  printk("vm: data map ok\n");
-
   // map the trampoline for trap entry/exit to
   // the highest virtual address in the kernel.
   kvmmap(kpgtbl, TRAMPOLINE, (uint64)trampoline, PGSIZE, PTE_R | PTE_X);
-  printk("vm: trampoline map ok\n");
-
   // allocate and map a kernel stack for each process.
   proc_mapstacks(kpgtbl);
-  printk("vm: stacks ok\n");
-
   return kpgtbl;
 }
 
@@ -89,25 +72,12 @@ kvminit(void)
 void
 kvminithart()
 {
-  printk("vm: kvminithart kp=%p satp=%lx\n", (void *)kernel_pagetable,
-         MAKE_SATP(kernel_pagetable));
-  {
-    pte_t *pc = walk(kernel_pagetable, KERNBASE, 0);
-    pte_t *uart = walk(kernel_pagetable, PGROUNDDOWN(platform_get()->uart_base), 0);
-    printk("vm: pc=%p pte=%lx uart=%p pte=%lx\n", (void *)pc,
-           pc ? *pc : 0, (void *)uart, uart ? *uart : 0);
-  }
-  uartputc_sync('A');
   w_satp(0);
-  uartputc_sync('B');
   sfence_vma();
-  uartputc_sync('C');
   w_satp(MAKE_SATP(kernel_pagetable));
   asm volatile("fence.i");
-  uartputc_sync('D');
   sfence_vma();
   asm volatile("fence.i");
-  uartputc_sync('E');
 }
 
 // Return the address of the PTE in page table pagetable

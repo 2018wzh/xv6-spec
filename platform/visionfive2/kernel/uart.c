@@ -107,21 +107,16 @@ uartinit(void)
 void
 uartwrite(char buf[], int n)
 {
+  // Use polled transmission for user console writes. On the physical
+  // JH7110 U-Boot/OpenSBI handoff, the interrupt-driven tx_busy path can
+  // stall after the first byte if the UART TX interrupt is not delivered.
+  // Polling LSR keeps the console usable and is consistent with printk.
   acquire(&tx_lock);
-
-  int i = 0;
-  while (i < n) {
-    while (tx_busy != 0) {
-      // wait for a UART transmit-complete interrupt
-      // to set tx_busy to 0.
-      sleep(&tx_chan, &tx_lock);
-    }
-
+  for (int i = 0; i < n; i++) {
+    while ((ReadReg(LSR) & LSR_TX_IDLE) == 0)
+      ;
     WriteReg(THR, buf[i]);
-    i += 1;
-    tx_busy = 1;
   }
-
   release(&tx_lock);
 }
 

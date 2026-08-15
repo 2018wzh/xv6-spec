@@ -19,6 +19,8 @@ extern void forkret(void);
 static void freeproc(struct proc *p);
 
 extern char trampoline[]; // trampoline.S
+extern void _entry_secondary(void);
+extern void platform_start_harts(uint64 entry);
 
 // helps ensure that wakeups of wait()ing
 // parents are not lost. helps obey the
@@ -521,6 +523,9 @@ forkret(void)
     // We can invoke kexec() now that file system is initialized.
     // Put the return value (argc) of kexec into a0.
     p->trapframe->a0 = kexec("/init", (char *[]){"/init", 0});
+    // Start secondary harts only after the boot hart has completed early
+    // file-system setup and exec'd the first user process.
+    platform_start_harts((uint64)_entry_secondary);
     if (p->trapframe->a0 == -1) {
       panic("exec");
     }

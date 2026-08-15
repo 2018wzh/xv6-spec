@@ -87,7 +87,8 @@ supervisor_start(uint64 hartid, uint64 dtb)
   w_stvec((uint64)kernelvec);
   w_sie(r_sie() | SIE_SEIE | SIE_STIE | SIE_SSIE);
   platform_set_timer(r_time() + platform_get()->timebase_frequency / 10);
-  platform_start_harts((uint64)_entry_secondary);
+  // Secondary harts are started later, only after the boot hart has finished
+  // fsinit/kexec for the first user process (see forkret).
   main();
 }
 

@@ -186,11 +186,8 @@ read_sector(uint64 lba, uchar *data)
   *sdreg(SD_BLKSIZ) = 512;
   *sdreg(SD_BYTCNT) = 512;
   fifo_reset();
-  uint32 r17 = command(17, (uint32)lba,
+  command(17, (uint32)lba,
           CMD_RESP | CMD_RESP_CRC | CMD_DATA | CMD_WAIT_DATA);
-  if (lba == 0)
-    printk("sd: cmd17 resp=0x%x status=0x%x fifo=0x%x\n", r17,
-           *sdreg(SD_RINTSTS), *sdreg(SD_STATUS));
   uint words = 0;
   for (uint32 timeout = 0; words < 128 && timeout < 10000000; timeout++) {
     uint32 status = *sdreg(SD_RINTSTS);
@@ -204,13 +201,18 @@ read_sector(uint64 lba, uchar *data)
   if (words != 128)
     panic("sd: data timeout");
   *sdreg(SD_RINTSTS) = 0xffffffff;
-  if (lba == 0)
-    printk("sd: sector0 %x %x %x %x ... %x %x %x %x | b0=%x b1=%x b510=%x b511=%x\n",
-           ((uint32 *)data)[0], ((uint32 *)data)[1], ((uint32 *)data)[2],
-           ((uint32 *)data)[3], ((uint32 *)data)[60], ((uint32 *)data)[61],
-           ((uint32 *)data)[62], ((uint32 *)data)[63], data[0], data[1],
-           data[510], data[511]);
 }
+static void
+write_delay(void)
+{
+  // The DW-MCI controller's DATA_BUSY status can clear before the card has
+  // finished its internal programming state.  Give the card a short settling
+  // delay before the next command (U-Boot uses udelay(100) after each data
+  // transfer).
+  for (volatile uint32 i = 0; i < 1000000; i++)
+    ;
+}
+
 static void
 write_sector(uint64 lba, const uchar *data)
 {
@@ -224,8 +226,11 @@ write_sector(uint64 lba, const uchar *data)
   uint words = 0;
   for (uint32 timeout = 0; words < 128 && timeout < 10000000; timeout++) {
     uint32 status = *sdreg(SD_RINTSTS);
-    if (status & INT_ERROR_MASK)
+    if (status & INT_ERROR_MASK) {
+      printk("sd: write error rint=0x%x status=0x%x words=%d lba=%d\n",
+             status, *sdreg(SD_STATUS), words, (int)lba);
       panic("sd: write error");
+    }
     if (status & INT_TXDR) {
       while (words < 128 && (*sdreg(SD_STATUS) & STATUS_FIFO_FULL) == 0)
         *sdreg(SD_DATA) = ((const uint32 *)data)[words++];
@@ -237,7 +242,22 @@ write_sector(uint64 lba, const uchar *data)
   if (words != 128)
     panic("sd: write data timeout");
   wait_clear(SD_STATUS, STATUS_DATA_BUSY, "sd: write completion timeout");
+  // Wait for the write command to fully complete before allowing the next
+  // command.  On this controller CMD_DONE for a data write is reported after
+  // the data phase, so it must be consumed here rather than at the next
+  // command's RINTSTS clear.
+  for (uint32 i = 0; i < 10000000; i++) {
+    uint32 rint = *sdreg(SD_RINTSTS);
+    if (rint & INT_ERROR_MASK) {
+      printk("sd: write cmddone error rint=0x%x status=0x%x lba=%d\n",
+             rint, *sdreg(SD_STATUS), (int)lba);
+      panic("sd: write cmddone error");
+    }
+    if (rint & INT_CMD_DONE)
+      break;
+  }
   *sdreg(SD_RINTSTS) = 0xffffffff;
+  write_delay();
 }
 
 extern uint64 gpt_find_xv6fs(void (*read)(uint64, uchar *));
@@ -245,7 +265,6 @@ extern uint64 gpt_find_xv6fs(void (*read)(uint64, uchar *));
 void
 jh7110_sd_init(void)
 {
-  printk("sd: init start\n");
   initlock(&sd_lock, "jh7110_sd");
   if ((*sdreg(SD_CDETECT) & 1) != 0)
     panic("sd: no card detected");
@@ -255,15 +274,14 @@ jh7110_sd_init(void)
   *sdreg(SD_BMOD) = 0;
   *sdreg(SD_INTMASK) = 0;
   *sdreg(SD_TMOUT) = 0xffffffff;
-  *sdreg(SD_FIFOTH) = (4U << 28) | (15U << 16) | 1U;
+  // Follow Linux/U-Boot dw_mmc defaults for a 32-word FIFO:
+  // MSIZE=2, RX_WMARK=15, TX_WMARK=16.
+  *sdreg(SD_FIFOTH) = (2U << 28) | (16U << 16) | 15U;
   *sdreg(SD_UHS_REG) = 0;
-  printk("sd: reset ok\n");
   set_clock(124);
-  printk("sd: low clock ok\n");
 
   command(0, 0, CMD_SEND_INIT);
   command(8, 0x1aa, CMD_RESP | CMD_RESP_CRC);
-  printk("sd: cmd0/cmd8 ok\n");
   uint32 ocr = 0;
   for (uint32 retry = 0; retry < 10000; retry++) {
     command(55, 0, CMD_RESP | CMD_RESP_CRC);
@@ -273,21 +291,18 @@ jh7110_sd_init(void)
   }
   if ((ocr & (1U << 31)) == 0 || (ocr & (1U << 30)) == 0)
     panic("sd: SDHC initialization failed");
-  printk("sd: acmd41 ok\n");
   command(2, 0, CMD_RESP | CMD_RESP_LONG | CMD_RESP_CRC);
   uint32 rca_resp = command(3, 0, CMD_RESP | CMD_RESP_CRC);
   card_rca = rca_resp & 0xffff0000;
-  printk("sd: rca resp=0x%x card_rca=0x%x\n", rca_resp, card_rca);
   if (card_rca == 0)
     panic("sd: invalid RCA");
   command(7, card_rca, CMD_RESP | CMD_RESP_CRC);
   command(55, card_rca, CMD_RESP | CMD_RESP_CRC);
   command(6, 2, CMD_RESP | CMD_RESP_CRC); // 4-bit bus, matches U-Boot
-  printk("sd: card select ok (1-bit)\n");
   *sdreg(SD_CTYPE) = 1;
   set_clock(4);
-  printk("sd: high clock ok\n");
   partition_lba = gpt_find_xv6fs(read_sector);
+  printk("sd: init ok\n");
   printk("sd: gpt ok, partition_lba=0x%lx\n", partition_lba);
 }
 

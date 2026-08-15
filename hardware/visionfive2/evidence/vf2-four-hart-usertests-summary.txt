@@ -1,0 +1,80 @@
+xv6 kernel is booting
+XV6_BOOT_OK
+sd: write test start
+sd: write test done
+sd: read test done
+sd: write test ok
+sd: 2-sector write test ok
+forkret: cpu=0 kexec ret=1
+hart 2 starting
+hart 1 starting
+hart 3 starting
+usertests starting
+test copyin: sd_rw cpu=0 r blockno=47 start
+test copyout: sd_rw cpu=0 r blockno=48 start
+test copyinstr1: OK
+test copyinstr2: OK
+test copyinstr3: OK
+test rwsbrk: sd_rw cpu=0 w blockno=3 start
+test truncate1: sd_rw cpu=0 w blockno=3 start
+test truncate2: sd_rw cpu=0 w blockno=3 start
+test truncate3: sd_rw cpu=0 w blockno=3 start
+test openiput: sd_rw cpu=2 w blockno=3 start
+test exitiput: sd_rw cpu=0 w blockno=3 start
+test iput: sd_rw cpu=0 w blockno=3 start
+test opentest: OK
+test writetest: sd_rw cpu=0 w blockno=3 start
+test writebig: sd_rw cpu=0 w blockno=3 start
+test createtest: sd_rw cpu=0 w blockno=3 start
+test dirtest: sd_rw cpu=0 r blockno=961 start
+test exectest: sd_rw cpu=0 w blockno=3 start
+test pipe1: OK
+test killstatus: OK
+test preempt: kill... wait... OK
+test exitwait: OK
+test reparent: OK
+test twochildren: OK
+test forkfork: OK
+test forkforkfork: sd_rw cpu=3 w blockno=3 start
+test reparent2: OK
+test mem: OK
+test sharedfd: sd_rw cpu=2 w blockno=3 start
+test fourfiles: sd_rw cpu=2 r blockno=960 start
+test createdelete: sd_rw cpu=0 r blockno=960 start
+test unlinkread: sd_rw cpu=0 w blockno=3 start
+test linktest: sd_rw cpu=0 w blockno=3 start
+test concreate: sd_rw cpu=0 w blockno=3 start
+test linkunlink: sd_rw cpu=0 w blockno=3 start
+test subdir: sd_rw cpu=0 w blockno=3 start
+test bigwrite: sd_rw cpu=0 w blockno=3 start
+test bigfile: sd_rw cpu=0 r blockno=960 start
+test fourteen: sd_rw cpu=0 w blockno=3 start
+test rmdot: sd_rw cpu=0 w blockno=3 start
+test dirfile: sd_rw cpu=0 w blockno=3 start
+test iref: sd_rw cpu=0 w blockno=3 start
+test forktest: OK
+test sbrkbasic: OK
+test sbrkmuch: OK
+test kernmem: usertrap(): unexpected scause 0xd pid=6475
+test MAXVAplus: usertrap(): unexpected scause 0xf pid=6516
+test sbrkfail: OK
+test sbrkarg: sd_rw cpu=2 r blockno=960 start
+test validatetest: OK
+test bsstest: OK
+test bigargtest: sd_rw cpu=2 r blockno=90 start
+test argptest: sd_rw cpu=2 r blockno=189 start
+test stacktest: usertrap(): unexpected scause 0xd pid=6561
+test nowrite: usertrap(): unexpected scause 0xf pid=6563
+test pgbug: OK
+test sbrkbugs: usertrap(): unexpected scause 0xc pid=6571
+test sbrklast: sd_rw cpu=2 w blockno=3 start
+test sbrk8000: OK
+test badarg: OK
+test lazy_alloc: OK
+test lazy_unmap: usertrap(): unexpected scause 0xf pid=6579
+test lazy_copy: sd_rw cpu=2 r blockno=48 start
+test lazy_sbrk: OK
+test bigdir: sd_rw cpu=0 w blockno=3 start
+test manywrites: sd_rw cpu=2 r blockno=973 start
+test outofinodes: sd_rw cpu=2 w blockno=3 start
+ALL TESTS PASSED
