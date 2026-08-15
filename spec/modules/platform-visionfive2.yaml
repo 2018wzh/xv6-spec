@@ -3,7 +3,14 @@ module: platform/visionfive2
 level: 3
 purpose: Define the fail-closed VisionFive 2 port boundary and the evidence required before board execution can be reviewed.
 owns:
-  - platform/visionfive2/README.md
+  - platform/visionfive2
+  - hardware/visionfive2
+  - tools/vf2_hardware_runner.py
+  - tools/vf2_image.py
+  - tools/fetch_vf2_assets.py
+  - third_party/libfdt
+  - docs/visionfive2.md
+  - requirements-hardware.txt
   - tests/generated/platform/visionfive2
 interface:
   - name: validate_board_inputs

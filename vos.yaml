@@ -21,15 +21,22 @@ runners:
     success_pattern: XV6_BOOT_OK
     failure_pattern: "panic(?:[: ]|$)"
   hardware:
-    program: sh
+    program: python3
     args:
-      - -c
-      - exit 2
+      - tools/vf2_hardware_runner.py
     cwd: .
     env:
       - PATH
-    timeout: 1000
-    artifacts: []
+      - VOS_VF2_BOARD_ALIAS
+      - VOS_VF2_SERIAL_PORT
+      - VOS_VF2_BOOT_PART
+    timeout: 1500000
+    artifacts:
+      - .vos/hardware/visionfive2-evidence.json
+      - .vos/hardware/visionfive2-serial.log
+    board: visionfive2-v1.3b
+    serial: VOS_VF2_SERIAL_PORT
+    workload: four-hart-usertests
 checks:
   toolchain_lab10_candidate_contract:
     artifacts: [tests/verification/coverage.md, tests/verification/failure-analysis.md]

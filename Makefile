@@ -141,3 +141,33 @@ clean:
 	rm -f fs.img
 	rm -f user/_fstest
 	rm -rf $(LAB1_BUILD)
+
+# ---- Lab 9 VisionFive 2 vendor platform (physical board) ----
+# The QEMU course kernel above is intentionally untouched. The hardware port
+# is a separate vendor kernel tree under platform/visionfive2 that shares no
+# object files with the QEMU projection and is driven only by these targets
+# and the hardware runner in tools/vf2_hardware_runner.py.
+VF2_MAKE = $(MAKE) -f platform/visionfive2/Makefile
+MKIMAGE ?= mkimage
+
+vf2-kernel:
+	$(VF2_MAKE) clean
+	$(VF2_MAKE) PLATFORM=visionfive2 build/kernel-vf2.bin build/vf2-fs.img
+	python3 tools/fetch_vf2_assets.py
+
+vf2-fit: vf2-kernel
+	command -v $(MKIMAGE) >/dev/null || { echo "ERROR: mkimage is required" >&2; exit 1; }
+	$(MKIMAGE) -f hardware/visionfive2/xv6.its build/xv6.itb
+
+vf2-image: vf2-fit
+	python3 tools/vf2_image.py build --fit build/xv6.itb --fs build/vf2-fs.img \
+	  --output build/visionfive2-sd.img
+
+vf2-image-check:
+	python3 tools/vf2_image.py inspect --image build/visionfive2-sd.img \
+	  --fit build/xv6.itb
+
+vf2-qemu:
+	$(VF2_MAKE) qemu
+
+.PHONY: vf2-kernel vf2-fit vf2-image vf2-image-check vf2-qemu

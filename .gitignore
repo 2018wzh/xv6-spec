@@ -18,3 +18,15 @@ user/usys.S
 .tmp/
 __pycache__/
 *.py[cod]
+platform/visionfive2/kernel/*.o
+platform/visionfive2/kernel/*.d
+platform/visionfive2/kernel/kernel
+platform/visionfive2/kernel/*.asm
+platform/visionfive2/kernel/*.sym
+platform/visionfive2/user/*.o
+platform/visionfive2/user/*.d
+platform/visionfive2/user/*.asm
+platform/visionfive2/user/*.sym
+platform/visionfive2/user/_*
+platform/visionfive2/user/usys.S
+platform/visionfive2/mkfs/mkfs
