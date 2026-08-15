@@ -122,16 +122,18 @@ command(uint32 index, uint32 argument, uint32 flags)
   *sdreg(SD_RINTSTS) = 0xffffffff;
   *sdreg(SD_CMDARG) = argument;
   *sdreg(SD_CMD) = CMD_START | CMD_USE_HOLD | flags | index;
-  for (uint32 i = 0; i < 10000000; i++)
-    if ((*sdreg(SD_CMD) & CMD_START) == 0)
-      goto command_launched;
-  printk("sd: launch timeout cpu=%d cmdreg=0x%x status=0x%x rint=0x%x\n",
-         cpuid(), *sdreg(SD_CMD), *sdreg(SD_STATUS), *sdreg(SD_RINTSTS));
-  panic("sd: command launch timeout");
-command_launched:
+  // For write data commands, do not wait for CMD_DONE here. On this JH7110
+  // controller RINTSTS immediately reports TXDR and CMD_DONE only appears
+  // after the data FIFO has been drained by the card. The write_sector
+  // caller owns the TXDR/data phase.
+  if ((flags & CMD_WRITE) != 0)
+    return 0;
+  // Do not wait for CMD_START to clear. For data commands (especially
+  // CMD24/CMD17) CMD_START may stay asserted until the data phase completes;
+  // U-Boot/Linux only wait for CMD_DONE in RINTSTS.
   for (uint32 i = 0; i < 10000000; i++) {
     uint32 status = *sdreg(SD_RINTSTS);
-    if (status & INT_ERROR)
+    if (status & INT_ERROR_MASK)
       panic("sd: command error");
     if (status & INT_CMD_DONE) {
       // For data commands, leave CMD_DONE pending (as U-Boot's dw_mmc does):
@@ -141,6 +143,8 @@ command_launched:
       return *sdreg(SD_RESP0);
     }
   }
+  printk("sd: cmd timeout cpu=%d cmdreg=0x%x status=0x%x rint=0x%x\n",
+         cpuid(), *sdreg(SD_CMD), *sdreg(SD_STATUS), *sdreg(SD_RINTSTS));
   panic("sd: command completion timeout");
 }
 
