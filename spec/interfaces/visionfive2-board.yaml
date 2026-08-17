@@ -1,0 +1,17 @@
+id: interface/visionfive2-board
+name: VisionFive 2 hardware evidence ABI
+boundary: driver
+module: platform/visionfive2
+operations:
+  - name: run_hardware_workload
+    input: board identity, firmware and DTB hashes, image hash, serial endpoint, and workload
+    output: bounded serial log and pending_human_review evidence
+    pre:
+      - every physical input is explicit
+    post:
+      - evidence is bound to the current clean commit and build
+    errors:
+      - unavailable hardware or missing identity fails closed
+    properties:
+      - id: vf2-human-review-required
+        text: four-hart usertests require physical execution and separate human review

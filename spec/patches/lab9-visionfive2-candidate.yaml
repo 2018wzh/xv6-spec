@@ -1,0 +1,7 @@
+id: patch/lab9-visionfive2-candidate
+reason: Introduce the canonical physical-board boundary without treating QEMU or fixtures as hardware acceptance.
+changes:
+  - DesignSpec selects VisionFive 2 and records the candidate-only acceptance state.
+  - platform/visionfive2 owns deterministic candidate checks while physical execution remains operator supplied.
+new_invariants:
+  - Hardware acceptance remains pending_human_review until physical four-hart usertests and human review both complete.
