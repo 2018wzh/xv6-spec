@@ -1,0 +1,15 @@
+id: kernel/boot
+module: kernel/boot
+level: 2
+purpose: early boot and deterministic banner.
+owns:
+- kernel/entry.S
+- kernel/start.c
+- kernel/boot.c
+- kernel/main.c
+interface: []
+properties:
+- id: kernel-boot-deterministic
+  text: behavior is deterministic under the published lab checks
+errors:
+- invalid state fails explicitly
