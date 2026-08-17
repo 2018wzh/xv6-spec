@@ -8,7 +8,8 @@ owns:
 - lab1/build
 - tests/public/verify.sh
 - tests/public/lab2-boot.sh
-- tests/generated/toolchain
+  - tests/generated/toolchain
+  - tests/verification
 interface:
 - name: build_ctf_readers
   pre:

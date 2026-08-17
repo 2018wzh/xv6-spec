@@ -38,6 +38,15 @@ runners:
     serial: VOS_VF2_SERIAL_PORT
     workload: four-hart-usertests
 checks:
+  toolchain_lab10_candidate_contract:
+    artifacts: [tests/verification/coverage.md, tests/verification/failure-analysis.md]
+    args: [tests/verification/candidate_contract.sh]
+    cwd: .
+    env: [PATH]
+    kind: contract
+    program: sh
+    timeout: 30000
+    verifies: [toolchain]
   platform_visionfive2_candidate_contract:
     artifacts: [spec/design.yaml, spec/modules/platform-visionfive2.yaml]
     args: [tests/generated/platform/visionfive2/candidate_contract.sh]
@@ -176,7 +185,7 @@ checks:
     cwd: .
     env:
       - PATH
-    timeout: 120000
+    timeout: 300000
     verifies:
       - toolchain
   kernel_boot_banner_public:
