@@ -64,3 +64,17 @@ checks:
     env: []
     timeout: 120000
     verifies: [kernel/trap]
+  fork_returns_different_pid:
+    program: sh
+    args: [tests/public/verify.sh, fork_returns_different_pid]
+    cwd: .
+    env: []
+    timeout: 120000
+    verifies: [kernel/process]
+  syscall_valid_number:
+    program: sh
+    args: [tests/public/verify.sh, syscall_valid_number]
+    cwd: .
+    env: []
+    timeout: 120000
+    verifies: [kernel/process]

@@ -1,4 +1,4 @@
 #include "types.h"
 #include "riscv.h"
 #include "defs.h"
-void main(void) { consoleinit(); printkinit(); uartinit(); trapinit(); trapinithart(); plicinit(); plicinithart(); printk((char*)boot_banner()); for (;;) {} }
+void main(void) { consoleinit(); printkinit(); kinit(); kvminit(); kvminithart(); procinit(); trapinit(); trapinithart(); plicinit(); plicinithart(); userinit(); scheduler(); }

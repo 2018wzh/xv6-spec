@@ -13,9 +13,14 @@ OBJS = kernel/boot.o \
   kernel/main.o \
   kernel/plic.o \
   kernel/printk.o \
+  kernel/proc.o \
   kernel/spinlock.o \
   kernel/start.o \
   kernel/string.o \
+  kernel/swtch.o \
+  kernel/syscall.o \
+  kernel/sysproc.o \
+  kernel/trampoline.o \
   kernel/trap.o \
   kernel/uart.o \
   kernel/vm.o
