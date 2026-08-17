@@ -1,0 +1,10 @@
+id: lab5-process
+reason: Lab 5 first adds process allocation, lifecycle, context switching, and the page-table helpers needed by process ownership while preserving a buildable intermediate kernel.
+changes:
+- kernel/process
+- kernel/memory
+- kernel/boot
+- toolchain
+new_invariants:
+- A process owns exactly one trap frame and user page table from allocproc until freeproc.
+- The process-only commit remains buildable before user-trap and syscall composition lands.

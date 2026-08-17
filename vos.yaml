@@ -3,99 +3,1224 @@ build:
   program: make
   args: []
   cwd: .
-  env: []
+  env:
+    - PATH
   timeout: 120000
-  artifacts: [kernel/kernel]
+  artifacts:
+    - kernel/kernel
 runners:
   qemu:
     program: make
-    args: [qemu]
+    args:
+      - qemu
     cwd: .
-    env: []
+    env:
+      - PATH
     timeout: 120000
     artifacts: []
+    success_pattern: XV6_BOOT_OK
+    failure_pattern: "panic(?:[: ]|$)"
   hardware:
     program: sh
-    args: [-c, 'exit 2']
+    args:
+      - -c
+      - exit 2
     cwd: .
-    env: []
+    env:
+      - PATH
     timeout: 1000
     artifacts: []
 checks:
+  ctf-warmup-linux-public:
+    args:
+      - tests/generated/lab/ctf-warmup/run-tests.sh
+      - linux
+      - "7"
+    artifacts:
+      - lab1/build/verify-linux.log
+    cwd: .
+    env:
+      - PATH
+    kind: public
+    program: bash
+    timeout: 60000
+    verifies:
+      - lab/ctf-warmup
+  ctf-warmup-baremetal-public:
+    args:
+      - tests/generated/lab/ctf-warmup/run-tests.sh
+      - baremetal
+      - "7"
+    artifacts:
+      - lab1/build/verify-baremetal.log
+      - lab1/build/ctf-baremetal.elf
+    cwd: .
+    env:
+      - PATH
+    kind: public
+    program: bash
+    timeout: 90000
+    verifies:
+      - lab/ctf-warmup
+  ctf-warmup-contract:
+    args:
+      - tests/generated/lab/ctf-warmup/run-tests.sh
+      - contract
+      - "11"
+    artifacts:
+      - lab1/build/verify-linux.log
+      - lab1/build/verify-baremetal.log
+    cwd: .
+    env:
+      - PATH
+    kind: contract
+    program: bash
+    timeout: 90000
+    verifies:
+      - lab/ctf-warmup
+  ctf-warmup-fuzz:
+    args:
+      - tests/generated/lab/ctf-warmup/run-tests.sh
+      - fuzz
+      - "7"
+      - "11"
+      - "13"
+      - "20240811"
+    artifacts:
+      - lab1/build/verify-linux.log
+      - lab1/build/verify-baremetal.log
+    cases: 4
+    cwd: .
+    env:
+      - PATH
+    kind: fuzz
+    program: bash
+    reproduction_artifact: lab1/build/fuzz-repro
+    seed: 7
+    timeout: 300000
+    verifies:
+      - lab/ctf-warmup
+  ctf-warmup-trace-oracle:
+    args:
+      - tests/generated/lab/ctf-warmup/run-tests.sh
+      - trace
+      - "5"
+      - "9"
+    artifacts:
+      - lab1/build/verify-linux.log
+      - lab1/build/verify-baremetal.log
+    cwd: .
+    env:
+      - PATH
+    kind: trace
+    oracle: The public ctf-fixture verify oracle checks that every alternating record from metadata.json appears in the indicated order in each reader log, and a diff confirms both readers emit identical record lines.
+    program: bash
+    timeout: 180000
+    verifies:
+      - lab/ctf-warmup
+    workload: Run both readers over fixed seeds 5 and 9 against the same generated non-secret fixture and record their redacted metadata plus alternating provenance records in order.
   bootstrap_banner_not_null:
     program: sh
-    args: [tests/public/verify.sh, bootstrap_banner_not_null]
+    args:
+      - tests/public/verify.sh
+      - bootstrap_banner_not_null
     cwd: .
-    env: []
+    env:
+      - PATH
     timeout: 120000
-    verifies: [kernel/boot]
-  kalloc_alignment:
+    verifies:
+      - kernel/boot
+  bootstrap_qemu_single_banner:
     program: sh
-    args: [tests/public/verify.sh, kalloc_alignment]
+    args:
+      - tests/public/verify.sh
+      - bootstrap_qemu_single_banner
     cwd: .
-    env: []
+    env:
+      - PATH
     timeout: 120000
-    verifies: [kernel/memory]
-  kvmmake_identity_mapping:
+    verifies:
+      - kernel/boot
+  toolchain_capability_probe:
     program: sh
-    args: [tests/public/verify.sh, kvmmake_identity_mapping]
+    args:
+      - tests/public/verify.sh
+      - toolchain_capability_probe
     cwd: .
-    env: []
-    timeout: 120000
-    verifies: [kernel/memory]
-  trap_init_stvec_set:
+    env:
+      - PATH
+    timeout: 30000
+    verifies:
+      - toolchain
+  toolchain_clean_rebuild:
     program: sh
-    args: [tests/public/verify.sh, trap_init_stvec_set]
+    args:
+      - tests/public/verify.sh
+      - toolchain_clean_rebuild
     cwd: .
-    env: []
+    env:
+      - PATH
     timeout: 120000
-    verifies: [kernel/trap]
-  devintr_timer:
+    verifies:
+      - toolchain
+  kernel_boot_banner_public:
+    kind: public
     program: sh
-    args: [tests/public/verify.sh, devintr_timer]
+    args:
+      - tests/generated/kernel/boot/public_banner.sh
     cwd: .
-    env: []
+    env:
+      - PATH
     timeout: 120000
-    verifies: [kernel/trap]
-  uart_boot_output:
+    verifies:
+      - kernel/boot
+    artifacts:
+      - kernel/kernel
+  kernel_boot_uart_abi_contract:
+    kind: contract
     program: sh
-    args: [tests/public/verify.sh, uart_boot_output]
+    args:
+      - tests/generated/kernel/boot/contract_uart_abi.sh
     cwd: .
-    env: []
-    timeout: 120000
-    verifies: [kernel/trap]
-  fork_returns_different_pid:
+    env:
+      - PATH
+    timeout: 30000
+    verifies:
+      - kernel/boot
+    artifacts: []
+  kernel_boot_banner_fuzz:
+    kind: fuzz
     program: sh
-    args: [tests/public/verify.sh, fork_returns_different_pid]
+    args:
+      - tests/generated/kernel/boot/fuzz_banner.sh
+      - "42"
+      - "500"
+      - tests/generated/kernel/boot/repro/kernel_boot_banner_fuzz.repro
     cwd: .
-    env: []
+    env:
+      - PATH
+    timeout: 30000
+    verifies:
+      - kernel/boot
+    artifacts: []
+    seed: 42
+    cases: 500
+    reproduction_artifact: tests/generated/kernel/boot/repro/kernel_boot_banner_fuzz.repro
+  kernel_boot_banner_trace:
+    kind: trace
+    program: sh
+    args:
+      - tests/generated/kernel/boot/trace_banner.sh
+    cwd: .
+    env:
+      - PATH
     timeout: 120000
+    verifies:
+      - kernel/boot
+    artifacts:
+      - kernel/kernel
+    workload: bounded QEMU virt serial capture of the booted Lab 2 kernel via vos_lab2_capture_serial
+    oracle: captured serial must contain exactly one XV6_BOOT_OK banner
+  kernel_boot_bootstrap_behavior_public:
+    kind: public
+    program: sh
+    args:
+      - tests/generated/kernel/boot/behavior_boot.sh
+    cwd: .
+    env:
+      - PATH
+    timeout: 120000
+    verifies:
+      - kernel/boot
+    artifacts:
+      - kernel/kernel
+  kernel_boot_bootstrap_pmp_contract:
+    kind: contract
+    program: sh
+    args:
+      - tests/generated/kernel/boot/contract_pmp_before_mret.sh
+    cwd: .
+    env:
+      - PATH
+    timeout: 30000
+    verifies:
+      - kernel/boot
+    artifacts: []
+  kernel_boot_banner_immutability_fuzz:
+    kind: fuzz
+    program: sh
+    args:
+      - tests/generated/kernel/boot/fuzz_immutable_banner.sh
+      - "42"
+      - "400"
+      - tests/generated/kernel/boot/repro/kernel_boot_banner_immutability_fuzz.repro
+    cwd: .
+    env:
+      - PATH
+    timeout: 60000
+    verifies:
+      - kernel/boot
+    artifacts: []
+    seed: 42
+    cases: 400
+    reproduction_artifact: tests/generated/kernel/boot/repro/kernel_boot_banner_immutability_fuzz.repro
+  kernel_boot_bootstrap_entry_trace:
+    kind: trace
+    program: sh
+    args:
+      - tests/generated/kernel/boot/trace_entry_boot.sh
+    cwd: .
+    env:
+      - PATH
+    timeout: 120000
+    verifies:
+      - kernel/boot
+    artifacts:
+      - kernel/kernel
+    workload: bounded QEMU virt serial capture of the booted Lab 2 kernel via vos_lab2_capture_serial
+    oracle: captured serial must contain exactly one canonical XV6_BOOT_OK banner line and no partial/garbage banner line
+  kernel_boot_bootstack_public:
+    artifacts:
+      - kernel/kernel
+    args:
+      - tests/generated/kernel/boot/kernel_boot_bootstack_public.sh
+    cwd: .
+    env:
+      - PATH
+    kind: public
+    program: sh
+    timeout: 30000
+    verifies:
+      - kernel/boot
+  kernel_boot_transition_contract:
+    artifacts: []
+    args:
+      - tests/generated/kernel/boot/kernel_boot_transition_contract.sh
+    cwd: .
+    env:
+      - PATH
+    kind: contract
+    program: sh
+    timeout: 30000
+    verifies:
+      - kernel/boot
+  kernel_boot_banner_single_line_fuzz:
+    args:
+      - tests/generated/kernel/boot/fuzz_single_line_banner.sh
+      - "42"
+      - "700"
+      - tests/generated/kernel/boot/repro/kernel_boot_banner_single_line_fuzz.repro
+    artifacts: []
+    cases: 700
+    cwd: .
+    env:
+      - PATH
+    kind: fuzz
+    program: sh
+    reproduction_artifact: tests/generated/kernel/boot/repro/kernel_boot_banner_single_line_fuzz.repro
+    seed: 42
+    timeout: 60000
+    verifies:
+      - kernel/boot
+  kernel_boot_boot_trace:
+    args:
+      - tests/generated/kernel/boot/kernel_boot_boot_trace.sh
+    artifacts:
+      - kernel/kernel
+    cwd: .
+    env:
+      - PATH
+    kind: trace
+    oracle: the captured serial must contain exactly one XV6_BOOT_OK banner (canonical shared single-banner oracle)
+    program: sh
+    timeout: 120000
+    verifies:
+      - kernel/boot
+    workload: bounded QEMU virt serial capture of the booted Lab 2 kernel via vos_lab2_capture_serial
+  kernel_memory_allocator_boot_public:
+    artifacts:
+      - kernel/kernel
+    args:
+      - tests/generated/kernel/memory/public_allocator_boot.sh
+    cwd: .
+    env:
+      - PATH
+    kind: public
+    program: sh
+    timeout: 120000
+    verifies:
+      - kernel/memory
+  kernel_memory_allocator_contract:
+    artifacts: []
+    args:
+      - tests/generated/kernel/memory/contract_memory.sh
+    cwd: .
+    env:
+      - PATH
+    kind: contract
+    program: sh
+    timeout: 30000
+    verifies:
+      - kernel/memory
+  kernel_memory_allocator_fuzz:
+    artifacts: []
+    args:
+      - tests/generated/kernel/memory/fuzz_allocator.sh
+      - "42"
+      - "500"
+      - tests/generated/kernel/memory/repro/kernel_memory_allocator_fuzz.repro
+    cases: 500
+    cwd: .
+    env:
+      - PATH
+    kind: fuzz
+    program: sh
+    reproduction_artifact: tests/generated/kernel/memory/repro/kernel_memory_allocator_fuzz.repro
+    seed: 42
+    timeout: 30000
+    verifies:
+      - kernel/memory
+  kernel_memory_mapping_trace:
+    artifacts:
+      - kernel/kernel
+    args:
+      - tests/generated/kernel/memory/trace_mapping.sh
+    cwd: .
+    env:
+      - PATH
+    kind: trace
+    oracle: captured serial must contain exactly one canonical XV6_BOOT_OK banner line
+    program: sh
+    timeout: 120000
+    verifies:
+      - kernel/memory
+    workload: bounded QEMU virt serial capture of the booted Lab 3 kernel via vos_lab2_capture_serial
+  kernel_trap_boot_public:
+    kind: public
+    program: sh
+    args:
+      - tests/generated/kernel/trap/public_trap_boot.sh
+    cwd: .
+    env:
+      - PATH
+    timeout: 120000
+    verifies:
+      - kernel/trap
+    artifacts:
+      - kernel/kernel
+  kernel_trap_vector_contract:
+    kind: contract
+    program: sh
+    args:
+      - tests/generated/kernel/trap/contract_vector.sh
+    cwd: .
+    env:
+      - PATH
+    timeout: 30000
+    verifies:
+      - kernel/trap
+    artifacts: []
+  kernel_trap_device_contract:
+    kind: contract
+    program: sh
+    args:
+      - tests/generated/kernel/trap/contract_device.sh
+    cwd: .
+    env:
+      - PATH
+    timeout: 30000
+    verifies:
+      - kernel/trap
+    artifacts: []
+  kernel_trap_frame_fuzz:
+    kind: fuzz
+    program: sh
+    args:
+      - tests/generated/kernel/trap/fuzz_frame.sh
+      - "42"
+      - "500"
+      - tests/generated/kernel/trap/repro/kernel_trap_frame_fuzz.repro
+    cwd: .
+    env:
+      - PATH
+    timeout: 30000
+    verifies:
+      - kernel/trap
+    artifacts: []
+    seed: 42
+    cases: 500
+    reproduction_artifact: tests/generated/kernel/trap/repro/kernel_trap_frame_fuzz.repro
+  kernel_trap_roundtrip_trace:
+    kind: trace
+    program: sh
+    args:
+      - tests/generated/kernel/trap/trace_roundtrip.sh
+    cwd: .
+    env:
+      - PATH
+    timeout: 120000
+    verifies:
+      - kernel/trap
+    artifacts:
+      - kernel/kernel
+    workload: bounded QEMU virt serial capture of the booted Lab 4 kernel via vos_lab2_capture_serial
+    oracle: captured serial must contain exactly one canonical XV6_BOOT_OK banner line and kernel/main.c must wire trapinit before intr_on() so the vector is installed before supervisor interrupts are enabled
+  kernel_process_boot_public:
+    args:
+      - tests/generated/kernel/process/public_process_boot.sh
+    artifacts:
+      - kernel/kernel
+    cwd: .
+    env:
+      - PATH
+    kind: public
+    program: sh
+    timeout: 60000
+    verifies:
+      - kernel/process
+  kernel_process_lifecycle_contract:
+    args:
+      - tests/generated/kernel/process/contract_lifecycle.sh
+    artifacts: []
+    cwd: .
+    env:
+      - PATH
+    kind: contract
+    program: sh
+    timeout: 60000
+    verifies:
+      - kernel/process
+  kernel_process_context_contract:
+    args:
+      - tests/generated/kernel/process/contract_context.sh
+    artifacts: []
+    cwd: .
+    env:
+      - PATH
+    kind: contract
+    program: sh
+    timeout: 60000
+    verifies:
+      - kernel/process
+  kernel_process_wakeup_contract:
+    args:
+      - tests/generated/kernel/process/wakeup_contract.sh
+    artifacts: []
+    cwd: .
+    env:
+      - PATH
+    kind: contract
+    program: sh
+    timeout: 60000
+    verifies:
+      - kernel/process
+  kernel_process_state_fuzz:
+    args:
+      - tests/generated/kernel/process/fuzz_state.sh
+      - "42"
+      - "500"
+      - tests/generated/kernel/process/repro/kernel_process_state_fuzz.repro
+    artifacts: []
+    cases: 500
+    cwd: .
+    env:
+      - PATH
+    kind: fuzz
+    program: sh
+    reproduction_artifact: tests/generated/kernel/process/repro/kernel_process_state_fuzz.repro
+    seed: 42
+    timeout: 60000
+    verifies:
+      - kernel/process
+  kernel_process_scheduler_trace:
+    args:
+      - tests/generated/kernel/process/trace_scheduler.sh
+    artifacts:
+      - kernel/kernel
+    cwd: .
+    env:
+      - PATH
+    kind: trace
+    oracle: exactly one canonical XV6_BOOT_OK banner line and no partial/garbage banner; procinit precedes intr_on in boot order
+    program: sh
+    timeout: 60000
+    verifies:
+      - kernel/process
+    workload: bounded QEMU virt serial capture of the booted Lab 5 kernel via vos_lab2_capture_serial (procinit + scheduler activated on the single boot hart)
+  kernel_syscall_dispatch_public:
+    kind: public
+    program: sh
+    args:
+      - tests/generated/kernel/syscall/public_syscall.sh
+    cwd: .
+    env:
+      - PATH
+    timeout: 120000
+    verifies:
+      - kernel/syscall
+    artifacts:
+      - kernel/kernel
+  kernel_syscall_dispatch_contract:
+    kind: contract
+    program: sh
+    args:
+      - tests/generated/kernel/syscall/contract_syscall.sh
+    cwd: .
+    env:
+      - PATH
+    timeout: 30000
+    verifies:
+      - kernel/syscall
+    artifacts: []
+  kernel_syscall_dispatch_fuzz:
+    kind: fuzz
+    program: sh
+    args:
+      - tests/generated/kernel/syscall/fuzz_dispatch.sh
+      - "42"
+      - "500"
+      - tests/generated/kernel/syscall/repro/kernel_syscall_dispatch_fuzz.repro
+    cwd: .
+    env:
+      - PATH
+    timeout: 30000
+    verifies:
+      - kernel/syscall
+    artifacts: []
+    seed: 42
+    cases: 500
+    reproduction_artifact: tests/generated/kernel/syscall/repro/kernel_syscall_dispatch_fuzz.repro
+  kernel_syscall_user_trace:
+    kind: trace
+    program: sh
+    args:
+      - tests/generated/kernel/syscall/trace_syscall.sh
+    cwd: .
+    env:
+      - PATH
+    timeout: 60000
+    verifies:
+      - kernel/syscall
+    artifacts:
+      - kernel/kernel
+    workload: bounded QEMU virt serial capture of the booted Lab 5 kernel via vos_lab2_capture_serial
+    oracle: captured serial must contain exactly one canonical XV6_BOOT_OK banner line and main.c must wire userinit() after procinit() and before scheduler(), and usertrapret must clear SPP before the trampoline userret so the first-user-ecall return cannot inherit supervisor privilege
+  kernel_virtio_public:
+    kind: public
+    program: sh
+    args:
+      - tests/generated/kernel/virtio/public_virtio.sh
+    cwd: .
+    env:
+      - PATH
+    timeout: 60000
+    verifies:
+      - kernel/virtio
+    artifacts:
+      - kernel/kernel
+  kernel_virtio_contract:
+    kind: contract
+    program: sh
+    args:
+      - tests/generated/kernel/virtio/contract_virtio.sh
+    cwd: .
+    env:
+      - PATH
+    timeout: 30000
+    verifies:
+      - kernel/virtio
+    artifacts: []
+  kernel_virtio_ring_fuzz:
+    kind: fuzz
+    program: sh
+    args:
+      - tests/generated/kernel/virtio/fuzz_ring.sh
+      - "42"
+      - "500"
+      - tests/generated/kernel/virtio/repro/kernel_virtio_ring_fuzz.repro
+    cwd: .
+    env:
+      - PATH
+    timeout: 30000
+    verifies:
+      - kernel/virtio
+    artifacts: []
+    seed: 42
+    cases: 500
+    reproduction_artifact: tests/generated/kernel/virtio/repro/kernel_virtio_ring_fuzz.repro
+  kernel_virtio_boot_trace:
+    kind: trace
+    program: sh
+    args:
+      - tests/generated/kernel/virtio/trace_virtio.sh
+    cwd: .
+    env:
+      - PATH
+    timeout: 60000
+    verifies:
+      - kernel/virtio
+    artifacts:
+      - kernel/kernel
+    workload: bounded QEMU virt serial capture with a 1MiB virtio-blk device attached
+    oracle: exactly one canonical XV6_BOOT_OK banner; no panic; virtio_disk_init wired before userinit; VIRTIO0_IRQ enabled in PLIC and dispatched in devintr
+  kernel_bio_public:
+    args:
+      - tests/generated/kernel/bio/public_bio.sh
+    artifacts: []
+    cwd: .
+    env:
+      - PATH
+    kind: public
+    program: sh
+    timeout: 120000
+    verifies:
+      - kernel/bio
+  kernel_bio_contract:
+    args:
+      - tests/generated/kernel/bio/contract_bio.sh
+    artifacts: []
+    cwd: .
+    env:
+      - PATH
+    kind: contract
+    program: sh
+    timeout: 60000
+    verifies:
+      - kernel/bio
+  kernel_bio_fuzz:
+    args:
+      - tests/generated/kernel/bio/fuzz_lru.sh
+      - "42"
+      - "500"
+      - tests/generated/kernel/bio/repro/kernel_bio_fuzz.repro
+    artifacts:
+      - tests/generated/kernel/bio/repro/kernel_bio_fuzz.repro
+    cases: 500
+    cwd: .
+    env:
+      - PATH
+    kind: fuzz
+    program: sh
+    reproduction_artifact: tests/generated/kernel/bio/repro/kernel_bio_fuzz.repro
+    seed: 42
+    timeout: 60000
+    verifies:
+      - kernel/bio
+  kernel_bio_trace:
+    args:
+      - tests/generated/kernel/bio/trace_bio.sh
+    artifacts:
+      - tests/generated/kernel/bio/repro/kernel_bio_trace.out
+    cwd: .
+    env:
+      - PATH
+    kind: trace
+    oracle: exactly one XV6_BOOT_OK banner and no panic text
+    program: sh
+    timeout: 120000
+    verifies:
+      - kernel/bio
+    workload: bounded QEMU virt serial capture with attached virtio block device
+  kernel_log_public:
+    artifacts:
+      - kernel/kernel
+    args:
+      - tests/generated/kernel/log/public_log.sh
+    cwd: .
+    env:
+      - PATH
+    kind: public
+    program: sh
+    timeout: 120000
+    verifies:
+      - kernel/log
+  kernel_log_contract:
+    artifacts: []
+    args:
+      - tests/generated/kernel/log/contract_log.sh
+    cwd: .
+    env:
+      - PATH
+    kind: contract
+    program: sh
+    timeout: 60000
+    verifies:
+      - kernel/log
+  kernel_log_fuzz:
+    artifacts:
+      - tests/generated/kernel/log/repro/kernel_log_fuzz.repro
+    args:
+      - tests/generated/kernel/log/fuzz_log.sh
+      - "42"
+      - "500"
+      - tests/generated/kernel/log/repro/kernel_log_fuzz.repro
+    cases: 500
+    cwd: .
+    env:
+      - PATH
+    kind: fuzz
+    program: sh
+    reproduction_artifact: tests/generated/kernel/log/repro/kernel_log_fuzz.repro
+    seed: 42
+    timeout: 60000
+    verifies:
+      - kernel/log
+  kernel_log_trace:
+    artifacts:
+      - kernel/kernel
+    args:
+      - tests/generated/kernel/log/trace_log.sh
+    cwd: .
+    env:
+      - PATH
+    kind: trace
+    oracle: exactly one canonical XV6_BOOT_OK banner and no panic text; log data write_log precedes the durable nonempty commit header write_head
+    program: sh
+    timeout: 120000
+    verifies:
+      - kernel/log
+    workload: bounded QEMU virt serial capture booting the storage-layered kernel with an attached virtio block device; the redo log source is landed but composed with a mount in a later slice
+  kernel_inode_public:
+    args:
+      - tests/generated/kernel/inode/public_inode.sh
+    artifacts:
+      - fs.img
+    cwd: .
+    env:
+      - PATH
+    kind: public
+    program: sh
+    timeout: 120000
+    verifies:
+      - kernel/inode
+  kernel_inode_contract:
+    args:
+      - tests/generated/kernel/inode/contract_inode.sh
+    artifacts:
+      - tests/generated/kernel/inode/contract_report.txt
+    cwd: .
+    env:
+      - PATH
+    kind: contract
+    program: sh
+    timeout: 60000
+    verifies:
+      - kernel/inode
+  kernel_inode_fuzz:
+    args:
+      - tests/generated/kernel/inode/fuzz_inode.sh
+      - "42"
+      - "500"
+      - tests/generated/kernel/inode/repro/kernel_inode_fuzz.repro
+    artifacts:
+      - tests/generated/kernel/inode/repro/kernel_inode_fuzz.repro
+    cases: 500
+    cwd: .
+    env:
+      - PATH
+    kind: fuzz
+    program: sh
+    reproduction_artifact: tests/generated/kernel/inode/repro/kernel_inode_fuzz.repro
+    seed: 42
+    timeout: 60000
+    verifies:
+      - kernel/inode
+  kernel_inode_trace:
+    args:
+      - tests/generated/kernel/inode/trace_inode.sh
+    artifacts:
+      - fs.img
+    cwd: .
+    env:
+      - PATH
+    kind: trace
+    oracle: exactly one canonical XV6_BOOT_OK banner, no panic serial text, and no mount failure
+    program: sh
+    timeout: 120000
+    verifies:
+      - kernel/inode
+    workload: bounded QEMU virt serial capture booting the composite kernel with a real mkfs-generated fs.img on the virtio block device; fsinit must mount the deterministic root image and reach the scheduler
+  kernel_file_public:
+    kind: public
+    program: sh
+    args:
+      - tests/generated/kernel/file/public_file.sh
+    cwd: .
+    env:
+      - PATH
+    timeout: 120000
+    verifies:
+      - kernel/file
+    artifacts:
+      - kernel/kernel
+  kernel_file_contract:
+    kind: contract
+    program: sh
+    args:
+      - tests/generated/kernel/file/contract_file.sh
+    cwd: .
+    env:
+      - PATH
+    timeout: 60000
+    verifies:
+      - kernel/file
+    artifacts: []
+  kernel_file_fuzz:
+    kind: fuzz
+    program: sh
+    args:
+      - tests/generated/kernel/file/fuzz_file.sh
+      - "42"
+      - "200"
+      - tests/generated/kernel/file/repro/kernel_file_fuzz.repro
+    cwd: .
+    env:
+      - PATH
+    timeout: 60000
+    verifies:
+      - kernel/file
+    artifacts:
+      - tests/generated/kernel/file/repro/kernel_file_fuzz.repro
+    seed: 42
+    cases: 200
+    reproduction_artifact: tests/generated/kernel/file/repro/kernel_file_fuzz.repro
+  kernel_file_trace:
+    kind: trace
+    program: sh
+    args:
+      - tests/generated/kernel/file/trace_file.sh
+    cwd: .
+    env:
+      - PATH
+    timeout: 120000
+    verifies:
+      - kernel/file
+    artifacts:
+      - kernel/kernel
+    workload: Bounded QEMU virt serial capture booting the composite kernel with a real mkfs-generated fs.img on the virtio block device; the file module is initialized before process initialization and the file syscall surface is wired into dispatch.
+    oracle: Captured serial contains exactly one canonical XV6_BOOT_OK banner, no panic text, and the file module is wired in boot order (fileinit before process init) with the file syscall handlers present in the dispatch table.
+  kernel_file_abi_public:
+    kind: public
+    program: sh
+    args:
+      - tests/generated/kernel/file/kernel_file_abi_public.sh
+    cwd: .
+    env:
+      - PATH
+    timeout: 120000
+    verifies:
+      - kernel/file
+    artifacts:
+      - kernel/kernel
+  kernel_file_abi_contract:
+    kind: contract
+    program: sh
+    args:
+      - tests/generated/kernel/file/kernel_file_abi_contract.sh
+    cwd: .
+    env:
+      - PATH
+    timeout: 60000
+    verifies:
+      - kernel/file
+    artifacts: []
+  kernel_file_abi_fuzz:
+    kind: fuzz
+    program: sh
+    args:
+      - tests/generated/kernel/file/kernel_file_abi_fuzz.sh
+      - "42"
+      - "200"
+      - tests/generated/kernel/file/repro/kernel_file_abi_fuzz.repro
+    cwd: .
+    env:
+      - PATH
+    timeout: 60000
+    verifies:
+      - kernel/file
+    artifacts:
+      - tests/generated/kernel/file/repro/kernel_file_abi_fuzz.repro
+    seed: 42
+    cases: 200
+    reproduction_artifact: tests/generated/kernel/file/repro/kernel_file_abi_fuzz.repro
+  kernel_file_abi_trace:
+    kind: trace
+    program: sh
+    args:
+      - tests/generated/kernel/file/kernel_file_abi_trace.sh
+    cwd: .
+    env:
+      - PATH
+    timeout: 120000
+    verifies:
+      - kernel/file
+    artifacts:
+      - kernel/kernel
+    workload: Bounded QEMU virt serial capture booting the composite kernel with a real mkfs-generated fs.img on the virtio block device; the file module is initialized before process initialization and the file syscall surface is wired into dispatch.
+    oracle: Captured serial contains exactly one canonical XV6_BOOT_OK banner, no panic text, and the file module is wired in boot order (fileinit before process init) with the file printf syscall handlers (sys_open/sys_read) present in the dispatch table and the validated file ABI headers (O_CREATE, struct stat) present.
+  kernel_file_syscall_public:
+    kind: public
+    program: sh
+    args:
+      - tests/generated/kernel/file/kernel_file_syscall_public.sh
+    cwd: .
+    env:
+      - PATH
+    timeout: 120000
+    verifies:
+      - kernel/file
+    artifacts:
+      - kernel/kernel
+      - user/_fstest
+  kernel_file_reference_contract:
+    kind: contract
+    program: sh
+    args:
+      - tests/generated/kernel/file/kernel_file_reference_contract.sh
+    cwd: .
+    env:
+      - PATH
+    timeout: 60000
+    verifies:
+      - kernel/file
+    artifacts: []
+  kernel_file_shared_offset_fuzz:
+    kind: fuzz
+    program: sh
+    args:
+      - tests/generated/kernel/file/kernel_file_shared_offset_fuzz.sh
+      - "7"
+      - "33"
+      - tests/generated/kernel/file/repro/kernel_file_shared_offset.repro
+    cwd: .
+    env:
+      - PATH
+    timeout: 60000
+    verifies:
+      - kernel/file
+    artifacts:
+      - tests/generated/kernel/file/repro/kernel_file_shared_offset.repro
+    seed: 7
+    cases: 33
+    reproduction_artifact: tests/generated/kernel/file/repro/kernel_file_shared_offset.repro
+  kernel_file_boot_trace:
+    kind: trace
+    program: sh
+    args:
+      - tests/generated/kernel/file/kernel_file_boot_trace.sh
+    cwd: .
+    env:
+      - PATH
+    timeout: 120000
+    verifies:
+      - kernel/file
+    artifacts:
+      - kernel/kernel
+    workload: bounded QEMU virt serial capture booting the composite kernel with a real mkfs-generated fs.img on the virtio block device; the file module is initialized before process init, fileinit wires before procinit, and the validated file syscall surface is present in dispatch
+    oracle: captured serial must contain exactly one canonical XV6_BOOT_OK banner, no panic text, main.c must call fileinit() before procinit(), and kernel/syscall.c must wire sys_open/sys_read/sys_write while fcntl.h O_CREATE and stat.h struct stat are present
+  toolchain_build_readers_public:
+    args:
+      - tests/generated/toolchain/ctf_build_public.sh
+    artifacts:
+      - lab1/build/flag-reader
+      - lab1/build/ctf-baremetal.elf
+      - lab1/build/fixture/flags.img
+      - lab1/build/fixture/metadata.json
+    cwd: .
+    env:
+      - PATH
+    kind: public
+    program: sh
+    timeout: 120000
+    verifies:
+      - toolchain
+      - lab/ctf-warmup
+  toolchain_host_portability_contract:
+    args:
+      - tests/generated/toolchain/host_portability_contract.sh
+    artifacts: []
+    cwd: .
+    env:
+      - PATH
+    kind: contract
+    program: sh
+    timeout: 60000
+    verifies:
+      - toolchain
+  kernel_boot_link_section_flags_contract:
+    args:
+      - tests/generated/kernel/boot/kernel_boot_link_section_flags_contract.sh
+    artifacts:
+      - kernel/kernel
+    cwd: .
+    env:
+      - PATH
+    kind: contract
+    program: sh
+    timeout: 60000
+    verifies:
+      - kernel/boot
+      - toolchain
+  toolchain_linker_diagnostic_contract:
+    args:
+      - tests/generated/toolchain/linker_diagnostic_contract.sh
+    artifacts: []
+    cwd: .
+    env:
+      - PATH
+    kind: contract
+    program: sh
+    timeout: 30000
+    verifies:
+      - toolchain
+  ctf-warmup-artifact-portability-contract:
+    args:
+      - tests/generated/lab/ctf-warmup/artifact_portability_contract.sh
+    artifacts:
+      - lab1/build/ctf-baremetal.elf
+    cwd: .
+    env:
+      - PATH
+    kind: contract
+    program: bash
+    timeout: 120000
+    verifies:
+      - lab/ctf-warmup
+      - toolchain
+  toolchain_mkfs_layout_fuzz:
+    args:
+      - tests/generated/toolchain/mkfs_layout_fuzz.sh
+      - "42"
+      - "500"
+      - tests/generated/toolchain/repro/toolchain_mkfs_layout_fuzz.repro
+    artifacts: []
+    cases: 500
+    cwd: .
+    env:
+      - PATH
+    kind: fuzz
+    program: sh
+    reproduction_artifact: tests/generated/toolchain/repro/toolchain_mkfs_layout_fuzz.repro
+    seed: 42
+    timeout: 30000
+    verifies:
+      - toolchain
+  toolchain_build_projection_trace:
+    args:
+      - tests/generated/toolchain/build_projection_trace.sh
+    artifacts:
+      - kernel/kernel
+      - fs.img
+      - lab1/build/flag-reader
+      - lab1/build/ctf-baremetal.elf
+    cwd: .
+    env:
+      - PATH
+    kind: trace
+    oracle: the selected RISC-V prefix is stable, a second clean rebuild reproduces the same kernel/kernel content hash, and the declared artifacts exist
+    program: bash
+    timeout: 120000
+    verifies:
+      - toolchain
+    workload: bounded sequence of two clean make builds and the Lab 1 reader / fs.img builds, tracing the Makefile build projection and kernel-image linkage
+  kernel_process_tree_public:
+    artifacts: [kernel/kernel]
+    args: [tests/generated/kernel/process/public_process_tree.sh]
+    cwd: .
+    env: [PATH]
+    kind: public
+    program: sh
+    timeout: 60000
     verifies: [kernel/process]
-  syscall_valid_number:
-    program: sh
-    args: [tests/public/verify.sh, syscall_valid_number]
+  kernel_process_fork_rollback_contract:
+    artifacts: [tests/generated/kernel/process/process_tree_model.c]
+    args: [tests/generated/kernel/process/run_model.sh, "42", "100"]
     cwd: .
-    env: []
-    timeout: 120000
+    env: [PATH]
+    kind: contract
+    program: sh
+    timeout: 30000
     verifies: [kernel/process]
-  bread_cache_hit:
-    program: sh
-    args: [tests/public/verify.sh, bread_cache_hit]
+  kernel_process_tree_fuzz:
+    artifacts: [tests/generated/kernel/process/repro/kernel_process_tree_fuzz.repro]
+    args: [tests/generated/kernel/process/run_model.sh, "42", "500"]
+    cases: 500
     cwd: .
-    env: []
-    timeout: 120000
-    verifies: [kernel/fs]
-  log_recovery_committed:
+    env: [PATH]
+    kind: fuzz
     program: sh
-    args: [tests/public/verify.sh, log_recovery_committed]
+    reproduction_artifact: tests/generated/kernel/process/repro/kernel_process_tree_fuzz.repro
+    seed: 42
+    timeout: 30000
+    verifies: [kernel/process]
+  kernel_process_tree_trace:
+    artifacts: [kernel/kernel]
+    args: [tests/generated/kernel/process/trace_process_tree.sh]
     cwd: .
-    env: []
-    timeout: 120000
-    verifies: [kernel/fs]
-  exec_valid_elf:
+    env: [PATH]
+    kind: trace
+    oracle: One canonical boot marker, no panic, and fork, exec, exit, and wait dispatch are linked.
     program: sh
-    args: [tests/public/verify.sh, exec_valid_elf]
+    timeout: 60000
+    verifies: [kernel/process]
+    workload: Bounded QEMU boot plus deterministic process lifecycle wiring inspection.
+  kernel_pipe_public:
+    artifacts:
+      - kernel/kernel
+    args:
+      - tests/generated/kernel/pipe/public_pipe.sh
     cwd: .
-    env: []
-    timeout: 120000
-    verifies: [kernel/fs]
+    env:
+      - PATH
+    kind: public
+    program: sh
+    timeout: 60000
+    verifies:
+      - kernel/pipe
+  kernel_pipe_contract:
+    artifacts:
+      - tests/generated/kernel/pipe/pipe_test.c
+    args:
+      - tests/generated/kernel/pipe/contract_pipe.sh
+    cwd: .
+    env:
+      - PATH
+    kind: contract
+    program: sh
+    timeout: 30000
+    verifies:
+      - kernel/pipe
+  kernel_pipe_fuzz:
+    artifacts:
+      - tests/generated/kernel/pipe/repro/kernel_pipe_fuzz.repro
+    args:
+      - tests/generated/kernel/pipe/fuzz_pipe.sh
+      - "42"
+      - "500"
+      - tests/generated/kernel/pipe/repro/kernel_pipe_fuzz.repro
+    cases: 500
+    cwd: .
+    env:
+      - PATH
+    kind: fuzz
+    program: sh
+    reproduction_artifact: tests/generated/kernel/pipe/repro/kernel_pipe_fuzz.repro
+    seed: 42
+    timeout: 30000
+    verifies:
+      - kernel/pipe
+  kernel_pipe_trace:
+    artifacts:
+      - kernel/kernel
+    args:
+      - tests/generated/kernel/pipe/trace_pipe.sh
+    cwd: .
+    env:
+      - PATH
+    kind: trace
+    oracle: Exactly one canonical XV6_BOOT_OK banner line, no panic text on serial, and the pipe operation surface (pipealloc/piperead/pipewrite/pipeclose/sys_pipe) wired into the kernel build and dispatch
+    program: sh
+    timeout: 60000
+    verifies:
+      - kernel/pipe
+    workload: Bounded QEMU virt serial capture booting the composite kernel with the pipe module linked

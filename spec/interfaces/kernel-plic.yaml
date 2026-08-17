@@ -1,12 +1,27 @@
 id: interface/kernel-plic
-name: external interrupt boundary
-boundary: abi
+name: kernel PLIC driver boundary
+boundary: driver
 module: kernel/trap
 operations:
-- name: current_lab_contract
-  pre: []
+- name: plicinit
+  pre:
+  - device MMIO mappings are active
   post:
-  - the current lab boundary is preserved
+  - UART priority and the boot-hart supervisor enable mask are configured before interrupts are enabled
   errors:
-  - invalid state fails explicitly
-  properties: []
+  - invalid MMIO behavior is reported by the trap-stage QEMU oracle
+  properties:
+  - id: plic-boot-hart-routing
+    text: UART IRQ 10 and virtio block IRQ 1 are enabled for supervisor context 1 on hart 0
+- name: plic_claim_complete
+  pre:
+  - called from supervisor external-interrupt dispatch
+  post:
+  - returns the claimed IRQ and writes the same nonzero IRQ to completion after dispatch
+  errors:
+  - claim zero means no pending interrupt and requires no completion write
+  properties:
+  - id: plic-completion-matches-claim
+    text: every nonzero claim is completed with the identical IRQ number
+  - id: plic-virtio-dispatch
+    text: claimed IRQ 1 dispatches virtio_disk_intr before the identical IRQ is completed

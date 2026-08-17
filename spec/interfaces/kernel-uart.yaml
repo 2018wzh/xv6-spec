@@ -1,12 +1,25 @@
 id: interface/kernel-uart
-name: serial interrupt boundary
-boundary: abi
+name: kernel UART driver boundary
+boundary: driver
 module: kernel/trap
 operations:
-- name: current_lab_contract
-  pre: []
+- name: uartinit
+  pre:
+  - called once before UART interrupts are enabled
   post:
-  - the current lab boundary is preserved
+  - the ns16550a uses 8-bit byte accesses and is ready for transmit and receive interrupts
   errors:
-  - invalid state fails explicitly
-  properties: []
+  - invalid MMIO behavior is reported by the trap-stage QEMU oracle
+  properties:
+  - id: uart-byte-register-abi
+    text: THR/RHR is byte offset 0 and LSR is byte offset 5 with transmitter-ready bit 5
+- name: uartintr
+  pre:
+  - PLIC dispatch identified the UART IRQ
+  post:
+  - every currently available byte is consumed and the device interrupt is acknowledged
+  errors:
+  - an empty receive FIFO returns without blocking
+  properties:
+  - id: uart-interrupt-bounded
+    text: receive processing terminates when LSR reports no ready byte

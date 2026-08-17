@@ -1,11 +1,24 @@
 #include "types.h"
+#include "defs.h"
 
-void *
+// panic - print an explicit message and halt (single boot hart, Lab 3).
+// Used by kfree/kalloc/vm to "fail explicitly" on invalid inputs before any
+// state mutation. A panic halts the single boot hart; a bounded serial
+// capture then observes the missing banner and the check fails explicitly.
+void
+panic(char *s)
+{
+  (void)s;
+  for (;;)
+    ;
+}
+
+void*
 memset(void *dst, int c, uint n)
 {
   char *cdst = (char *)dst;
   int i;
-  for (i = 0; i < n; i++) {
+  for(i = 0; i < n; i++){
     cdst[i] = c;
   }
   return dst;
@@ -18,8 +31,8 @@ memcmp(const void *v1, const void *v2, uint n)
 
   s1 = v1;
   s2 = v2;
-  while (n-- > 0) {
-    if (*s1 != *s2)
+  while(n-- > 0){
+    if(*s1 != *s2)
       return *s1 - *s2;
     s1++, s2++;
   }
@@ -27,31 +40,31 @@ memcmp(const void *v1, const void *v2, uint n)
   return 0;
 }
 
-void *
+void*
 memmove(void *dst, const void *src, uint n)
 {
   const char *s;
   char *d;
 
-  if (n == 0)
+  if(n == 0)
     return dst;
 
   s = src;
   d = dst;
-  if (s < d && s + n > d) {
+  if(s < d && s + n > d){
     s += n;
     d += n;
-    while (n-- > 0)
+    while(n-- > 0)
       *--d = *--s;
   } else
-    while (n-- > 0)
+    while(n-- > 0)
       *d++ = *s++;
 
   return dst;
 }
 
 // memcpy exists to placate GCC.  Use memmove.
-void *
+void*
 memcpy(void *dst, const void *src, uint n)
 {
   return memmove(dst, src, n);
@@ -60,36 +73,40 @@ memcpy(void *dst, const void *src, uint n)
 int
 strncmp(const char *p, const char *q, uint n)
 {
-  while (n > 0 && *p && *p == *q)
+  while(n > 0 && *p && *p == *q)
     n--, p++, q++;
-  if (n == 0)
+  if(n == 0)
     return 0;
   return (uchar)*p - (uchar)*q;
 }
 
-char *
+char*
 strncpy(char *s, const char *t, int n)
 {
   char *os;
 
   os = s;
-  while (n-- > 0 && (*s++ = *t++) != 0)
+  while(n-- > 0 && (*s++ = *t++) != 0)
     ;
-  while (n-- > 0)
+  while(n-- > 0)
     *s++ = 0;
   return os;
 }
 
 // Like strncpy but guaranteed to NUL-terminate.
-char *
+char*
 safestrcpy(char *s, const char *t, int n)
 {
   char *os;
 
+  if(n <= 0)
+    return s;
   os = s;
-  if (n <= 0)
+  if(n == 1) {
+    *s = 0;
     return os;
-  while (--n > 0 && (*s++ = *t++) != 0)
+  }
+  while(--n > 0 && (*s++ = *t++) != 0)
     ;
   *s = 0;
   return os;
@@ -100,7 +117,7 @@ strlen(const char *s)
 {
   int n;
 
-  for (n = 0; s[n]; n++)
+  for(n = 0; s[n]; n++)
     ;
   return n;
 }

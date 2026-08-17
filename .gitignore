@@ -3,7 +3,10 @@ fs.img
 kernel/*.o
 kernel/*.d
 kernel/kernel
+kernel/*.asm
+kernel/*.sym
 mkfs/mkfs
+mkfs/mkfs.exe
 user/*.o
 user/*.d
 user/*.asm

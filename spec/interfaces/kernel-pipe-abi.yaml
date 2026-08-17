@@ -1,0 +1,45 @@
+id: interface/kernel-pipe-abi
+name: user and kernel pipe boundary
+boundary: syscall
+module: kernel/pipe
+operations:
+- name: pipe
+  pre:
+  - the caller supplies writable storage for two descriptor integers
+  post:
+  - success atomically publishes one readable endpoint and one writable endpoint backed by one empty bounded pipe
+  errors:
+  - invalid user storage or exhausted file, descriptor, or pipe capacity returns -1 and releases every provisional reference
+  properties:
+  - id: pipe-pair-public
+    text: one successful pipe call returns two distinct usable descriptors with opposite directions
+- name: read
+  pre:
+  - the descriptor names a live readable pipe endpoint and the destination user range is writable
+  post:
+  - available bytes are removed in FIFO order; an empty pipe with writers blocks, while an empty pipe without writers returns EOF
+  errors:
+  - invalid descriptors, direction, range, or interrupted waits return -1 without consuming bytes
+  properties:
+  - id: pipe-read-eof-contract
+    text: peer close wakes an empty reader and makes it observe EOF instead of sleeping forever
+- name: write
+  pre:
+  - the descriptor names a live writable pipe endpoint and the source user range is readable
+  post:
+  - accepted bytes enter the bounded buffer in FIFO order; a full pipe with readers blocks until space is published
+  errors:
+  - invalid descriptors, direction, range, or a closed read side returns -1 without publishing unreported bytes
+  properties:
+  - id: pipe-write-broken-contract
+    text: peer close wakes a blocked writer and produces a stable broken-pipe failure
+- name: close
+  pre:
+  - the descriptor names one live endpoint reference
+  post:
+  - the descriptor is cleared before its endpoint reference is released; final endpoint close wakes peers and final dual-side close frees the pipe once
+  errors:
+  - an invalid or already-cleared descriptor returns -1 without changing another reference
+  properties:
+  - id: pipe-close-release-once
+    text: endpoint duplication, inheritance, explicit close, and process teardown balance references and free one pipe exactly once

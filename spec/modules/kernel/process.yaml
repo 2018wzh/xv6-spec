@@ -1,13 +1,169 @@
 id: kernel/process
 module: kernel/process
-level: 2
-purpose: process lifecycle and scheduling.
+level: 3
+purpose: Own the fixed process table, process trees, per-process address spaces and resources, complete exit/wait lifecycle, and round-robin context switching on the current course hart configuration.
 owns:
 - kernel/proc.c
+- kernel/proc.h
+- kernel/exec.c
 - kernel/swtch.S
-interface: []
+- tests/generated/kernel/process
+interface:
+- name: procinit
+  pre:
+  - memory and kernel mappings are active
+  post:
+  - every process slot and lock has a deterministic UNUSED state and a unique kernel stack address
+  errors:
+  - kernel-stack allocation or mapping failure panics before scheduling
+  properties:
+  - id: process-init-public
+    text: kernel_process_boot_public observes that the compiled kernel initializes the process table before scheduler activation
+- name: allocproc
+  pre:
+  - called with no process lock held
+  post:
+  - returns one USED slot with unique pid, trap frame, empty user page table, and initialized context, or null without leaking resources
+  errors:
+  - allocation failure rolls back the slot to UNUSED
+  properties:
+  - id: allocation-rollback-contract
+    text: kernel_process_lifecycle_contract observes complete rollback on every allocation failure path
+- name: freeproc
+  pre:
+  - called with the target process lock held for a non-RUNNING slot
+  post:
+  - releases the trap frame and user page table exactly once and returns the slot to UNUSED; its index-keyed kernel stack mapping remains for reuse
+  errors:
+  - a partially initialized slot is rolled back without double release
+  properties:
+  - id: process-release-contract
+    text: kernel_process_lifecycle_contract observes complete and idempotence-guarded resource release
+- name: scheduler
+  pre:
+  - per-hart scheduler context is active with interrupts enabled between scans
+  post:
+  - each RUNNABLE process may transition to RUNNING only while its lock is held and returns through sched
+  errors:
+  - illegal lock, interrupt, or state conditions panic with evidence
+  properties:
+  - id: scheduler-runnable-trace
+    text: kernel_process_scheduler_trace observes the bounded RUNNABLE to RUNNING transition without requiring Lab 5 user-trap composition
+  - id: scheduler-state-edge-fuzz
+    text: kernel_process_state_fuzz rejects invalid edges among the lifecycle states reachable in Lab 5
+- name: sleep_wakeup
+  pre:
+  - sleep receives a channel and a held caller lock
+  post:
+  - the lock handoff prevents a lost wakeup and the caller reacquires its lock after rescheduling
+  errors:
+  - invalid lock ownership panics
+  properties:
+  - id: sleep-state-fuzz
+    text: kernel_process_state_fuzz exercises fixed-seed valid and invalid SLEEPING and RUNNABLE transitions
+  - id: no-lost-wakeup-contract
+    text: kernel_process_wakeup_contract observes the caller-lock handoff and a wakeup after SLEEPING publication
+- name: fork_exit_wait
+  pre:
+  - fork operates on the current live process; exit and wait run with no unrelated process lock held
+  post:
+  - fork publishes one fully initialized child or none; exit releases descriptors, current directory, and address-space resources before ZOMBIE; wait reaps each child once
+  errors:
+  - allocation or copy failure rolls back an unpublished child; wait without children returns -1 without sleeping
+  properties:
+  - id: process-tree-public
+    text: the Lab 7 kernel_process_tree_public target boots a bounded user workload that forks, execs, exits, and is reaped with the expected status
+  - id: process-fork-rollback-contract
+    text: the Lab 7 kernel_process_fork_rollback_contract target observes that failed fork never publishes a partial child and wait reaps one ZOMBIE child exactly once
+  - id: process-tree-fuzz
+    text: the Lab 7 kernel_process_tree_fuzz target applies a fixed seed to valid and invalid process-tree lifecycle edges and records a minimal reproduction artifact for any oracle failure
+  - id: process-tree-trace
+    text: the Lab 7 kernel_process_tree_trace target runs a bounded fork, exec, exit, and wait workload and rejects a missing, duplicated, or out-of-order reap event
 properties:
-- id: kernel-process-deterministic
-  text: behavior is deterministic under the published lab checks
+- id: process-slot-exclusivity
+  text: kernel_process_tree_fuzz observes that each process slot has exactly one lifecycle state and its mutable fields are protected by that slot's lock
+- id: address-space-ownership
+  text: kernel_process_fork_rollback_contract observes that each live process exclusively owns its trap frame and user page table and that freeproc releases both exactly once
+- id: swtch-save-symmetry
+  text: kernel_process_context_contract validates symmetric save and restore slots for sp and every RISC-V callee-saved register
+- id: process-descriptor-boundary
+  text: each occupied per-process descriptor slot contains one opaque reference owned by kernel/file, and a cleared slot contains no live reference
 errors:
-- invalid state fails explicitly
+- process-table exhaustion returns failure without corrupting existing slots
+- illegal scheduler and lock state transitions panic
+state:
+  stage: resource-abi
+  owned_state:
+  - fixed process table and next pid
+  - per-hart current-process and scheduler context
+  - per-process descriptor slots and current-directory reference shape composed by the committed Lab 6 filesystem patch
+  resource_lifetime:
+  - allocproc acquires and freeproc releases trap-frame and page-table resources
+  - procinit assigns one deterministic index-keyed kernel stack mapping to each slot for the kernel lifetime; allocproc and freeproc reuse it
+  - kernel/file creates and releases the file and current-directory references stored in process slots; kernel/process owns only their per-process storage and lifecycle boundary
+preconditions:
+- memory and supervisor traps are initialized
+postconditions:
+- process allocation, fork/exec composition, exit/wait lifecycle, sleep/wakeup, and scheduling complete without leaking privileged or resource state
+invariants:
+- id: process-lock-state
+  text: every transition involving USED, RUNNABLE, RUNNING, SLEEPING, ZOMBIE, or UNUSED holds the affected process lock and preserves parent-child visibility
+- id: one-running-process
+  text: the single Lab 5 hart has at most one RUNNING process
+- id: descriptor-slot-reference
+  text: kernel_process_tree_trace observes that a nonempty descriptor slot corresponds to exactly one live global file reference and that close clears the slot before releasing that reference
+- id: zombie-reap-once
+  text: exit publishes ZOMBIE only after resource teardown and wait is the only transition that reclaims a ZOMBIE child slot
+dependencies:
+- kernel/boot
+- kernel/memory
+- kernel/trap
+- toolchain
+rely:
+- memory provides page allocation and per-process page-table helpers
+- trap provides the trap-frame ABI shape later used by the user-return composition
+- fork_exit_wait aggregates the fork, exit, and wait syscall ABI operations; exec image replacement is dispatched by kernel/syscall and committed by the filesystem layer
+- kernel/file and kernel/pipe provide balanced opaque references for inheritance and teardown; process code never interprets their internal objects
+guarantee:
+- context switching preserves every RISC-V callee-saved register and stack pointer
+- lifecycle failure paths leave no allocated trap frame, page table, or stale state
+- descriptor slots are published and cleared only through the kernel/file ABI, so process scheduling never interprets file-object internals
+- exit releases each inherited descriptor and current-directory reference before waking its parent; wait reaps each child exactly once
+algorithm_intent: Use a fixed locked process table, per-process kernel stacks, and a round-robin scan; use swtch to exchange only the RISC-V callee-saved context.
+concurrency:
+  module:
+    module: kernel/process
+    shared_state:
+    - process table
+    - next pid
+    lock_types:
+    - spinlock
+    lock_order:
+    - process lock before scheduler context switch
+    atomic_sections:
+    - lifecycle state transition under the process lock
+    interrupt_rules:
+    - interrupts are enabled between scheduler scans and disabled across each swtch while exactly one process lock is held
+    rely:
+    - Lab 5 runs one hart but preserves per-hart interfaces
+    guarantee:
+    - sleep atomically transfers from the caller lock to the process lock before blocking
+    wait_wakeup_rules:
+    - wakeup marks matching SLEEPING processes RUNNABLE while holding their locks
+    forbidden_patterns:
+    - sleeping while holding an unrelated process lock
+    - changing lifecycle state without the owning process lock
+  operations:
+    scheduler:
+      atomicity: one locked RUNNABLE to RUNNING transition per dispatch
+      lock_order:
+      - process lock
+      interrupt_state: enabled while scanning and disabled across swtch
+      wait_wakeup_rules: []
+    sleep_wakeup:
+      atomicity: caller-lock release and SLEEPING publication are protected by the process lock
+      lock_order:
+      - acquire the process lock as the caller lock is released; the two locks are not retained as a nested pair
+      interrupt_state: managed by spinlocks
+      wait_wakeup_rules:
+      - a wakeup after SLEEPING publication changes the process to RUNNABLE

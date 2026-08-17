@@ -1,12 +1,87 @@
 id: toolchain
 module: toolchain
 level: 2
-purpose: student project commands.
+purpose: Reproducibly build and run the Lab 1 CTF readers and Lab 2 kernel image through VOS structured commands with a capability-probed RISC-V toolchain.
 owns:
 - vos.yaml
-interface: []
+- Makefile
+- lab1/build
+- tests/public/verify.sh
+- tests/public/lab2-boot.sh
+- tests/generated/toolchain
+interface:
+- name: build_ctf_readers
+  pre:
+  - POSIX make, a host C compiler, a freestanding RISC-V compiler, and matching binutils are available
+  post:
+  - the Linux reader and freestanding QEMU image are rebuilt from tracked sources
+  errors:
+  - a missing or incapable compiler fails before publishing a stale artifact
+  properties:
+  - id: ctf-toolchain-build
+    text: a clean rebuild from tracked sources records the selected compiler and target identities and produces both declared reader artifacts
+- name: run_ctf_qemu
+  pre:
+  - the generated non-secret fixture image and freestanding guest artifact exist
+  post:
+  - QEMU runs without graphics and serial output reaches the declared completion marker
+  errors:
+  - panic or fatal output is an oracle failure, absent completion is an oracle-missing failure, and deadline expiry remains timed_out evidence
+  properties:
+  - id: ctf-toolchain-qemu
+    text: the runner binds the functional ctf-baremetal-public property to serial evidence, accepts only the complete CTF_BAREMETAL_OK marker, and preserves failure, missing, and timeout outcomes
+- name: select_riscv_toolchain
+  pre:
+  - one or more RISC-V compiler prefixes may be present on PATH
+  - every build or test target that launches host tools includes PATH in its env allowlist
+  post:
+  - the selected prefix compiles an empty freestanding RV64 object and provides the matching linker and objdump
+  errors:
+  - no candidate prefix passes the compile capability probe
+  properties:
+  - id: toolchain-capability-probe
+    text: selection tests basic freestanding RV64 compilation capability and never relies on command presence or objdump presence alone; the full kernel build and kernel/boot checks remain the behavioral gate
+  - id: toolchain-path-allowlist
+    text: VOS structured commands expose PATH explicitly so build scripts and test helpers resolve the same host tools as the capability probe
+- name: validate_host_portability
+  pre:
+  - the host provides POSIX make and sh, either natively or through the documented Windows POSIX-shell layer
+  - the existing toolchain, inode, and virtio check inputs are unchanged
+  post:
+  - two mkfs runs over identical inputs produce byte-identical fs.img files with the declared geometry
+  - the existing virtio fixed-seed fuzz target preserves its seed, case count, reproduction format, and oracle outcome
+  errors:
+  - an unavailable host API, executable-name mismatch, image difference, or changed fuzz oracle fails with the original command evidence
+  properties:
+  - id: toolchain-host-portability-contract
+    text: toolchain_host_portability_contract compares two independently generated fs.img files and confirms that kernel_virtio_ring_fuzz retains its declared fixed-seed evidence on POSIX and documented Windows POSIX-shell hosts
 properties:
 - id: toolchain-deterministic
-  text: behavior is deterministic under the published lab checks
+  text: under an unchanged PATH prefix set, two clean builds select the same capable prefix and reproduce the declared Lab 1 artifacts and kernel/kernel content hash
 errors:
-- invalid state fails explicitly
+- missing tools, failed compilation, invalid images, and QEMU failures are reported without fallback artifacts
+state:
+  stage: lab2-kernel-bootstrap
+  owned_state:
+  - structured build and QEMU commands plus their declared artifacts
+  - the capable RISC-V tool prefix selected for one build invocation
+  resource_lifetime:
+  - build outputs are disposable and never replace tracked source or Spec files
+  - toolchain selection is recomputed from the current PATH for each independent build
+preconditions:
+- PATH is explicitly allowed for build and QEMU targets
+- the selected RISC-V compiler records its version, target triple, RV64GC ISA, LP64 ABI, and matching binutils identity in check evidence
+- generated capability and clean-rebuild checks are present before validation
+postconditions:
+- vos build and vos run qemu execute only the declared argv projections
+- published toolchain checks exercise capability selection and reproducible clean rebuilds
+invariants:
+- id: ctf-toolchain-argv
+  text: program and arguments remain separate fields and every cwd and artifact path stays inside the repository
+- id: lab2-toolchain-probe-binding
+  text: toolchain_capability_probe invokes the generated probe and rejects a prefix that cannot compile a freestanding RV64 object
+- id: lab2-toolchain-clean-rebuild
+  text: toolchain_clean_rebuild performs two clean builds under the unchanged PATH allowlist and compares both the selected prefix and kernel/kernel content hash; QEMU behavior is verified by kernel/boot checks
+- id: lab2-shared-test-framework
+  text: toolchain owns tests/public/verify.sh and tests/public/lab2-boot.sh as the shared bootstrap test framework; module-specific generated checks delegate serial capture to this framework rather than owning a second host runner
+dependencies: []

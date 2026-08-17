@@ -1,0 +1,45 @@
+id: interface/kernel-file-abi
+name: user and kernel file operation boundary
+boundary: syscall
+module: kernel/file
+operations:
+- name: open
+  pre:
+  - the user path is copied through the validated syscall boundary
+  post:
+  - success returns one process descriptor referencing one live global file object
+  errors:
+  - invalid paths, unsupported modes, or exhausted descriptor tables return -1 without leaking references
+  properties:
+  - id: open-reference-balance
+    text: each successful open contributes exactly one process descriptor reference released by close or process teardown
+- name: read_write
+  pre:
+  - descriptor, user range, offset, and length have passed syscall validation
+  post:
+  - the returned byte count equals the bytes transferred and the shared file offset advances by that count
+  errors:
+  - invalid direction, range, or storage failure returns -1 without advancing past committed data
+  properties:
+  - id: file-offset-abi-contract
+    text: each file object serializes offset changes across reads and writes
+- name: close
+  pre:
+  - descriptor refers to a live process file-table entry
+  post:
+  - the descriptor is cleared before the final underlying inode reference is released
+  errors:
+  - an invalid descriptor returns -1 and leaves unrelated descriptors unchanged
+  properties:
+  - id: close-release-once
+    text: the final close releases the underlying inode-backed resource or pipe endpoint exactly once according to its declared resource type
+- name: namespace_mutation
+  pre:
+  - every user path has been copied through the validated syscall boundary
+  post:
+  - create, link, unlink, mkdir, mknod, and chdir expose only committed namespace changes
+  errors:
+  - invalid, missing, duplicate, nonempty, or exhausted operations return -1 without a partial directory mutation
+  properties:
+  - id: namespace-commit-visibility
+    text: successful namespace syscalls become visible together and failed syscalls leave no partial directory entry

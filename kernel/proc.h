@@ -1,9 +1,29 @@
-// Saved registers for kernel context switches.
+// proc.h - Process table, lifecycle state, and per-hart scheduler context.
+//
+// Lab 5 owns the fixed process table, per-process address spaces and trap
+// frames, lifecycle transitions, and round-robin context-switching primitives
+// on the single boot hart.
+
+#ifndef __PROC_H__
+#define __PROC_H__
+
+// File-descriptor and current-directory storage shape composed by the Lab 6
+// filesystem patch (kernel/file owns the file/current-directory operations;
+// kernel/process owns only this per-process storage and lifecycle boundary).
+struct file;
+struct inode;
+
+// Process lifecycle states reachable in Lab 5. Every transition involving
+// RUNNING, RUNNABLE, or SLEEPING holds the owning process lock; ZOMBIE enters
+// scope only with a later exit/wait patch.
+enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
+
+// Callee-saved register context exchanged by swtch.S. The field order (ra,
+// sp, s0..s11) matches the symmetric save/restore slots in swtch.S so the
+// context-switch oracle can compare them.
 struct context {
   uint64 ra;
   uint64 sp;
-
-  // callee-saved
   uint64 s0;
   uint64 s1;
   uint64 s2;
@@ -18,87 +38,89 @@ struct context {
   uint64 s11;
 };
 
-// Per-CPU state.
-struct cpu {
-  struct proc *proc;      // The process running on this cpu, or null.
-  struct context context; // swtch() here to enter scheduler().
-  int noff;               // Depth of push_off() nesting.
-  int intena;             // Were interrupts enabled before push_off()?
+// The user trap-frame ABI (interface/trap-frame). Every general register and
+// kernel handoff field crosses the user/kernel privilege boundary only through
+// the fixed offsets declared here. The trampoline save/restore slots in
+// kernel/trampoline.S use the identical offsets; a mismatch is rejected by the
+// kernel_syscall_trapframe_contract check before user execution.
+//
+// The canonical layout is byte-for-byte the xv6 user trap-frame ABI: the
+// kernel handoff fields occupy the first 4 slots, followed by epc and every
+// RISC-V general register in register-number order. (This is a distinct ABI
+// from the kernel-interrupt frame `struct trapframe` in types.h used by
+// kernelvec.)
+struct usertrapframe {
+  /*  0 */ uint64 kernel_satp;    // kernel page table (set by usertrapret)
+  /*  8 */ uint64 kernel_sp;      // top of the process's kernel stack
+  /* 16 */ uint64 kernel_trap;    // usertrap(), where uservec jumps
+  /* 24 */ uint64 epc;            // saved user program counter
+  /* 32 */ uint64 kernel_hartid;  // saved kernel tp (hart id)
+  /* 40 */ uint64 ra;
+  /* 48 */ uint64 sp;
+  /* 56 */ uint64 gp;
+  /* 64 */ uint64 tp;
+  /* 72 */ uint64 t0;
+  /* 80 */ uint64 t1;
+  /* 88 */ uint64 t2;
+  /* 96 */ uint64 s0;
+  /*104 */ uint64 s1;
+  /*112 */ uint64 a0;
+  /*120 */ uint64 a1;
+  /*128 */ uint64 a2;
+  /*136 */ uint64 a3;
+  /*144 */ uint64 a4;
+  /*152 */ uint64 a5;
+  /*160 */ uint64 a6;
+  /*168 */ uint64 a7;
+  /*176 */ uint64 s2;
+  /*184 */ uint64 s3;
+  /*192 */ uint64 s4;
+  /*200 */ uint64 s5;
+  /*208 */ uint64 s6;
+  /*216 */ uint64 s7;
+  /*224 */ uint64 s8;
+  /*232 */ uint64 s9;
+  /*240 */ uint64 s10;
+  /*248 */ uint64 s11;
+  /*256 */ uint64 t3;
+  /*264 */ uint64 t4;
+  /*272 */ uint64 t5;
+  /*280 */ uint64 t6;
 };
 
-extern struct cpu cpus[NCPU];
-
-// per-process data for the trap handling code in trampoline.S.
-// sits in a page by itself just under the trampoline page in the
-// user page table. not specially mapped in the kernel page table.
-// uservec in trampoline.S saves user registers in the trapframe,
-// then initializes registers from the trapframe's
-// kernel_sp, kernel_hartid, kernel_satp, and jumps to kernel_trap.
-// prepare_return() and userret in trampoline.S set up
-// the trapframe's kernel_*, restore user registers from the
-// trapframe, switch to the user page table, and enter user space.
-struct trapframe {
-  /*   0 */ uint64 kernel_satp;   // kernel page table
-  /*   8 */ uint64 kernel_sp;     // top of process's kernel stack
-  /*  16 */ uint64 kernel_trap;   // usertrap()
-  /*  24 */ uint64 epc;           // saved user program counter
-  /*  32 */ uint64 kernel_hartid; // saved kernel tp
-  /*  40 */ uint64 ra;
-  /*  48 */ uint64 sp;
-  /*  56 */ uint64 gp;
-  /*  64 */ uint64 tp;
-  /*  72 */ uint64 t0;
-  /*  80 */ uint64 t1;
-  /*  88 */ uint64 t2;
-  /*  96 */ uint64 s0;
-  /* 104 */ uint64 s1;
-  /* 112 */ uint64 a0;
-  /* 120 */ uint64 a1;
-  /* 128 */ uint64 a2;
-  /* 136 */ uint64 a3;
-  /* 144 */ uint64 a4;
-  /* 152 */ uint64 a5;
-  /* 160 */ uint64 a6;
-  /* 168 */ uint64 a7;
-  /* 176 */ uint64 s2;
-  /* 184 */ uint64 s3;
-  /* 192 */ uint64 s4;
-  /* 200 */ uint64 s5;
-  /* 208 */ uint64 s6;
-  /* 216 */ uint64 s7;
-  /* 224 */ uint64 s8;
-  /* 232 */ uint64 s9;
-  /* 240 */ uint64 s10;
-  /* 248 */ uint64 s11;
-  /* 256 */ uint64 t3;
-  /* 264 */ uint64 t4;
-  /* 272 */ uint64 t5;
-  /* 280 */ uint64 t6;
-};
-
-enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
-
-// Per-process state
+// A process slot. Its lifecycle state and mutable fields are protected by
+// p->lock (process-slot-exclusivity). allocproc acquires the trap frame and
+// user page table; freeproc releases both exactly once.
 struct proc {
   struct spinlock lock;
+  int state;              // procstate; transitions hold p->lock.
+  int pid;                // unique process id.
+  int killed;             // nonzero after kill requests termination.
+  int xstate;             // exit status published while ZOMBIE.
+  struct proc *parent;    // parent process; protected by wait_lock.
+  char name[16];
+  uint64 sz;              // user memory size (0 until a later exec lab).
+  uint64 kstack;          // virtual address of the slot's kernel stack.
+  uint64 trapframe;       // physical trap-frame page owned by this process.
+  pagetable_t pagetable;  // user page table (empty until later labs).
+  struct context context; // scheduler saves/restores callee-saved state here.
+  void *chan;             // sleep/wakeup channel.
 
-  // p->lock must be held when using these:
-  enum procstate state; // Process state
-  void *chan;           // If non-zero, sleeping on chan
-  int killed;           // If non-zero, have been killed
-  int xstate;           // Exit status to be returned to parent's wait
-  int pid;              // Process ID
-
-  // wait_lock must be held when using this:
-  struct proc *parent; // Parent process
-
-  // these are private to the process, so p->lock need not be held.
-  uint64 kstack;               // Virtual address of kernel stack
-  uint64 sz;                   // Size of process memory (bytes)
-  pagetable_t pagetable;       // User page table
-  struct trapframe *trapframe; // data page for trampoline.S
-  struct context context;      // swtch() here to run process
-  struct file *ofile[NOFILE];  // Open files
-  struct inode *cwd;           // Current directory
-  char name[16];               // Process name (debugging)
+  // Lab 6 per-process file storage. Each populated descriptor slot owns one
+  // opaque kernel/file reference; a cleared slot owns no live reference
+  // (process-descriptor-boundary). cwd is the current-directory inode ref.
+  struct file *ofile[NOFILE];   // open files (NOFILE per process).
+  struct inode *cwd;            // current directory (kernel/file owns release).
 };
+
+// Per-hart state (Lab 5 runs a single boot hart but preserves per-hart
+// interfaces). `proc` is the process currently running on the hart and
+// `context` is the hart's scheduler context exchanged by swtch.
+struct cpu {
+  struct proc *proc;        // the process running on this hart (or 0).
+  struct context context;   // this hart's scheduler context.
+  int noff;                 // depth of interrupt-disabling (push_off).
+  int intena;               // saved interrupt-enable across swtch.
+};
+
+#endif // __PROC_H__

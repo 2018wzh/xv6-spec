@@ -1,9 +1,18 @@
+// virtio_disk.c - The xv6 legacy virtio block driver for the QEMU virt
+// board's first virtio-mmio disk interface (VIRTIO0).
 //
-// driver for qemu's virtio disk device.
-// uses qemu's mmio interface to virtio.
+// This module owns the virtio block queue, descriptor lifetime, interrupt
+// completion, and the conversion between 1024-byte xv6 logical blocks and
+// 512-byte device sectors. Every descriptor is either free or belongs to
+// exactly one in-flight request, and logical block n always maps to the two
+// adjacent 512-byte sectors 2*n and 2*n+1 so adjacent blocks neither overlap
+// nor leave gaps.
 //
-// qemu ... -drive file=fs.img,if=none,format=raw,id=x0 -device virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0
-//
+// A single legacy virtqueue with fixed three-descriptor chains per request is
+// used: one out descriptor (the request header), one data descriptor (1024
+// bytes), and one in descriptor (a completion status byte). virtio_disk_rw
+// submits a chain and sleeps on its bookkeeping entry until the interrupt
+// handler (virtio_disk_intr) reclaims it and wakes the waiter.
 
 #include "types.h"
 #include "riscv.h"
@@ -11,160 +20,105 @@
 #include "param.h"
 #include "memlayout.h"
 #include "spinlock.h"
-#include "sleeplock.h"
-#include "fs.h"
-#include "buf.h"
-#include "virtio.h"
 
-// the address of virtio mmio register r.
+// Access virtio MMIO register r as a 32-bit register at VIRTIO0.
 #define R(r) ((volatile uint32 *)(VIRTIO0 + (r)))
 
-static struct disk {
-  // a set (not a ring) of DMA descriptors, with which the
-  // driver tells the device where to read and write individual
-  // disk operations. there are NUM descriptors.
-  // most commands consist of a "chain" (a linked list) of a couple of
-  // these descriptors.
-  struct virtq_desc *desc;
+// Virtio legacy MMIO register offsets (QEMU virt transport).
+#define VIRTIO_MMIO_MAGIC_VALUE      0x00
+#define VIRTIO_MMIO_VERSION          0x04
+#define VIRTIO_MMIO_DEVICE_ID        0x08
+#define VIRTIO_MMIO_VENDOR_ID        0x0c
+#define VIRTIO_MMIO_DEVICE_FEATURES  0x10
+#define VIRTIO_MMIO_DRIVER_FEATURES  0x20
+#define VIRTIO_MMIO_QUEUE_SEL        0x30
+#define VIRTIO_MMIO_QUEUE_NUM_MAX    0x34
+#define VIRTIO_MMIO_QUEUE_NUM        0x38
+#define VIRTIO_MMIO_QUEUE_PFN        0x40
+#define VIRTIO_MMIO_QUEUE_READY      0x44
+#define VIRTIO_MMIO_QUEUE_NOTIFY     0x50
+#define VIRTIO_MMIO_INTR_STATUS      0x60
+#define VIRTIO_MMIO_STATUS           0x70
 
-  // a ring in which the driver writes descriptor numbers
-  // that the driver would like the device to process.  it only
-  // includes the head descriptor of each chain. the ring has
-  // NUM elements.
-  struct virtq_avail *avail;
+// Driver status bits written to VIRTIO_MMIO_STATUS during negotiation.
+#define VIRTIO_CONFIG_S_ACKNOWLEDGE  1
+#define VIRTIO_CONFIG_S_DRIVER       2
+#define VIRTIO_CONFIG_S_DRIVER_OK    4
+#define VIRTIO_CONFIG_S_FEATURES_OK  8
 
-  // a ring in which the device writes descriptor numbers that
-  // the device has finished processing (just the head of each chain).
-  // there are NUM used ring entries.
-  struct virtq_used *used;
+// Block request type field values.
+#define VIRTIO_BLK_T_IN  0   // read
+#define VIRTIO_BLK_T_OUT 1   // write
 
-  // our own book-keeping.
-  char free[NUM];  // is a descriptor free?
-  uint16 used_idx; // we've looked this far in used[2..NUM].
+// Feature bits we deliberately do not negotiate.
+#define VIRTIO_BLK_F_RO     5  // read-only disk
+#define VIRTIO_BLK_F_FLUSH  9  // flush support
 
-  // track info about in-flight operations,
-  // for use when completion interrupt arrives.
-  // indexed by first descriptor index of chain.
+// Number of descriptors in the single queue.
+#define NUM 8
+
+// Descriptor flag bits.
+#define VRING_DESC_F_NEXT  1
+#define VRING_DESC_F_WRITE 2
+
+// A virtio descriptor: a scatter-gather entry in the descriptor ring.
+struct VRingDesc {
+  uint64 addr;   // physical address of the buffer
+  uint32 len;    // length of the buffer
+  uint16 flags;  // VRING_DESC_F_* bits
+  uint16 next;   // index of the next descriptor in the chain
+};
+
+// The available ring: buffers offered to the device.
+struct VRingAvail {
+  uint16 flags;
+  uint16 idx;             // total number of buffers ever offered
+  uint16 ring[NUM];       // descriptor chain head indices
+  uint16 unused;
+};
+
+// The used ring: buffers returned by the device after completion.
+struct UsedArea {
+  uint16 flags;
+  uint16 idx;             // total number of buffers ever returned
   struct {
-    struct buf *b;
-    char status;
-  } info[NUM];
+    uint32 id;            // index of the descriptor chain head
+    uint32 len;           // bytes written by the device
+  } elems[NUM];
+};
 
-  // disk command headers.
-  // one-for-one with descriptors, for convenience.
-  struct virtio_blk_req ops[NUM];
+// The request header placed in the first descriptor of each chain.
+struct virtio_blk_outhdr {
+  uint32 type;      // VIRTIO_BLK_T_IN or VIRTIO_BLK_T_OUT
+  uint32 reserved;
+  uint64 sector;    // 512-byte device sector
+};
 
-  struct spinlock vdisk_lock;
+// Per-descriptor-chain bookkeeping used to match a completion to its waiter.
+struct virtio_blk_info {
+  void *data;   // the 1024-byte logical block buffer
+  char status;  // 0xff = in flight; 0 = completed successfully
+};
 
-} disk;
+// The single disk/queue state. Queue memory lives in the contiguous
+// `pages` array (identity-mapped so its kernel virtual address equals the
+// physical address handed to the legacy QUEUE_PFN register).
+struct disk {
+  char pages[3 * PGSIZE];
+  struct VRingDesc *desc;
+  uint16 *avail;
+  struct UsedArea *used;
 
-void
-virtio_disk_init(void)
-{
-  uint32 status = 0;
+  char free[NUM];                  // is descriptor i free?
+  struct virtio_blk_info info[NUM];// per-chain bookkeeping
 
-  initlock(&disk.vdisk_lock, "virtio_disk");
+  uint16 used_idx;                 // how far into used we have consumed
+};
 
-  if (*R(VIRTIO_MMIO_MAGIC_VALUE) != 0x74726976 ||
-      *R(VIRTIO_MMIO_VERSION) != 2 || *R(VIRTIO_MMIO_DEVICE_ID) != 2 ||
-      *R(VIRTIO_MMIO_VENDOR_ID) != 0x554d4551) {
-    panic("could not find virtio disk");
-  }
+static struct disk disk;
+static struct spinlock disk_lock;
 
-  // reset device
-  *R(VIRTIO_MMIO_STATUS) = status;
-
-  // set ACKNOWLEDGE status bit
-  status |= VIRTIO_CONFIG_S_ACKNOWLEDGE;
-  *R(VIRTIO_MMIO_STATUS) = status;
-
-  // set DRIVER status bit
-  status |= VIRTIO_CONFIG_S_DRIVER;
-  *R(VIRTIO_MMIO_STATUS) = status;
-
-  // negotiate features
-  uint64 features = *R(VIRTIO_MMIO_DEVICE_FEATURES);
-  features &= ~(1 << VIRTIO_BLK_F_RO);
-  features &= ~(1 << VIRTIO_BLK_F_SCSI);
-  features &= ~(1 << VIRTIO_BLK_F_CONFIG_WCE);
-  features &= ~(1 << VIRTIO_BLK_F_MQ);
-  features &= ~(1 << VIRTIO_F_ANY_LAYOUT);
-  features &= ~(1 << VIRTIO_RING_F_EVENT_IDX);
-  features &= ~(1 << VIRTIO_RING_F_INDIRECT_DESC);
-  *R(VIRTIO_MMIO_DRIVER_FEATURES) = features;
-
-  // tell device that feature negotiation is complete.
-  status |= VIRTIO_CONFIG_S_FEATURES_OK;
-  *R(VIRTIO_MMIO_STATUS) = status;
-
-  // re-read status to ensure FEATURES_OK is set.
-  status = *R(VIRTIO_MMIO_STATUS);
-  if (!(status & VIRTIO_CONFIG_S_FEATURES_OK))
-    panic("virtio disk FEATURES_OK unset");
-
-  // initialize queue 0.
-  *R(VIRTIO_MMIO_QUEUE_SEL) = 0;
-
-  // ensure queue 0 is not in use.
-  if (*R(VIRTIO_MMIO_QUEUE_READY))
-    panic("virtio disk should not be ready");
-
-  // check maximum queue size.
-  uint32 max = *R(VIRTIO_MMIO_QUEUE_NUM_MAX);
-  if (max == 0)
-    panic("virtio disk has no queue 0");
-  if (max < NUM)
-    panic("virtio disk max queue too short");
-
-  // allocate and zero queue memory.
-  disk.desc = kalloc();
-  disk.avail = kalloc();
-  disk.used = kalloc();
-  if (!disk.desc || !disk.avail || !disk.used)
-    panic("virtio disk kalloc");
-  memset(disk.desc, 0, PGSIZE);
-  memset(disk.avail, 0, PGSIZE);
-  memset(disk.used, 0, PGSIZE);
-
-  // set queue size.
-  *R(VIRTIO_MMIO_QUEUE_NUM) = NUM;
-
-  // write physical addresses.
-  *R(VIRTIO_MMIO_QUEUE_DESC_LOW) = (uint64)disk.desc;
-  *R(VIRTIO_MMIO_QUEUE_DESC_HIGH) = (uint64)disk.desc >> 32;
-  *R(VIRTIO_MMIO_DRIVER_DESC_LOW) = (uint64)disk.avail;
-  *R(VIRTIO_MMIO_DRIVER_DESC_HIGH) = (uint64)disk.avail >> 32;
-  *R(VIRTIO_MMIO_DEVICE_DESC_LOW) = (uint64)disk.used;
-  *R(VIRTIO_MMIO_DEVICE_DESC_HIGH) = (uint64)disk.used >> 32;
-
-  // queue is ready.
-  *R(VIRTIO_MMIO_QUEUE_READY) = 0x1;
-
-  // all NUM descriptors start out unused.
-  for (int i = 0; i < NUM; i++)
-    disk.free[i] = 1;
-
-  // tell device we're completely ready.
-  status |= VIRTIO_CONFIG_S_DRIVER_OK;
-  *R(VIRTIO_MMIO_STATUS) = status;
-
-  // plic.c and trap.c arrange for interrupts from VIRTIO0_IRQ.
-}
-
-// find a free descriptor, mark it non-free, return its index.
-static int
-alloc_desc()
-{
-  for (int i = 0; i < NUM; i++) {
-    if (disk.free[i]) {
-      disk.free[i] = 0;
-      return i;
-    }
-  }
-  return -1;
-}
-
-// mark a descriptor as free.
+// Mark descriptor i free and wake any waiter blocked on descriptor pressure.
 static void
 free_desc(int i)
 {
@@ -173,18 +127,29 @@ free_desc(int i)
   if (disk.free[i])
     panic("free_desc 2");
   disk.desc[i].addr = 0;
-  disk.desc[i].len = 0;
-  disk.desc[i].flags = 0;
-  disk.desc[i].next = 0;
   disk.free[i] = 1;
   wakeup(&disk.free[0]);
 }
 
-// free a chain of descriptors.
+// Return one free descriptor, or -1 when the fixed pool is exhausted.
+static int
+alloc_desc(void)
+{
+  int i;
+  for (i = 0; i < NUM; i++) {
+    if (disk.free[i]) {
+      disk.free[i] = 0;
+      return i;
+    }
+  }
+  return -1;
+}
+
+// Free a whole descriptor chain starting at head i.
 static void
 free_chain(int i)
 {
-  while (1) {
+  for (;;) {
     int flag = disk.desc[i].flags;
     int nxt = disk.desc[i].next;
     free_desc(i);
@@ -195,15 +160,17 @@ free_chain(int i)
   }
 }
 
-// allocate three descriptors (they need not be contiguous).
-// disk transfers always use three descriptors.
+// Allocate three descriptors for one chain, or return -1 (releasing any
+// partial allocation) when the pool cannot satisfy the request.
 static int
 alloc3_desc(int *idx)
 {
-  for (int i = 0; i < 3; i++) {
+  int i;
+  for (i = 0; i < 3; i++) {
     idx[i] = alloc_desc();
     if (idx[i] < 0) {
-      for (int j = 0; j < i; j++)
+      int j;
+      for (j = 0; j < i; j++)
         free_desc(idx[j]);
       return -1;
     }
@@ -211,116 +178,186 @@ alloc3_desc(int *idx)
   return 0;
 }
 
+// Initialize the virtio block device and its single legacy queue. Validates
+// device identity, negotiates features, and prepares the descriptor,
+// available, and used rings before marking the queue ready. Runs once on the
+// boot hart before any disk traffic. Unsupported identity or queue geometry
+// panics with a diagnostic.
 void
-virtio_disk_rw(struct buf *b, int write)
+virtio_disk_init(void)
 {
-  uint64 sector = b->blockno * (BSIZE / 512);
+  uint32 status = 0;
+  uint64 features;
+  uint32 max;
 
-  acquire(&disk.vdisk_lock);
+  initlock(&disk_lock, "virtio_disk");
 
-  // the spec's Section 5.2 says that legacy block operations use
-  // three descriptors: one for type/reserved/sector, one for the
-  // data, one for a 1-byte status result.
-
-  // allocate the three descriptors.
-  int idx[3];
-  while (1) {
-    if (alloc3_desc(idx) == 0) {
-      break;
-    }
-    sleep(&disk.free[0], &disk.vdisk_lock);
+  // Validate device identity: magic "virt", legacy version 1, block device
+  // id 2, and the QEMU vendor id.
+  if (*R(VIRTIO_MMIO_MAGIC_VALUE) != 0x74726976 ||
+      *R(VIRTIO_MMIO_VERSION) != 1 ||
+      *R(VIRTIO_MMIO_DEVICE_ID) != 2 ||
+      *R(VIRTIO_MMIO_VENDOR_ID) != 0x554d4551) {
+    panic("could not find virtio disk");
   }
 
-  // format the three descriptors.
-  // qemu's virtio-blk.c reads them.
+  // Acknowledge the device.
+  status |= VIRTIO_CONFIG_S_ACKNOWLEDGE;
+  *R(VIRTIO_MMIO_STATUS) = status;
 
-  struct virtio_blk_req *buf0 = &disk.ops[idx[0]];
+  // Announce the driver.
+  status |= VIRTIO_CONFIG_S_DRIVER;
+  *R(VIRTIO_MMIO_STATUS) = status;
 
-  if (write)
-    buf0->type = VIRTIO_BLK_T_OUT; // write the disk
-  else
-    buf0->type = VIRTIO_BLK_T_IN; // read the disk
-  buf0->reserved = 0;
-  buf0->sector = sector;
+  // Negotiate features: accept everything except read-only and flush.
+  features = *R(VIRTIO_MMIO_DEVICE_FEATURES);
+  features &= ~(1 << VIRTIO_BLK_F_RO);
+  features &= ~(1 << VIRTIO_BLK_F_FLUSH);
+  *R(VIRTIO_MMIO_DRIVER_FEATURES) = features;
 
-  disk.desc[idx[0]].addr = (uint64)buf0;
-  disk.desc[idx[0]].len = sizeof(struct virtio_blk_req);
+  status |= VIRTIO_CONFIG_S_FEATURES_OK;
+  *R(VIRTIO_MMIO_STATUS) = status;
+
+  status |= VIRTIO_CONFIG_S_DRIVER_OK;
+  *R(VIRTIO_MMIO_STATUS) = status;
+
+  // Select queue 0 and validate its geometry.
+  *R(VIRTIO_MMIO_QUEUE_SEL) = 0;
+  max = *R(VIRTIO_MMIO_QUEUE_NUM_MAX);
+  if (max == 0)
+    panic("virtio disk has no queue 0");
+  if (max < NUM)
+    panic("virtio disk max queue too short");
+
+  // Lay out the contiguous queue pages: descriptors, available ring, used ring.
+  disk.desc = (struct VRingDesc *)disk.pages;
+  disk.avail = (uint16 *)(disk.pages + PGSIZE);
+  disk.used = (struct UsedArea *)(disk.pages + 2 * PGSIZE);
+
+  // Initialize every descriptor as free and zero the queue memory.
+  {
+    int i;
+    for (i = 0; i < NUM; i++)
+      disk.free[i] = 1;
+    for (i = 0; i < 3 * PGSIZE / sizeof(char); i++)
+      disk.pages[i] = 0;
+  }
+  disk.used_idx = 0;
+
+  // Tell the device the physical page frame of the queue. Kernel virtual
+  // addresses equal physical addresses here (identity-mapped kernel image).
+  *R(VIRTIO_MMIO_QUEUE_NUM) = NUM;
+  *R(VIRTIO_MMIO_QUEUE_PFN) = ((uint64)disk.pages) >> 12;
+  *R(VIRTIO_MMIO_QUEUE_READY) = 1;
+}
+
+// Transfer one 1024-byte logical block between the device and `data`.
+// `blockno` is the logical block number; it maps to the two adjacent
+// 512-byte sectors 2*blockno and 2*blockno+1. `write` selects a device write
+// (data is sent to the disk) versus a read (the disk fills data). The caller
+// must hold the target buffer's sleep lock and supply a valid block number.
+// This is synchronous: it returns only after both sectors of the logical
+// block have completed, or panics on a malformed completion.
+void
+virtio_disk_rw(uint64 blockno, void *data, int write)
+{
+  uint64 sector0 = blockno * 2;
+  int idx[3];
+  struct virtio_blk_outhdr hdr;
+  struct virtio_blk_info *info;
+
+  if ((blockno & 0x1fffffffffffffffULL) == 0x1fffffffffffffffULL)
+    panic("virtio_disk_rw: sector overflow");
+
+  acquire(&disk_lock);
+
+  // Allocate a three-descriptor chain, waiting (without leaking a partial
+  // chain) when the fixed pool is momentarily exhausted.
+  while (alloc3_desc(idx) < 0)
+    sleep(&disk.free[0], &disk_lock);
+
+  info = &disk.info[idx[0]];
+
+  // Descriptor 0: the request header (out).
+  hdr.type = write ? VIRTIO_BLK_T_OUT : VIRTIO_BLK_T_IN;
+  hdr.reserved = 0;
+  hdr.sector = sector0;
+  disk.desc[idx[0]].addr = (uint64)&hdr;
+  disk.desc[idx[0]].len = sizeof(hdr);
   disk.desc[idx[0]].flags = VRING_DESC_F_NEXT;
   disk.desc[idx[0]].next = idx[1];
 
-  disk.desc[idx[1]].addr = (uint64)b->data;
-  disk.desc[idx[1]].len = BSIZE;
+  // Descriptor 1: the 1024-byte data buffer.
+  disk.desc[idx[1]].addr = (uint64)data;
+  disk.desc[idx[1]].len = 1024;
   if (write)
-    disk.desc[idx[1]].flags = 0; // device reads b->data
+    disk.desc[idx[1]].flags = 0;                  // device reads from it
   else
-    disk.desc[idx[1]].flags = VRING_DESC_F_WRITE; // device writes b->data
+    disk.desc[idx[1]].flags = VRING_DESC_F_WRITE; // device writes into it
   disk.desc[idx[1]].flags |= VRING_DESC_F_NEXT;
   disk.desc[idx[1]].next = idx[2];
 
-  disk.info[idx[0]].status = 0xff; // device writes 0 on success
-  disk.desc[idx[2]].addr = (uint64)&disk.info[idx[0]].status;
+  // Descriptor 2: the completion status byte (in).
+  info->status = 0xff;
+  disk.desc[idx[2]].addr = (uint64)&info->status;
   disk.desc[idx[2]].len = 1;
   disk.desc[idx[2]].flags = VRING_DESC_F_WRITE; // device writes the status
   disk.desc[idx[2]].next = 0;
 
-  // record struct buf for virtio_disk_intr().
-  b->disk = 1;
-  disk.info[idx[0]].b = b;
+  // Record the data buffer so the interrupt handler can wake this waiter.
+  info->data = data;
 
-  // tell the device the first index in our chain of descriptors.
-  disk.avail->ring[disk.avail->idx % NUM] = idx[0];
+  // Publish the chain head in the available ring.
+  disk.avail[2 + disk.avail[1]] = idx[0];
+  __sync_synchronize();
+  disk.avail[1] = disk.avail[1] + 1;
+  __sync_synchronize();
 
-  __atomic_thread_fence(__ATOMIC_SEQ_CST);
+  // Kick the device (queue number 0).
+  *R(VIRTIO_MMIO_QUEUE_NOTIFY) = 0;
 
-  // tell the device another avail ring entry is available.
-  disk.avail->idx += 1; // not % NUM ...
+  // Wait until virtio_disk_intr reclaims the chain and clears status.
+  while (info->status != 0)
+    sleep(info, &disk_lock);
 
-  __atomic_thread_fence(__ATOMIC_SEQ_CST);
+  if (info->status != 0)
+    panic("virtio_disk_rw: device reported failure");
 
-  *R(VIRTIO_MMIO_QUEUE_NOTIFY) = 0; // value is queue number
-
-  // Wait for virtio_disk_intr() to say request has finished.
-  while (b->disk == 1) {
-    sleep(b, &disk.vdisk_lock);
-  }
-
-  disk.info[idx[0]].b = 0;
   free_chain(idx[0]);
 
-  release(&disk.vdisk_lock);
+  release(&disk_lock);
 }
 
+// Reclaim completed descriptor chains from the used ring and wake each
+// waiter exactly once. Invoked after PLIC claim reports the virtio IRQ.
+// A malformed used-ring descriptor or completion corruption panics.
 void
-virtio_disk_intr()
+virtio_disk_intr(void)
 {
-  acquire(&disk.vdisk_lock);
+  uint32 used_idx;
+  uint32 i;
 
-  // the device won't raise another interrupt until we tell it
-  // we've seen this interrupt, which the following line does.
-  // this may race with the device writing new entries to
-  // the "used" ring, in which case we may process the new
-  // completion entries in this interrupt, and have nothing to do
-  // in the next interrupt, which is harmless.
-  *R(VIRTIO_MMIO_INTERRUPT_ACK) = *R(VIRTIO_MMIO_INTERRUPT_STATUS) & 0x3;
+  acquire(&disk_lock);
 
-  __atomic_thread_fence(__ATOMIC_SEQ_CST);
+  // Acknowledge the device interrupt so it may raise the next one.
+  *R(VIRTIO_MMIO_INTR_STATUS) = *R(VIRTIO_MMIO_INTR_STATUS);
 
-  // the device increments disk.used->idx when it
-  // adds an entry to the used ring.
+  used_idx = disk.used->idx;
 
-  while (disk.used_idx != disk.used->idx) {
-    __atomic_thread_fence(__ATOMIC_SEQ_CST);
-    int id = disk.used->ring[disk.used_idx % NUM].id;
+  // Consume every newly returned chain.
+  for (i = 0; i < used_idx - disk.used_idx; i++) {
+    uint32 id = disk.used->elems[(disk.used_idx + i) % NUM].id;
+    struct virtio_blk_info *info;
 
-    if (disk.info[id].status != 0)
-      panic("virtio_disk_intr status");
-
-    struct buf *b = disk.info[id].b;
-    b->disk = 0; // disk is done with buf
-    wakeup(b);
-
-    disk.used_idx += 1;
+    if (id >= NUM)
+      panic("virtio_disk_intr: used id");
+    info = &disk.info[id];
+    if (info->status != 0xff)
+      panic("virtio_disk_intr: status");
+    info->status = 0;
+    wakeup(info);
   }
+  disk.used_idx = used_idx;
 
-  release(&disk.vdisk_lock);
+  release(&disk_lock);
 }

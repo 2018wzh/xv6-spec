@@ -1,187 +1,170 @@
-// clang-format off
-struct buf;
-struct context;
-struct file;
-struct inode;
-struct pipe;
-struct proc;
-struct spinlock;
-struct sleeplock;
-struct stat;
-struct superblock;
-
-// boot.c
-const char*     boot_banner(void);
-void            console_putchar(int);
-void            console_write(const char*, int);
-void            shutdown(void);
-void            kernel_main(void);
-
-// bio.c
-void            binit(void);
-struct buf*     bread(uint, uint);
-void            brelse(struct buf*);
-void            bwrite(struct buf*);
-void            bpin(struct buf*);
-void            bunpin(struct buf*);
-
-// console.c
-void            consoleinit(void);
-void            consoleintr(int);
-void            consputc(int);
-
-// exec.c
-int             kexec(char*, char**);
-
-// file.c
-struct file*    filealloc(void);
-void            fileclose(struct file*);
-struct file*    filedup(struct file*);
-void            fileinit(void);
-int             fileread(struct file*, uint64, int n);
-int             filestat(struct file*, uint64 addr);
-int             filewrite(struct file*, uint64, int n);
-
-// fs.c
-void            fsinit(int);
-int             dirlink(struct inode*, char*, uint);
-struct inode*   dirlookup(struct inode*, char*, uint*);
-struct inode*   ialloc(uint, short);
-struct inode*   idup(struct inode*);
-void            iinit();
-void            ilock(struct inode*);
-void            iput(struct inode*);
-void            iunlock(struct inode*);
-void            iunlockput(struct inode*);
-void            iupdate(struct inode*);
-int             namecmp(const char*, const char*);
-struct inode*   namei(char*);
-struct inode*   nameiparent(char*, char*);
-int             readi(struct inode*, int, uint64, uint, uint);
-void            stati(struct inode*, struct stat*);
-int             writei(struct inode*, int, uint64, uint, uint);
-void            itrunc(struct inode*);
-void            ireclaim(int);
-
-// kalloc.c
-void*           kalloc(void);
-void            kfree(void *);
-void            kinit(void);
-
-// log.c
-void            initlog(int, struct superblock*);
-void            log_write(struct buf*);
-void            begin_op(void);
-void            end_op(void);
-
-// printk.c
-int             printk(char*, ...) __attribute__ ((format (printf, 1, 2)));
-void            panic(char*) __attribute__((noreturn));
-void            printkinit(void);
-
-// proc.c
-int             cpuid(void);
-void            kexit(int);
-int             kfork(void);
-int             growproc(int);
-void            proc_mapstacks(pagetable_t);
-pagetable_t     proc_pagetable(struct proc *);
-void            proc_freepagetable(pagetable_t, uint64);
-int             kkill(int);
-int             killed(struct proc*);
-void            setkilled(struct proc*);
-struct cpu*     mycpu(void);
-struct proc*    myproc();
-void            procinit(void);
-void            scheduler(void) __attribute__((noreturn));
-void            sched(void);
-void            sleep(void*, struct spinlock*);
-void            userinit(void);
-int             kwait(uint64);
-void            wakeup(void*);
-void            yield(void);
-int             either_copyout(int user_dst, uint64 dst, void *src, uint64 len);
-int             either_copyin(void *dst, int user_src, uint64 src, uint64 len);
-void            procdump(void);
-
-// swtch.S
-void            swtch(struct context*, struct context*);
-
-// spinlock.c
-void            acquire(struct spinlock*);
-int             holding(struct spinlock*);
-void            initlock(struct spinlock*, char*);
-void            release(struct spinlock*);
-void            push_off(void);
-void            pop_off(void);
-
-// sleeplock.c
-void            acquiresleep(struct sleeplock*);
-void            releasesleep(struct sleeplock*);
-int             holdingsleep(struct sleeplock*);
-void            initsleeplock(struct sleeplock*, char*);
+// defs.h - Function declarations shared across the Lab 2 kernel bootstrap.
 
 // string.c
-int             memcmp(const void*, const void*, uint);
-void*           memmove(void*, const void*, uint);
-void*           memset(void*, int, uint);
-char*           safestrcpy(char*, const char*, int);
-int             strlen(const char*);
-int             strncmp(const char*, const char*, uint);
-char*           strncpy(char*, const char*, int);
+int      strcmp(const char *, const char *);
+int      strncmp(const char *, const char *, uint);
+char*    strcpy(char *, const char *);
+char*    strncpy(char *, const char *, int);
+char*    safestrcpy(char *, const char *, int);
+int      strlen(const char *);
+void*    memset(void *, int, uint);
+void*    memmove(void *, const void *, uint);
+int      memcmp(const void *, const void *, uint);
+void*    memcpy(void *, const void *, uint);
 
-// syscall.c
-void            argint(int, int*);
-int             argstr(int, char*, int);
-void            argaddr(int, uint64 *);
-int             fetchstr(uint64, char*, int);
-int             fetchaddr(uint64, uint64*);
-void            syscall();
+// boot.c
+const char* boot_banner(void);
+void        publish_boot_banner(void);
 
-// trap.c
-extern uint     ticks;
-void            trapinit(void);
-void            trapinithart(void);
-extern struct spinlock tickslock;
-void            prepare_return(void);
+// start.c
+void     start(void);
 
-// uart.c
-void            uartinit(void);
-void            uartintr(void);
-void            uartwrite(char [], int);
-void            uartputc_sync(int);
+// main.c
+void     main(void);
+
+// spinlock.c
+struct spinlock;
+struct context;
+struct proc;
+void     initlock(struct spinlock*, const char*);
+void     acquire(struct spinlock*);
+void     release(struct spinlock*);
+int      holding(struct spinlock*);
+
+// kalloc.c
+void     kinit(void);
+void*    kalloc(void);
+void     kfree(void*);
 
 // vm.c
-void            kvminit(void);
-void            kvminithart(void);
-void            kvmmap(pagetable_t, uint64, uint64, uint64, int);
-int             mappages(pagetable_t, uint64, uint64, uint64, int);
-pagetable_t     uvmcreate(void);
-uint64          uvmalloc(pagetable_t, uint64, uint64, int);
-uint64          uvmdealloc(pagetable_t, uint64, uint64);
-int             uvmcopy(pagetable_t, pagetable_t, uint64);
-void            uvmfree(pagetable_t, uint64);
-void            uvmunmap(pagetable_t, uint64, uint64, int);
-void            uvmclear(pagetable_t, uint64);
-pte_t *         walk(pagetable_t, uint64, int);
-uint64          walkaddr(pagetable_t, uint64);
-int             copyout(pagetable_t, uint64, char *, uint64);
-int             copyin(pagetable_t, char *, uint64, uint64);
-int             copyinstr(pagetable_t, char *, uint64, uint64);
-int             ismapped(pagetable_t, uint64);
-uint64          vmfault(pagetable_t, uint64, int);
+void     kvminit(void);
+void     kvminithart(void);
+pagetable_t uvmcreate(void);
+void     uvmfree(pagetable_t, uint64);
+void     uvmmap(pagetable_t, uint64, uint64, uint64, int);
+int      uvmfirst(pagetable_t, uchar *, uint);
+uint64   uvmalloc(pagetable_t, uint64, uint64, int);
+uint64   uvmdealloc(pagetable_t, uint64, uint64);
+int      uvmcopy(pagetable_t, pagetable_t, uint64);
+void     uvmunmap(pagetable_t, uint64, uint64, int);
+void     freewalk(pagetable_t);
+int      copyin(pagetable_t, char *, uint64, uint64);
+int      copyinstr(pagetable_t, char *, uint64, uint64);
+int      copyout(pagetable_t, uint64, char *, uint64);
+uint64   walkaddr(pagetable_t, uint64);
+
+// proc.c
+void     procinit(void);
+struct proc *allocproc(void);
+void     scheduler(void);
+void     sched(void);
+void     yield(void);
+void     sleep(void *, struct spinlock *);
+void     wakeup(void *);
+struct proc *myproc(void);
+void     swtch(struct context *, struct context *);
+void     userinit(void);
+int      fork(void);
+void     exit(int) __attribute__((noreturn));
+int      wait(uint64);
+int      kill(int);
+int      exec(char *, char **);
+
+// trap.c
+void     trapinit(void);
+void     kerneltrap(struct trapframe *);
+int      devintr(void);
+extern void kernelvec(void);
+void     usertrap(void);
+void     usertrapret(void);
+extern void uservec(void);
+extern void userret(void);
+
+// syscall.c / sysproc.c
+void     syscall(void);
+int      fetchaddr(uint64, uint64 *);
+int      fetchargint(int, uint64 *);
+int      fetchstr(uint64, char *, int);
+int      argint(int, int *);
+int      argaddr(int, uint64 *);
+int      argstr(int, char *, int);
 
 // plic.c
-void            plicinit(void);
-void            plicinithart(void);
-int             plic_claim(void);
-void            plic_complete(int);
+void     plicinit(void);
+void     plicinithart(void);
+int      plic_claim(void);
+void     plic_complete(int);
+
+// uart.c
+void     uartinit(void);
+void     uartputc_sync(int);
+int      uartgetc(void);
+void     uartintr(void);
+
+// console.c
+void     consoleinit(void);
+void     consoleputc(int);
+void     consoleintr(int);
+
+// printk.c
+void     printf(char *, ...);
+
+// string.c
+void     panic(char*);
 
 // virtio_disk.c
-void            virtio_disk_init(void);
-void            virtio_disk_rw(struct buf *, int);
-void            virtio_disk_intr(void);
+void     virtio_disk_init(void);
+void     virtio_disk_rw(uint64, void *, int);
+void     virtio_disk_intr(void);
 
+// log.c (kernel/log)
+struct buf;
+void     initlog(int);
+void     begin_op(void);
+void     log_write(struct buf *);
+void     end_op(void);
 
-// number of elements in fixed-size array
-#define NELEM(x) (sizeof(x)/sizeof((x)[0]))
+// fs.c (kernel/inode)
+void     fsinit(int);
+
+// file.c (kernel/file)
+struct file;
+void         fileinit(void);
+struct file *filealloc(void);
+struct file *filedup(struct file *);
+void         fileclose(struct file *);
+int          filestat(struct file *, uint64);
+int          fileread(struct file *, uint64, int);
+int          filewrite(struct file *, uint64, int);
+
+// pipe.c (kernel/pipe)
+struct file;
+struct pipe;
+int          pipealloc(struct file **, struct file **);
+void         pipeclose(struct pipe *, int);
+int          pipewrite(struct pipe *, uint64, int);
+int          piperead(struct pipe *, uint64, int);
+
+// sysfile.c (kernel/file) syscall handlers
+uint64   sys_open(void);
+uint64   sys_read(void);
+uint64   sys_write(void);
+uint64   sys_close(void);
+uint64   sys_fstat(void);
+uint64   sys_dup(void);
+uint64   sys_mknod(void);
+uint64   sys_mkdir(void);
+uint64   sys_chdir(void);
+uint64   sys_link(void);
+uint64   sys_unlink(void);
+uint64   sys_pipe(void);
+
+// riscv.h interrupt helpers
+void     intr_on(void);
+void     intr_off(void);
+int      intr_get(void);
+
+// physical memory delimiters
+extern char end[];
+extern char etext[];
+extern char trampoline[];   // kernel.ld: the shared trampoline page

@@ -1,0 +1,53 @@
+id: lab/ctf-warmup
+module: lab/ctf-warmup
+level: 2
+purpose: Demonstrate the operating-system boundary by reading the same two files through a Linux process and a freestanding QEMU guest without embedding either expected value.
+owns:
+- lab1/linux
+- lab1/baremetal
+- tests/generated/lab/ctf-warmup
+interface:
+- name: read_linux_flags
+  pre:
+  - the caller supplies a readable directory containing regular files named flag1 and flag2
+  post:
+  - both files are read through Linux file operations and emitted in stable alternating order
+  errors:
+  - open, read, short-read, close, or output failures terminate with a nonzero status and identify the failed operation without printing a secret
+  properties:
+  - id: ctf-linux-public
+    text: a generated temporary fixture is read from files and produces the declared alternating record sequence
+- name: read_baremetal_flags
+  pre:
+  - QEMU exposes the declared read-only image to the freestanding guest and the image contains valid bounded flag1 and flag2 entries
+  post:
+  - the guest locates both entries through the image reader and emits stable redacted metadata and alternating records over UART
+  errors:
+  - invalid image geometry, missing entries, oversized contents, device failure, or UART failure produces a bounded diagnostic and never substitutes an expected value
+  properties:
+  - id: ctf-baremetal-public
+    text: the guest reads both values from a generated image and emits the declared redacted metadata and alternating record sequence; toolchain owns the QEMU serial-oracle binding
+properties:
+- id: ctf-no-hardcoded-flags
+  text: a deterministic source-scan check confirms implementation and test sources contain no expected course flag while tests use generated non-secret fixtures
+- id: ctf-source-equivalence
+  text: a contract check compares both readers and confirms the same generated fixture lengths, hashes, and alternating order
+errors:
+- malformed or incomplete inputs fail explicitly without exposing secret contents
+state:
+  stage: lab1-ctf-warmup
+  owned_state:
+  - bounded input buffers, image directory metadata, and UART output progress
+  resource_lifetime:
+  - Linux descriptors are closed on every path and the bare-metal reader uses only statically bounded memory
+preconditions:
+- a C compiler, QEMU RISC-V system emulator, and POSIX sh are available for the corresponding target
+postconditions:
+- both execution paths prove that values came from generated files or an image rather than source constants
+invariants:
+- id: ctf-input-provenance
+  text: every emitted record is derived from bytes read during the current run and is bound to its source name, length, and hash
+- id: ctf-bounded-processing
+  text: names, directory entries, file lengths, reads, and UART writes remain within declared static bounds
+dependencies:
+- toolchain

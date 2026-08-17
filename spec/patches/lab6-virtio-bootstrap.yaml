@@ -1,0 +1,11 @@
+id: lab6-virtio-bootstrap
+reason: The first Lab 6 slice integrates only the virtio block queue with existing boot, trap, PLIC, and build surfaces while remaining buildable before cache and file-system code exists.
+changes:
+- kernel/virtio
+- kernel/boot
+- kernel/trap
+- toolchain
+new_invariants:
+- Boot initializes virtio after memory and traps are ready, without requiring a buffer cache or file system to exist yet.
+- PLIC enables QEMU virt IRQ 1, dispatches it to virtio_disk_intr, and completes exactly the claimed IRQ.
+- One 1024-byte logical block maps to exactly two adjacent 512-byte sectors, and the descriptor chain is reclaimed once after both complete.

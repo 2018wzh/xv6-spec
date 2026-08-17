@@ -1,0 +1,25 @@
+id: lab7-process-pipe-completion
+reason: Lab 7 cumulative verification shows that the committed process-tree and anonymous-pipe contracts have no implementation or stable public, contract, fixed-seed fuzz, and bounded trace bindings; this patch completes those declared semantics without weakening any Lab 1-6 gate.
+changes:
+- kernel/boot
+- kernel/memory
+- kernel/process
+- kernel/pipe
+- kernel/file
+- kernel/inode
+- kernel/syscall
+- toolchain
+new_invariants:
+- kernel/boot's shared kernel/defs.h publishes the cross-module process, address-space, file, pipe, and syscall prototypes required by this patch without moving implementation ownership; kernel/memory provides allocation, deallocation, private fork cloning, and complete address-space teardown helpers whose failure paths release every provisional page before returning.
+- fork, exec, and pipe allocation publish complete state atomically or return failure after releasing every provisional page, process slot, descriptor, global file reference, endpoint reference, and pipe buffer; failed fork never exposes a partial child and failed exec preserves the previous image, pid, and descriptor table.
+- kernel/syscall validates arguments and dispatches fork, exec, exit, wait, pipe, read, write, and close to their owning process, filesystem, file, and pipe operations; it neither duplicates their resource state nor publishes a successful syscall result before the owning operation commits, and this aggregate dispatch completion is validated transitively by the required kernel_process_tree_* and kernel_pipe_* targets rather than a separate Lab 7 syscall target.
+- kernel/file stores each pipe endpoint behind exactly one global file reference, dispatches reads, writes, stats, dup, and close by file type without interpreting pipe state, and releases the endpoint exactly once when the final file reference closes.
+- toolchain receives the nine stable process and pipe target proposals through the structured result tool and atomically projects their validated program, arguments, working directory, environment allowlist, timeout, verifies, seed, case count, workload, oracle, and artifact paths into vos.yaml without removing an existing target.
+- exit closes every descriptor and releases the current directory before publishing ZOMBIE, wait is the sole reclaim path and reaps each child exactly once, and process-tree tests cover successful and failed fork, exec, exit, and wait transitions without weakening the existing Lab 5 lifecycle checks.
+- descriptor and global file references are stabilized before acquiring a pipe lock, the file-table lock is never retained across pipe locking or sleep, pipe sleep uses the process lock-handoff primitive, and the backing buffer is freed only after releasing the pipe lock and observing both endpoints closed.
+- an empty pipe with a live writer blocks readers, an empty pipe without writers returns EOF, closing the final reader wakes writers and causes a stable broken-pipe failure without publishing unreported bytes, and every final peer close wakes blocked operations before releasing the pipe exactly once.
+- kernel_process_tree_public, kernel_process_fork_rollback_contract, kernel_process_tree_fuzz, and kernel_process_tree_trace bind the complete process-tree lifecycle; kernel_pipe_public, kernel_pipe_contract, kernel_pipe_fuzz, kernel_pipe_trace, and kernel_pipe_process_teardown_contract bind FIFO order, capacity, peer-close termination, allocation rollback, and endpoint release.
+- kernel_process_fork_rollback_contract compiles a deterministic, test-only allocation-failure seam that fails after at least one user page has been cloned and proves the unpublished child slot, page count, descriptor references, and parent image return to their pre-attempt values; ordinary public and production builds expose no control path for this seam.
+- process and pipe workloads reach the real syscall dispatch and include invalid pointer, invalid descriptor, wrong pipe direction, closed peer, exhausted descriptor, and failed exec cases so the aggregate kernel/syscall and kernel/file bindings are non-vacuous.
+- kernel_pipe_process_teardown_contract uses fixed seed 7 for 32 bounded fork-and-exit pipe-user cases and requires separately reported file, pipe, inode, page, and process-slot counts to equal the snapshot taken immediately before the workload at the same clean commit while every existing boot, memory, trap, syscall, virtio, bio, log, inode, file, and CTF target remains mandatory.
+- test-only accounting is compiled only into the generated teardown contract workload, obtains each module count under its owning lock, is not published through the student syscall ABI, emits per-module before-and-after diagnostics, and kernel_pipe_process_teardown_contract verifies kernel/pipe, kernel/file, kernel/inode, kernel/memory, and kernel/process together without relying on fixed numeric counts from another commit.

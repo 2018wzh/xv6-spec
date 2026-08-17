@@ -1,0 +1,8 @@
+id: lab2-bootstrap-toolchain
+reason: Lab 2 introduces the kernel bootstrap and its minimal build projection together.
+changes:
+- kernel/boot
+- toolchain
+new_invariants:
+- The build projection links only files owned by the Lab 2 bootstrap slice.
+- The public banner check observes the image built from the committed Spec.

@@ -1,59 +1,53 @@
-// Physical memory layout
+// Physical memory layout of the Lab 2/3 bootstrap slice.
 
-// qemu -machine virt is set up like this,
-// based on qemu's hw/riscv/virt.c:
-//
-// 00001000 -- boot ROM, provided by qemu
-// 02000000 -- CLINT
-// 0C000000 -- PLIC
-// 10000000 -- uart0
-// 10001000 -- virtio disk
-// 80000000 -- qemu's boot ROM loads the kernel here,
-//             then jumps here.
-// unused RAM after 80000000.
+#define KERNBASE 0x80000000L // kernel linked at this physical address.
 
-// the kernel uses physical memory thus:
-// 80000000 -- entry.S, then kernel text and data
-// end -- start of kernel page allocation area
-// PHYSTOP -- end RAM used by the kernel
+// qemu -machine virt places the ns16550a UART at this physical address.
+#define UART0 0x10000000L
 
-// qemu puts UART registers here in physical memory.
-#define UART0     0x10000000L
+// qemu -machine virt places the PLIC at this physical address.
+#define PLIC 0x0c000000L
+
+// qemu -machine virt first virtio mmio disk interface.
+#define VIRTIO0 0x10001000L
+
+// qemu -machine virt UART interrupt source number delivered via the PLIC.
 #define UART0_IRQ 10
 
-// virtio mmio interface
-#define VIRTIO0     0x10001000
+// qemu -machine virt first virtio block device interrupt source.
 #define VIRTIO0_IRQ 1
 
-// qemu puts platform-level interrupt controller (PLIC) here.
-#define PLIC                 0x0c000000L
-#define PLIC_PRIORITY        (PLIC + 0x0)
-#define PLIC_PENDING         (PLIC + 0x1000)
-#define PLIC_SENABLE(hart)   (PLIC + 0x2080 + (hart) * 0x100)
-#define PLIC_SPRIORITY(hart) (PLIC + 0x201000 + (hart) * 0x2000)
-#define PLIC_SCLAIM(hart)    (PLIC + 0x201004 + (hart) * 0x2000)
+// qemu -machine virt with 128M RAM ranges up to this physical address.
+#define PHYSTOP 0x80000000L + 128L * 1024L * 1024L
 
-// the kernel expects there to be RAM
-// for use by the kernel and user pages
-// from physical address 0x80000000 to PHYSTOP.
-#define KERNBASE 0x80000000L
-#define PHYSTOP  (KERNBASE + 128 * 1024 * 1024)
+// The early boot stack lives in bss and is sized for a single boot hart.
+extern char bootstacktop[];
 
-// map the trampoline page to the highest address,
-// in both user and kernel space.
-#define TRAMPOLINE (MAXVA - PGSIZE)
+// Page size and Sv39 page-table geometry.
+#define PGSIZE 4096        // bytes per page
+#define PGSHIFT 12         // log2(PGSIZE)
+#define PGROUNDUP(sz)  (((sz)+PGSIZE-1) & ~(PGSIZE-1))
+#define PGROUNDDOWN(a) (((a)) & ~(PGSIZE-1))
 
-// map kernel stacks beneath the trampoline,
-// each surrounded by invalid guard pages.
-#define KSTACK(p) (TRAMPOLINE - ((p) + 1) * 2 * PGSIZE)
+// Sv39 page table entry bits and helpers (supervisor/device mappings must
+// never set PTE_U).
+#define PTE_V (1L << 0)   // valid
+#define PTE_R (1L << 1)   // readable
+#define PTE_W (1L << 2)   // writable
+#define PTE_X (1L << 3)   // executable
+#define PTE_U (1L << 4)   // user accessible (kernel mappings never set it)
 
-// User memory layout.
-// Address zero first:
-//   text
-//   original data and bss
-//   fixed-size stack
-//   expandable heap
-//   ...
-//   TRAPFRAME (p->trapframe, used by the trampoline)
-//   TRAMPOLINE (the same page as in the kernel)
-#define TRAPFRAME (TRAMPOLINE - PGSIZE)
+#define PTE2PA(pte) (((pte) >> 10) << 12)
+#define PA2PTE(pa) (((uint64)(pa) >> 12) << 10)
+#define PTE_FLAGS(pte) ((pte) & 0x3FF)
+
+#define PXMASK 0x1FF // 9 bits
+#define PXSHIFT(level) (PGSHIFT + (9 * (level)))
+#define PX(level, va) ((((uint64)(va)) >> PXSHIFT(level)) & PXMASK)
+
+#define MAXVA (1L << (9 + 9 + 9 + 12))   // top of the Sv39 kernel space
+#define TRAMPOLINE (MAXVA - PGSIZE)      // highest kernel virtual page
+#define TRAPFRAME (TRAMPOLINE - PGSIZE)  // trap-frame page below the trampoline
+// Each process slot's kernel stack lives at a deterministic index-keyed
+// virtual address for the kernel lifetime (procinit maps and reuses it).
+#define KSTACK(i) (TRAMPOLINE - ((i) + 1) * 2 * PGSIZE)

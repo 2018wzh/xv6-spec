@@ -1,0 +1,162 @@
+id: kernel/file
+module: kernel/file
+level: 3
+purpose: Own the global file table, inode and pipe-backed file references, shared offsets, validated file syscalls, and user-space file-description support.
+owns:
+- kernel/file.c
+- kernel/file.h
+- kernel/sysfile.c
+- kernel/stat.h
+- kernel/fcntl.h
+- kernel/user.ld
+- user
+- tests/generated/kernel/file
+interface:
+- name: open
+  pre:
+  - the path and open mode have passed syscall validation and the target descriptor slot is empty
+  post:
+  - success publishes one initialized global file reference in one process descriptor slot
+  errors:
+  - invalid paths or modes and exhausted file or descriptor tables return -1 without publishing a reference
+  properties:
+  - id: file-open-contract
+    text: open and create publish exactly one initialized reference or leave every descriptor unchanged
+- name: read_write
+  pre:
+  - descriptor, direction, user range, offset, and length have passed syscall validation
+  post:
+  - the returned byte count equals bytes transferred and the shared offset advances by exactly that count
+  errors:
+  - invalid direction, range, or inode-layer failure returns -1 without advancing past committed data
+  properties:
+  - id: file-read-write-public
+    text: a bounded workload reads, overwrites, appends, and truncates through validated user buffers
+  - id: file-offset-contract
+    text: duplicated descriptors observe one serialized shared offset and exact transfer counts
+- name: close
+  pre:
+  - the descriptor contains one live global file reference
+  post:
+  - the descriptor is cleared before its reference is released and final close releases one inode reference
+  errors:
+  - an invalid descriptor returns -1 and leaves unrelated descriptors unchanged
+  properties:
+  - id: file-close-contract
+    text: dup, close, and process teardown preserve one reference per populated slot and release the final resource once
+- name: namespace_mutation
+  pre:
+  - path arguments are validated and inode-layer lookup returns balanced references
+  post:
+  - create, link, unlink, mkdir, mknod, and chdir publish only committed namespace changes
+  errors:
+  - missing, duplicate, nonempty, invalid, or exhausted operations return -1 without a partial directory mutation
+  properties:
+  - id: file-namespace-public
+    text: a bounded user workload creates, links, unlinks, deletes, and recreates namespace entries through the syscall ABI
+  - id: file-operation-trace
+    text: QEMU observes committed namespace and file contents after remount and reaches the workload completion marker without panic
+- name: file_capacity
+  pre:
+  - fixed global file-table and per-process descriptor capacities are known
+  - this internal aggregate is observed through open, read_write, and close rather than a separate syscall ABI operation
+  post:
+  - bounded table exhaustion returns failure and later close restores reusable file and descriptor slots
+  errors:
+  - full file or descriptor tables return -1 without leaked references; raw inode, log, and disk exhaustion remain kernel/inode responsibilities
+  properties:
+  - id: file-capacity-fuzz
+    text: fixed-seed descriptor, file-table, offset, append, and close sequences preserve reference and content invariants
+properties:
+- id: file-offset-serialization
+  text: every shared file object serializes offset changes and advances by exactly the transferred byte count
+- id: close-release-once
+  text: the final close releases the underlying inode-backed resource exactly once after its descriptor slot is cleared
+- id: user-buffer-validation
+  text: file syscalls copy only through validated user ranges and never dereference raw user pointers in supervisor mode
+errors:
+- invalid path, mode, descriptor, direction, range, or capacity returns -1 without leaking resources
+- invalid pipe direction or a closed peer returns failure through the kernel/pipe contract without leaking the global file reference
+state:
+  stage: filesystem
+  owned_state:
+  - fixed global file table, per-file offset and reference state, and syscall-visible file operation semantics
+  resource_lifetime:
+  - kernel/process owns descriptor-slot storage; kernel/file owns the one-reference-per-populated-slot lifecycle
+  - each inode-backed global file contributes one inode reference until final close; each pipe-backed file contributes one endpoint reference
+preconditions:
+- kernel/inode is mounted and Lab 5 process and syscall entry are available
+postconditions:
+- a bounded user workload reaches writable file operations through validated syscalls and observes committed contents
+invariants:
+- id: descriptor-reference-consistency
+  text: each populated descriptor slot owns exactly one global file reference and no cleared slot owns one
+- id: file-inode-reference-consistency
+  text: each live inode-backed global file owns one balanced inode reference until its final close
+dependencies:
+- kernel/inode
+- kernel/log
+- kernel/memory
+- kernel/process
+- kernel/syscall
+- toolchain
+rely:
+- kernel/inode provides balanced path and inode references; namespace_mutation aggregates inode path_resolution, dirlookup, dirlink, and unlink helpers, while file_capacity delegates raw inode, log, and disk exhaustion to inode_block_lifecycle
+- file_capacity aggregates descriptor and global file-table exhaustion exposed through open, pipe, read_write, and close; it is not a separate ABI call
+- kernel/log brackets persistent mutations, and kernel/inode fsinit completes mount validation and recovery before user file operations are admitted
+- syscall copies paths and buffers only through validated user-memory helpers
+- kernel/pipe owns pipe buffer and peer-state semantics while kernel/file dispatches pipe-backed reads, writes, and final close
+guarantee:
+- successful file operations expose only committed directory, inode, offset, pipe ordering, and content relationships
+- all error paths balance file, descriptor, inode, user-buffer, and transaction references
+algorithm_intent: Use a fixed global file table, one reference per process descriptor, serialized shared offsets, and bounded redo-logged file syscalls.
+concurrency:
+  module:
+    module: kernel/file
+    shared_state:
+    - global file table, per-file offsets, process descriptor slots, and current-directory references
+    lock_types:
+    - file-table spinlock plus per-inode sleep locks
+    lock_order:
+    - release the file-table spinlock before inode, buffer, or transaction-capacity waits
+    atomic_sections:
+    - file reference changes under the table lock and descriptor publication in the current process context
+    interrupt_rules:
+    - file operations may sleep only without the file-table spinlock
+    rely:
+    - process descriptor changes are serialized by the current process context
+    guarantee:
+    - no file-table spinlock is held across a persistent wait
+    wait_wakeup_rules:
+    - inode, buffer, and transaction contention use lower-layer wait rules
+    forbidden_patterns:
+    - publishing a descriptor before its global file reference is initialized
+  operations:
+    open:
+      atomicity: publish a descriptor only after its global file and inode references are initialized
+      lock_order:
+      - release the file-table lock before inode or transaction waits
+      interrupt_state: enabled while waiting
+      wait_wakeup_rules:
+      - retry only after the contended file slot, inode, or transaction becomes available
+    read_write:
+      atomicity: serialize shared offset changes with the successful byte transfer
+      lock_order:
+      - release the file-table lock before inode or transaction waits
+      interrupt_state: enabled while waiting
+      wait_wakeup_rules:
+      - retry only after the contended inode or transaction becomes available
+    close:
+      atomicity: clear the descriptor before releasing its file reference and release the inode only on the final file close
+      lock_order:
+      - clear descriptor state before releasing the final file and inode references
+      interrupt_state: enabled while waiting
+      wait_wakeup_rules:
+      - retry only after the contended inode or transaction becomes available
+    namespace_mutation:
+      atomicity: each persistent syscall is one or more bounded log transactions with no partially published metadata
+      lock_order:
+      - release file-table state before inode and directory mutation waits
+      interrupt_state: enabled while waiting
+      wait_wakeup_rules:
+      - retry only after the contended inode or transaction becomes available

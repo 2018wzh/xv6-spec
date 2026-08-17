@@ -1,21 +1,22 @@
-        # qemu -kernel loads the kernel at 0x80000000
-        # and causes each hart (i.e. CPU) to jump there.
-        # kernel.ld causes the following code to
-        # be placed at 0x80000000.
-.section .text
-.global _entry
+# entry.S - the linked machine-mode entry point. kernel.ld places this
+  # at 0x80000000 where qemu's -kernel jumps. QEMU enters here in machine
+  # mode with interrupts disabled and a single boot hart (Lab 2).
+  .section .text
+  .globl _entry
 _entry:
-        # set up a stack for C.
-        # stack0 is declared in start.c,
-        # with a 4096-byte stack per CPU.
-        # sp = stack0 + ((hartid + 1) * 4096)
-        la sp, stack0
-        li a0, 1024*4
-        csrr a1, mhartid
-        addi a1, a1, 1
-        mul a0, a0, a1
-        add sp, sp, a0
-        # jump to start() in start.c
-        call start
+  # set up the early boot stack (one stack for the single boot hart).
+  la sp, bootstacktop
+  # jump to start() in machine mode, which configures the PMP entry and
+  # mret's into supervisor mode at main().
+  call start
 spin:
-        j spin
+  j spin
+
+  # Trampoline stub. kernel.ld places this section on its own page and
+  # provides `trampoline` at its start; the kernel page table maps the
+  # highest virtual page (TRAMPOLINE) here as read/execute. Not executed
+  # until a later trap lab.
+  .section .trampoline,"ax"
+  .globl trampoline
+trampoline:
+  j trampoline

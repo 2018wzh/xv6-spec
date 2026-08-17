@@ -1,0 +1,35 @@
+id: interface/kernel-virtio
+name: kernel virtio block boundary
+boundary: driver
+module: kernel/virtio
+operations:
+- name: virtio_disk_init
+  pre:
+  - the VIRTIO0 supervisor mapping and allocator are active
+  post:
+  - one legacy virtqueue is negotiated and ready before file-system initialization
+  errors:
+  - unsupported device identity, feature negotiation, or queue geometry panics with a diagnostic
+  properties:
+  - id: virtio-negotiated-queue
+    text: initialization validates the device and driver state transitions before marking the queue ready
+- name: virtio_disk_rw
+  pre:
+  - caller holds the buffer sleep lock and supplies a valid logical block number
+  post:
+  - a read returns the complete 1024-byte block and a write persists that complete block before returning
+  errors:
+  - descriptor exhaustion waits; malformed completion state panics rather than returning fabricated data
+  properties:
+  - id: virtio-block-sector-mapping
+    text: logical block n maps only to 512-byte sectors 2*n and 2*n+1
+- name: virtio_disk_intr
+  pre:
+  - called after PLIC claim reports the virtio IRQ
+  post:
+  - every newly used descriptor chain is reclaimed and its waiter is awakened exactly once
+  errors:
+  - an invalid used-ring descriptor panics with evidence
+  properties:
+  - id: virtio-completion-ownership
+    text: completion transfers ownership of each descriptor chain back to the fixed free pool exactly once

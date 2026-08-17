@@ -1,15 +1,70 @@
 id: kernel/boot
 module: kernel/boot
 level: 2
-purpose: early boot and deterministic banner.
+purpose: Enter on the boot hart, establish supervisor execution, and publish the Lab 2 deterministic serial banner; board-specific boot, interrupts, and multiprocessor startup remain outside this lab.
 owns:
+- kernel/defs.h
+- kernel/elf.h
 - kernel/entry.S
+- kernel/kernel.ld
+- kernel/memlayout.h
+- kernel/param.h
+- kernel/riscv.h
 - kernel/start.c
+- kernel/string.c
+- kernel/types.h
 - kernel/boot.c
 - kernel/main.c
-interface: []
+- tests/generated/kernel/boot
+interface:
+- name: boot_banner
+  pre:
+  - the boot hart has entered supervisor mode with the linked image accessible through the configured PMP entry
+  post:
+  - returns an immutable printable banner containing XV6_BOOT_OK
+  errors:
+  - stage-transition faults occur before boot_banner can be called
+  properties:
+  - id: boot-banner-check-binding
+    text: bootstrap_banner_not_null statically confirms that the boot implementation references boot_banner; bootstrap_qemu_single_banner is the runtime oracle that observes exactly one XV6_BOOT_OK banner
+  - id: boot-pmp-before-mret
+    text: start configures one unlocked NAPOT PMP entry for the physical address space with supervisor read write and execute permissions before mret so bootstrap_banner_not_null can observe supervisor execution; PMP locking is outside Lab 2 scope
+- name: publish_boot_banner
+  pre:
+  - QEMU virt exposes an ns16550a UART at physical address 0x10000000
+  - supervisor execution has access to the UART MMIO range
+  post:
+  - initializes the UART for 8-bit output and writes boot_banner exactly once
+  errors:
+  - polling the wrong register width or offset cannot observe transmitter readiness
+  properties:
+  - id: boot-uart-byte-registers
+    text: the ns16550a is accessed as byte-addressed MMIO; THR is byte offset 0 and LSR is byte offset 5 with transmitter-ready bit 5
 properties:
 - id: kernel-boot-deterministic
-  text: behavior is deterministic under the published lab checks
+  text: the single boot hart reaches boot_banner deterministically under the bootstrap_qemu_single_banner runtime oracle
 errors:
 - invalid state fails explicitly
+- entering supervisor mode without PMP access causes an instruction access fault
+state:
+  stage: early-boot
+  owned_state:
+  - one early stack for the boot hart
+  resource_lifetime:
+  - early stack exists for the kernel lifetime
+preconditions:
+- QEMU enters the linked machine-mode entry point with interrupts disabled
+postconditions:
+- supervisor execution reaches main and publishes XV6_BOOT_OK once
+- supervisor mode can fetch and access the linked kernel image after mret
+invariants:
+- id: lab2-single-boot-hart
+  text: exactly one boot hart reaches the current Lab 2 target
+- id: lab2-supervisor-pmp-access
+  text: when QEMU runs with -bios none, machine mode writes the maximal pmpaddr0 NAPOT region and pmpcfg0 read write execute permissions before mret
+- id: lab2-uart-abi
+  text: serial publication uses the QEMU virt ns16550a byte-register ABI and never scales register offsets by a C word size
+- id: lab2-banner-oracle-ownership
+  text: toolchain owns the shared tests/public serial capture framework, while kernel/boot owns generated module checks; bootstrap_qemu_single_banner is the canonical shared single-banner runtime oracle
+dependencies:
+- toolchain

@@ -1,0 +1,116 @@
+id: kernel/inode
+module: kernel/inode
+level: 3
+purpose: Own the xv6 on-disk layout, deterministic image construction, block and inode allocation, inode cache, directories, and component-wise path traversal.
+owns:
+- kernel/fs.c
+- kernel/fs.h
+- mkfs
+- tests/generated/kernel/inode
+interface:
+- name: fsinit
+  pre:
+  - virtio, buffer cache, redo log, and a deterministic root image are available
+  post:
+  - superblock geometry is validated, recovery is complete, and inode operations are ready
+  errors:
+  - invalid magic or overlapping or out-of-range regions panic before mutable access
+  properties:
+  - id: inode-mount-public
+    text: QEMU mounts the deterministic mkfs-generated image and resolves its bounded initial directory tree
+- name: inode_block_lifecycle
+  pre:
+  - allocation and release run inside a log transaction with required inode locks
+  post:
+  - referenced blocks and inodes remain allocated; final unlink and close reclaim each resource once
+  errors:
+  - exhaustion returns failure without leaked bitmap, inode, buffer, or cache references
+  properties:
+  - id: inode-allocation-contract
+    text: bounded allocate, truncate, unlink, and recreate cycles restore expected free counts
+  - id: inode-capacity-fuzz
+    text: fixed-seed empty, direct, indirect, maximum-file, full-directory, full-disk, and full-log boundaries preserve consistency
+- name: path_resolution
+  pre:
+  - the caller holds a live starting-directory reference and supplies a bounded path
+  post:
+  - lookup returns one referenced inode or fails without retaining a parent or child lock
+  errors:
+  - invalid, too-long, missing, duplicate, cyclic, or exhausted paths fail without partial visible metadata
+  properties:
+  - id: inode-path-trace
+    text: a bounded directory-helper workload exercises dirlookup, dirlink, unlink, dot, dot-dot, duplicate, and remount sequences without panic, lock cycle, or leaked references; kernel/file aggregates these primitives into namespace_mutation
+properties:
+- id: disk-layout-partition
+  text: superblock, log, inode, bitmap, and data regions are in range, non-overlapping, and cover only declared blocks
+- id: inode-cache-identity
+  text: each live device and inode pair has one cached identity with nonnegative references
+- id: directory-reference-integrity
+  text: each live directory entry names one allocated inode and link counts match persistent directory references
+errors:
+- malformed on-disk geometry fails before mutable mount
+- path and capacity errors return failure without leaking resources or publishing a partial transaction
+state:
+  stage: filesystem
+  owned_state:
+  - validated superblock, allocation bitmap, on-disk inodes, inode cache, and directory contents
+  resource_lifetime:
+  - iget and iput balance cache references; link count plus open references govern final reclamation
+preconditions:
+- virtio, buffer cache, redo log, and page allocation are available
+postconditions:
+- a writable root inode tree is mountable and committed metadata survives remount
+invariants:
+- id: allocation-reference-consistency
+  text: every referenced data block and inode is allocated, and no active objects own the same data block
+- id: path-lock-progress
+  text: traversal releases the current inode before waiting on a child in any order that could revisit the parent
+- id: filesystem-admission-order
+  text: virtio and the buffer cache initialize before fsinit, and fsinit completes mount validation and redo recovery before any user file operation is admitted
+dependencies:
+- kernel/bio
+- kernel/log
+- kernel/memory
+- kernel/process
+- toolchain
+rely:
+- fsinit validates the superblock and delegates initial recovery to kernel/log; it does not reimplement redo recovery
+- log brackets every persistent metadata mutation and buffer cache provides unique block identities
+- process provides the sleep and wakeup primitive used by inode sleep locks
+- mkfs emits the same 1024-byte block layout consumed by the kernel
+- kernel/inode owns mkfs image semantics and the deterministic fs.img contents; toolchain owns Makefile and vos.yaml build and launch integration, and fs.img remains a disposable build artifact
+- path_resolution plus dirlookup, dirlink, and unlink helpers are the inode primitives aggregated by kernel/file.namespace_mutation; inode_block_lifecycle supplies the raw capacity and exhaustion semantics exposed by kernel/file.file_capacity
+- virtio and the buffer cache are initialized before fsinit; fsinit finishes recovery before kernel/file admits user file operations
+guarantee:
+- successful inode and directory operations expose only committed bitmap, inode, directory, and data relationships
+- all error paths balance inode, buffer, allocation, and transaction references
+algorithm_intent: Use the xv6 superblock layout, direct plus single-indirect inode mapping, a fixed inode cache, component-wise paths, and redo-logged metadata updates.
+concurrency:
+  module:
+    module: kernel/inode
+    shared_state:
+    - inode cache, allocation maps, and directory contents
+    lock_types:
+    - inode-cache spinlock plus per-inode sleep locks
+    lock_order:
+    - release cache spinlocks before inode or buffer sleep-lock waits
+    atomic_sections:
+    - inode identity acquisition under the cache lock and persistent changes inside one log transaction
+    interrupt_rules:
+    - persistent operations may sleep only without cache spinlocks
+    rely:
+    - buffer and log layers preserve their committed block identities
+    guarantee:
+    - no persistent mutation escapes its begin_op and end_op transaction
+    wait_wakeup_rules:
+    - inode and buffer contention waits through their sleep locks
+    forbidden_patterns:
+    - locking a child inode while its parent inode remains locked
+  operations:
+    path_resolution:
+      atomicity: each directory mutation is one bounded log transaction with no partially published metadata
+      lock_order:
+      - hold the parent only while reading its directory entries; dirlookup returns an unlocked referenced child, including dot or dot-dot, and the parent is unlocked and released before the child is locked
+      interrupt_state: enabled while waiting
+      wait_wakeup_rules:
+      - retry only after the contended inode or transaction becomes available

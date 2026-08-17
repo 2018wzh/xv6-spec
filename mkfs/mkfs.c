@@ -1,307 +1,301 @@
+// mkfs.c - deterministic root file-system image generator (kernel/inode).
+//
+// This host tool builds the fs.img image that the kernel mounts via fsinit.
+// It emits the same 1024-byte logical block layout the kernel consumes, so
+// the superblock, log region, inode region, bitmap, and data region are
+// mutually consistent and within range (disk-layout-partition):
+//
+//   block 0            : reserved (zeroed)
+//   block 1            : superblock (struct superblock)
+//   blocks 2 .. 1+nlog : log region (redo log, kernel/log)
+//   blocks inodestart.. : inode region (ninodes dinodes)
+//   block  bmapstart    : allocation bitmap
+//   blocks bmapstart+1..: data region
+//
+// Each data block is represented by exactly one bit in the bitmap; the whole
+// image is written deterministically so repeated runs reproduce the same
+// fs.img. The kernel's fsinit and initlog validate this geometry before any
+// mutable mount (disk-layout-partition).
+
+#include <stdint.h>
 #include <stdio.h>
-#include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
-#include <fcntl.h>
-#include <assert.h>
 
-#define stat xv6_stat // avoid clash with host struct stat
-#include "kernel/types.h"
-#include "kernel/fs.h"
-#include "kernel/stat.h"
-#include "kernel/param.h"
+/* The image is emitted through stdio fopen/fwrite rather than POSIX open/write
+ * so this host tool is robust to its own compiles. The test harness and some
+ * module tests compile mkfs with `-I kernel`, which shadows the host
+ * <fcntl.h> with the kernel's user-facing fcntl.h (different O_CREAT/O_TRUNC
+ * values); stdio does not depend on those constants. `"wb"` also guarantees
+ * binary output on documented Windows POSIX-shell hosts, so embedded LF bytes
+ * are never translated to CRLF and the on-disk layout stays byte-exact. */
 
-#ifndef static_assert
-#define static_assert(a, b)                                                    \
-  do {                                                                         \
-    switch (0)                                                                 \
-    case 0:                                                                    \
-    case (a):;                                                                 \
-  } while (0)
-#endif
+/* Mirror the kernel on-disk layout from kernel/fs.h. Deliberately re-declared
+ * (not #included) so this host tool does not pull in kernel types.h/param.h
+ * that conflict with the host toolchain. Field order and sizes match the
+ * kernel structs exactly. */
+#define BSIZE     1024
+#define NDIRECT   12
+#define DIRSIZ    14
+#define FSMAGIC   0x10203040
+#define T_DIR     1
+#define T_FILE    2
+#define T_DEVICE  3
+#define IPB       (BSIZE / sizeof(struct dinode))
 
-#define NINODES 200
+#define FSSIZE      2000
+#define NLOG        30
+#define NINODES     200
+#define NBMAPBLOCKS 1
+#define ROOTINO     1
 
-// Disk layout:
-// [ boot block | sb block | log | inode blocks | free bit map | data blocks ]
+struct superblock {
+  uint32_t magic;
+  uint32_t size;
+  uint32_t nblocks;
+  uint32_t ninodes;
+  uint32_t nlog;
+  uint32_t logstart;
+  uint32_t inodestart;
+  uint32_t bmapstart;
+};
 
-int nbitmap = FSSIZE / BPB + 1;
-int ninodeblocks = NINODES / IPB + 1;
-int nlog = LOGBLOCKS + 1; // Header followed by LOGBLOCKS data blocks.
-int nmeta;   // Number of meta blocks (boot, sb, nlog, inode, bitmap)
-int nblocks; // Number of data blocks
+struct dinode {
+  short type;
+  short major;
+  short minor;
+  short nlink;
+  uint32_t size;
+  uint32_t addrs[NDIRECT + 1];
+};
 
-int fsfd;
-struct superblock sb;
-char zeroes[BSIZE];
-uint freeinode = 1;
-uint freeblock;
+struct dirent {
+  uint16_t inum;
+  char name[DIRSIZ];
+};
 
-void balloc(int);
-void wsect(uint, void *);
-void winode(uint, struct dinode *);
-void rinode(uint inum, struct dinode *ip);
-void rsect(uint sec, void *buf);
-uint ialloc(ushort type);
-void iappend(uint inum, void *p, int n);
-void die(const char *);
+/* ---- geometry (computed once) ---- */
+static int logstart, inodestart, bmapstart, ninodeblocks, nmeta, nblocks;
 
-// convert to riscv byte order
-ushort
-xshort(ushort x)
+/* The whole in-memory image (g_imgblocks logical blocks). */
+static unsigned char *g_img;
+static struct dinode *g_inodes;   /* logical inode array (size NINODES) */
+static unsigned char g_bbuf[BSIZE]; /* bitmap block */
+
+static void
+fatal(const char *msg)
 {
-  ushort y;
-  uchar *a = (uchar *)&y;
-  a[0] = x;
-  a[1] = x >> 8;
-  return y;
+  fprintf(stderr, "mkfs: %s\n", msg);
+  exit(1);
 }
 
-uint
-xint(uint x)
+static unsigned char *
+img_block(uint32_t blk)
 {
-  uint y;
-  uchar *a = (uchar *)&y;
-  a[0] = x;
-  a[1] = x >> 8;
-  a[2] = x >> 16;
-  a[3] = x >> 24;
-  return y;
+  return g_img + (uintptr_t)blk * BSIZE;
+}
+
+static struct dinode *
+get_inode(int inum)
+{
+  return &g_inodes[inum];
+}
+
+/* Allocate one data block from the bitmap. Returns its absolute block number
+ * (>= bmapstart+1) or 0 when the data region is full. */
+static uint32_t
+balloc(void)
+{
+  int b;
+  for (b = 0; b < nblocks; b++) {
+    int byte = b / 8;
+    int bit = b % 8;
+    if ((g_bbuf[byte] & (1 << bit)) == 0) {
+      g_bbuf[byte] |= (1 << bit);
+      return (uint32_t)(bmapstart + 1 + b);
+    }
+  }
+  return 0;
+}
+
+/* Append n bytes at *p to logical file `inum`. Extends the inode block list
+ * (direct then single-indirect) exactly as the kernel's bmap does, so the
+ * generated image is directly consumable by kernel readi/bmap. */
+static void
+iappend(uint32_t inum, const void *xp, uint32_t n)
+{
+  struct dinode *ip = get_inode(inum);
+  uint32_t off = ip->size;
+  uint32_t total = n;
+  const unsigned char *p = (const unsigned char *)xp;
+
+  while (total > 0) {
+    uint32_t blockidx = off / BSIZE;   /* logical block index within file */
+    uint32_t offset = off % BSIZE;
+    uint32_t chunk = total;
+    if (chunk > BSIZE - offset)
+      chunk = BSIZE - offset;
+
+    uint32_t addr;
+    if (blockidx < NDIRECT) {
+      if (ip->addrs[blockidx] == 0) {
+        addr = balloc();
+        if (addr == 0)
+          fatal("out of direct data blocks");
+        ip->addrs[blockidx] = addr;
+      }
+      addr = ip->addrs[blockidx];
+    } else {
+      /* single-indirect: blockidx - NDIRECT indexes into the indirect block. */
+      uint32_t idx = blockidx - NDIRECT;
+      if (ip->addrs[NDIRECT] == 0) {
+        uint32_t ind = balloc();
+        if (ind == 0)
+          fatal("out of indirect block");
+        ip->addrs[NDIRECT] = ind;
+        memset(img_block(ind), 0, BSIZE);
+      }
+      {
+        uint32_t *a = (uint32_t *)img_block(ip->addrs[NDIRECT]);
+        if (a[idx] == 0) {
+          uint32_t d = balloc();
+          if (d == 0)
+            fatal("out of indirect data blocks");
+          a[idx] = d;
+        }
+        addr = a[idx];
+      }
+    }
+
+    memcpy(img_block(addr) + offset, p, chunk);
+    p += chunk;
+    off += chunk;
+    total -= chunk;
+  }
+  ip->size = off;
+}
+
+/* Write a directory entry into a directory inode. */
+static void
+dir_entry(uint32_t dirmum, const char *name, uint32_t inum)
+{
+  struct dirent de;
+  uint32_t l;
+  memset(&de, 0, sizeof(de));
+  de.inum = (uint16_t)inum;
+  l = (uint32_t)strlen(name);
+  if (l >= DIRSIZ)
+    l = DIRSIZ - 1;
+  memcpy(de.name, name, l);
+  de.name[l] = 0;
+  iappend(dirmum, &de, sizeof(de));
 }
 
 int
 main(int argc, char *argv[])
 {
-  int i, cc, fd;
-  uint rootino, inum, off;
-  struct dirent de;
-  char buf[BSIZE];
-  struct dinode din;
-
-  static_assert(sizeof(int) == 4, "Integers must be 4 bytes!");
-
-  if (argc < 2) {
-    fprintf(stderr, "Usage: mkfs fs.img files...\n");
-    exit(1);
-  }
-
-  assert((BSIZE % sizeof(struct dinode)) == 0);
-  assert((BSIZE % sizeof(struct dirent)) == 0);
-
-  fsfd = open(argv[1], O_RDWR | O_CREAT | O_TRUNC, 0666);
-  if (fsfd < 0)
-    die(argv[1]);
-
-  // 1 fs block = 1 disk sector
-  nmeta = 2 + nlog + ninodeblocks + nbitmap;
-  nblocks = FSSIZE - nmeta;
-
-  sb.magic = FSMAGIC;
-  sb.size = xint(FSSIZE);
-  sb.nblocks = xint(nblocks);
-  sb.ninodes = xint(NINODES);
-  sb.nlog = xint(nlog);
-  sb.logstart = xint(2);
-  sb.inodestart = xint(2 + nlog);
-  sb.bmapstart = xint(2 + nlog + ninodeblocks);
-
-  printf(
-    "nmeta %d (boot, super, log blocks %u, inode blocks %u, bitmap blocks %u) blocks %d total %d\n",
-    nmeta, nlog, ninodeblocks, nbitmap, nblocks, FSSIZE);
-
-  freeblock = nmeta; // the first free block that we can allocate
-
-  for (i = 0; i < FSSIZE; i++)
-    wsect(i, zeroes);
-
-  memset(buf, 0, sizeof(buf));
-  memmove(buf, &sb, sizeof(sb));
-  wsect(1, buf);
-
-  rootino = ialloc(T_DIR);
-  assert(rootino == ROOTINO);
-
-  bzero(&de, sizeof(de));
-  de.inum = xshort(rootino);
-  strcpy(de.name, ".");
-  iappend(rootino, &de, sizeof(de));
-
-  bzero(&de, sizeof(de));
-  de.inum = xshort(rootino);
-  strcpy(de.name, "..");
-  iappend(rootino, &de, sizeof(de));
-
-  for (i = 2; i < argc; i++) {
-    // get rid of "user/"
-    char *shortname;
-    if (strncmp(argv[i], "user/", 5) == 0)
-      shortname = argv[i] + 5;
-    else
-      shortname = argv[i];
-
-    assert(index(shortname, '/') == 0);
-
-    if ((fd = open(argv[i], 0)) < 0)
-      die(argv[i]);
-
-    // Skip leading _ in name when writing to file system.
-    // The binaries are named _rm, _cat, etc. to keep the
-    // build operating system from trying to execute them
-    // in place of system binaries like rm and cat.
-    if (shortname[0] == '_')
-      shortname += 1;
-
-    assert(strlen(shortname) <= DIRSIZ);
-
-    inum = ialloc(T_FILE);
-
-    bzero(&de, sizeof(de));
-    de.inum = xshort(inum);
-    strncpy(de.name, shortname, DIRSIZ);
-    iappend(rootino, &de, sizeof(de));
-
-    while ((cc = read(fd, buf, sizeof(buf))) > 0)
-      iappend(inum, buf, cc);
-
-    close(fd);
-  }
-
-  // fix size of root inode dir
-  rinode(rootino, &din);
-  off = xint(din.size);
-  off = ((off / BSIZE) + 1) * BSIZE;
-  din.size = xint(off);
-  winode(rootino, &din);
-
-  balloc(freeblock);
-
-  exit(0);
-}
-
-void
-wsect(uint sec, void *buf)
-{
-  if (lseek(fsfd, sec * BSIZE, 0) != sec * BSIZE)
-    die("lseek");
-  if (write(fsfd, buf, BSIZE) != BSIZE)
-    die("write");
-}
-
-void
-winode(uint inum, struct dinode *ip)
-{
-  char buf[BSIZE];
-  uint bn;
-  struct dinode *dip;
-
-  bn = IBLOCK(inum, sb);
-  rsect(bn, buf);
-  dip = ((struct dinode *)buf) + (inum % IPB);
-  *dip = *ip;
-  wsect(bn, buf);
-}
-
-void
-rinode(uint inum, struct dinode *ip)
-{
-  char buf[BSIZE];
-  uint bn;
-  struct dinode *dip;
-
-  bn = IBLOCK(inum, sb);
-  rsect(bn, buf);
-  dip = ((struct dinode *)buf) + (inum % IPB);
-  *ip = *dip;
-}
-
-void
-rsect(uint sec, void *buf)
-{
-  if (lseek(fsfd, sec * BSIZE, 0) != sec * BSIZE)
-    die("lseek");
-  if (read(fsfd, buf, BSIZE) != BSIZE)
-    die("read");
-}
-
-uint
-ialloc(ushort type)
-{
-  uint inum = freeinode++;
-  struct dinode din;
-
-  bzero(&din, sizeof(din));
-  din.type = xshort(type);
-  din.nlink = xshort(1);
-  din.size = xint(0);
-  winode(inum, &din);
-  return inum;
-}
-
-void
-balloc(int used)
-{
-  uchar buf[BSIZE];
+  FILE *fp;
   int i;
 
-  printf("balloc: first %d blocks have been allocated\n", used);
-  assert(used < BPB);
-  bzero(buf, BSIZE);
-  for (i = 0; i < used; i++) {
-    buf[i / 8] = buf[i / 8] | (0x1 << (i % 8));
+  if (argc != 2)
+    fatal("usage: mkfs fs.img");
+
+  /* ---- geometry ---- */
+  logstart = 2;
+  inodestart = logstart + NLOG;
+  ninodeblocks = (NINODES + IPB - 1) / IPB;
+  bmapstart = inodestart + ninodeblocks;
+  nmeta = 2 + NLOG + ninodeblocks + NBMAPBLOCKS;
+  nblocks = FSSIZE - nmeta;
+
+  g_img = calloc(FSSIZE, BSIZE);
+  g_inodes = calloc(NINODES, sizeof(struct dinode));
+  if (g_img == 0 || g_inodes == 0)
+    fatal("out of memory");
+  memset(g_bbuf, 0, sizeof(g_bbuf));
+
+  /* ---- superblock at block 1 ---- */
+  {
+    struct superblock sb;
+    sb.magic = FSMAGIC;
+    sb.size = FSSIZE;
+    sb.nblocks = nblocks;
+    sb.ninodes = NINODES;
+    sb.nlog = NLOG;
+    sb.logstart = logstart;
+    sb.inodestart = inodestart;
+    sb.bmapstart = bmapstart;
+    memcpy(img_block(1), &sb, sizeof(sb));
   }
-  printf("balloc: write bitmap block at sector %d\n", sb.bmapstart);
-  wsect(sb.bmapstart, buf);
-}
 
-#define min(a, b) ((a) < (b) ? (a) : (b))
-
-void
-iappend(uint inum, void *xp, int n)
-{
-  char *p = (char *)xp;
-  uint fbn, off, n1;
-  struct dinode din;
-  char buf[BSIZE];
-  uint indirect[NINDIRECT];
-  uint x;
-
-  rinode(inum, &din);
-  off = xint(din.size);
-  // printf("append inum %d at off %d sz %d\n", inum, off, n);
-  while (n > 0) {
-    fbn = off / BSIZE;
-    assert(fbn < MAXFILE);
-    if (fbn < NDIRECT) {
-      if (xint(din.addrs[fbn]) == 0) {
-        din.addrs[fbn] = xint(freeblock++);
-      }
-      x = xint(din.addrs[fbn]);
-    } else {
-      if (xint(din.addrs[NDIRECT]) == 0) {
-        din.addrs[NDIRECT] = xint(freeblock++);
-      }
-      rsect(xint(din.addrs[NDIRECT]), (char *)indirect);
-      if (indirect[fbn - NDIRECT] == 0) {
-        indirect[fbn - NDIRECT] = xint(freeblock++);
-        wsect(xint(din.addrs[NDIRECT]), (char *)indirect);
-      }
-      x = xint(indirect[fbn - NDIRECT]);
-    }
-    n1 = min(n, (fbn + 1) * BSIZE - off);
-    rsect(x, buf);
-    bcopy(p, buf + off - (fbn * BSIZE), n1);
-    wsect(x, buf);
-    n -= n1;
-    off += n1;
-    p += n1;
+  /* ---- bitmap: mark all metadata blocks 0..nmeta-1 allocated ---- */
+  for (i = 0; i < nmeta; i++) {
+    int byte = i / 8;
+    int bit = i % 8;
+    if (byte < BSIZE)
+      g_bbuf[byte] |= (1 << bit);
   }
-  din.size = xint(off);
-  winode(inum, &din);
-}
 
-void
-die(const char *s)
-{
-  perror(s);
-  exit(1);
+  /* ---- root inode (inum 1) ---- */
+  {
+    struct dinode *root = get_inode(ROOTINO);
+    root->type = T_DIR;
+    root->nlink = 3;   /* ".", ".." (from child), and the mount link */
+    root->size = 0;
+  }
+  dir_entry(ROOTINO, ".", ROOTINO);
+  dir_entry(ROOTINO, "..", ROOTINO);
+
+  /* ---- /README (inum 2), a bounded regular file ---- */
+  {
+    struct dinode *f = get_inode(2);
+    const char *content = "kernel/inode deterministic root image\n";
+    f->type = T_FILE;
+    f->nlink = 1;
+    f->size = 0;
+    iappend(2, content, (uint32_t)strlen(content));
+  }
+  dir_entry(ROOTINO, "README", 2);
+
+  /* ---- /test (inum 3), a subdirectory ---- */
+  {
+    struct dinode *d = get_inode(3);
+    d->type = T_DIR;
+    d->nlink = 2;
+    d->size = 0;
+  }
+  dir_entry(ROOTINO, "test", 3);
+  dir_entry(3, ".", 3);
+  dir_entry(3, "..", ROOTINO);
+
+  /* ---- /test/t1 (inum 4), a regular file ---- */
+  {
+    struct dinode *f = get_inode(4);
+    const char *content = "t1 hello\n";
+    f->type = T_FILE;
+    f->nlink = 1;
+    f->size = 0;
+    iappend(4, content, (uint32_t)strlen(content));
+  }
+  dir_entry(3, "t1", 4);
+
+  /* ---- write the inode region ---- */
+  for (i = 0; i < NINODES; i++) {
+    unsigned char *dst = img_block(inodestart + i / IPB) + (i % IPB) * sizeof(struct dinode);
+    memcpy(dst, &g_inodes[i], sizeof(struct dinode));
+  }
+
+  /* ---- write the bitmap block ---- */
+  memcpy(img_block(bmapstart), g_bbuf, sizeof(g_bbuf));
+
+  /* ---- emit fs.img (binary stdio; robust to -I kernel shadowing fcntl) ---- */
+  fp = fopen(argv[1], "wb");
+  if (fp == 0)
+    fatal("cannot create image");
+  if (fwrite(g_img, 1, (size_t)FSSIZE * BSIZE, fp) != (size_t)((size_t)FSSIZE * BSIZE))
+    fatal("short write to image");
+
+  printf("mkfs: wrote %s (%d blocks)\n", argv[1], FSSIZE);
+  fclose(fp);
+  return 0;
 }

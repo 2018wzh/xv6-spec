@@ -1,0 +1,9 @@
+id: lab7-ctf-qemu-artifact-portability
+reason: The Lab 1 freestanding ELF is loaded by QEMU rather than executed by the host, so its acceptance check must be portable across POSIX filesystems and documented Windows POSIX-shell hosts without weakening the CTF serial oracle.
+changes:
+- lab/ctf-warmup
+- toolchain
+new_invariants:
+- ctf-warmup-artifact-portability-contract requires build_baremetal_for_seed to use a present-and-nonempty check for the freestanding ELF, and proves that removing its host executable bit does not prevent QEMU -kernel from reaching the existing ctf-warmup-baremetal-public oracle.
+- Host executable permission remains deliberately required for the Linux flag reader because the host executes that binary directly; it is not treated as a semantic property of the RISC-V ELF consumed as QEMU input data.
+- The artifact precheck is the only changed behavior; lab1-ctf-toolchain remains the canonical owner of timeout, panic, fatal-output, complete CTF_BAREMETAL_OK, fixed-seed metadata, and Linux/bare-metal source-equivalence oracles, all of which remain mandatory.

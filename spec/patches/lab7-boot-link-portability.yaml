@@ -1,0 +1,9 @@
+id: lab7-boot-link-portability
+reason: Lab 7 cumulative validation exposed differences between GNU and LLVM RISC-V assemblers and linkers in section flags, orphan-section placement, and host-visible type declarations; the portable build must preserve the existing boot ABI and serial behavior instead of selecting a different kernel design.
+changes:
+- kernel/boot
+- toolchain
+new_invariants:
+- GNU and LLVM RISC-V toolchains place the trampoline on its required page with executable section attributes while preserving the existing entry address, symbols, process and trap offsets, kernel_boot_bootstrap_entry_trace, and kernel_boot_boot_trace; kernel_boot_link_section_flags_contract checks the linked ELF layout without changing process or trap implementation.
+- Host-compatibility guards used by build-time checks do not change the freestanding RISC-V type widths, memory layout, privilege transition, kernel_boot_uart_abi_contract, kernel_boot_bootstrap_pmp_contract, kernel_boot_transition_contract, kernel_boot_bootstack_public, or canonical XV6_BOOT_OK serial behavior.
+- toolchain_clean_rebuild records the selected capable toolchain, and a bounded toolchain_linker_diagnostic_contract uses a controlled invalid input to require the original assembler or linker diagnostic when the declared boot image cannot be produced.

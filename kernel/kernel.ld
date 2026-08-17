@@ -10,13 +10,8 @@ SECTIONS
   . = 0x80000000;
 
   .text : {
-    kernel/entry.o(_entry)
     *(.text .text.*)
     . = ALIGN(0x1000);
-    _trampoline = .;
-    *(trampsec)
-    . = ALIGN(0x1000);
-    ASSERT(. - _trampoline == 0x1000, "error: trampoline larger than one page");
     PROVIDE(etext = .);
   }
 
@@ -36,10 +31,23 @@ SECTIONS
 
   .bss : {
     . = ALIGN(16);
+    _bss = .;
+    /* one early stack for the single boot hart (Lab 2). */
+    bootstack = .;
+    . += 4096;
+    bootstacktop = .;
     *(.sbss .sbss.*) /* do not need to distinguish this from .bss */
-    . = ALIGN(16);
     *(.bss .bss.*)
+    . = ALIGN(16);
+    _ebss = .;
   }
+
+  /* trampoline on its own page for the highest Sv39 kernel virtual page. */
+  . = ALIGN(0x1000);
+  .trampoline : {
+    *(.trampoline)
+  }
+  PROVIDE(trampoline = .);
 
   PROVIDE(end = .);
 }

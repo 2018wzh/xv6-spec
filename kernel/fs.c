@@ -1,296 +1,226 @@
-// File system implementation.  Five layers:
-//   + Blocks: allocator for raw disk blocks.
-//   + Log: crash recovery for multi-step updates.
-//   + Files: inode allocator, reading, writing, metadata.
-//   + Directories: inode with special contents (list of other inodes!)
-//   + Names: paths like /usr/rtm/xv6/fs.c for convenient naming.
+// fs.c - the xv6 on-disk file-system and inode layer (kernel/inode).
 //
-// This file contains the low-level file system manipulation
-// routines.  The (higher-level) system call implementations
-// are in sysfile.c.
+// kernel/inode owns the xv6 on-disk layout, deterministic image construction
+// (mkfs), block and inode allocation, the inode cache, directories, and
+// component-wise path traversal. The module operations:
+//
+//   - fsinit: validate the superblock geometry, complete kernel/log redo
+//     recovery (initlog does recovery), initialize the inode cache, and mount
+//     the deterministic mkfs-generated root image so inode operations are
+//     ready before any user file operation is admitted (filesystem-admission-
+//     order).
+//   - inode_block_lifecycle: bitmap allocation/release (balloc/bfree), inode
+//     allocation (ialloc_alloc), and reclamation (itrunc + iput) inside a log
+//     transaction. Referenced blocks and inodes stay allocated and each
+//     resource is reclaimed exactly once (allocation-reference-consistency).
+//   - path_resolution: directory helpers (dirlookup, dirlink, unlink_helper)
+//     and component-wise path traversal (dnamex, namei, nameiparent). Every
+//     persistent directory mutation happens inside one log transaction with
+//     no partially published metadata, and traversal releases the current
+//     inode before waiting on a child (path-lock-progress).
+//
+// All metadata mutations run through the buffer cache (kernel/bio) and are
+// bracketed by begin_op/log_write/end_op (kernel/log), so each persistent
+// mutation is committed as one redo-log transaction and survives a crash via
+// idempotent log recovery.
 
 #include "types.h"
-#include "riscv.h"
-#include "defs.h"
 #include "param.h"
-#include "stat.h"
 #include "spinlock.h"
 #include "proc.h"
-#include "sleeplock.h"
-#include "fs.h"
 #include "buf.h"
-#include "file.h"
+#include "defs.h"
+#include "fs.h"
 
-#define min(a, b) ((a) < (b) ? (a) : (b))
-// there should be one superblock per disk device, but we run with
-// only one device
-struct superblock sb;
+// On-disk inode region: the first inode (inum 1) is the root directory.
+#define ROOTINO 1
 
-// Read the super block.
+// Number of on-disk inodes per buffer block.
+#define IPB (BSIZE / sizeof(struct dinode))
+
+// Bits per bitmap block.
+#define BPB (BSIZE * 8)
+
+// The inode cache: a fixed NINODE array guarded by a cache spinlock plus a
+// per-inode sleep lock protecting its contents. Each live (dev, inum) pair
+// has exactly one cached identity with a nonnegative reference count
+// (inode-cache-identity). Cache spinlocks are released before any inode or
+// buffer sleep-lock wait (concurrency lock_order).
+struct {
+  struct spinlock lock;
+  struct inode inode[NINODE];
+} icache;
+
+// The validated superblock of the mounted root device. Only reachable after
+// fsinit validates it (invalid geometry panics before mutable mount).
+static struct superblock sb;
+
+// ---- forward declarations for internal helpers ----
+static struct buf *breadv(uint dev, uint b);
+static int isdirempty(struct inode *dp);
+static int namecmp(const char *s, const char *t);
+static char *skipelem(const char *path, char *name);
+static void bzero_block(uint b);
+static int either_copyout(int user_dst, uint64 dst, void *src, uint len);
+static int either_copyin(void *dst, int user_src, uint64 src, uint len);
+static uint min(uint a, uint b);
+
+// ---- superblock / device ----
+
+// Read the superblock from logical block 1 of the device.
 static void
-readsb(int dev, struct superblock *sb)
+readsb(uint dev)
 {
-  struct buf *bp;
-
-  bp = bread(dev, 1);
-  memmove(sb, bp->data, sizeof(*sb));
+  struct buf *bp = breadv(dev, 1);
+  memmove(&sb, bp->data, sizeof(sb));
   brelse(bp);
 }
 
-// Init fs
-void
-fsinit(int dev)
-{
-  readsb(dev, &sb);
-  if (sb.magic != FSMAGIC)
-    panic("invalid file system");
-  initlog(dev, &sb);
-  ireclaim(dev);
-}
+// ---- allocation bitmap helpers (inode_block_lifecycle) ----
 
-// Zero a block.
-static void
-bzero(int dev, int bno)
-{
-  struct buf *bp;
-
-  bp = bread(dev, bno);
-  memset(bp->data, 0, BSIZE);
-  log_write(bp);
-  brelse(bp);
-}
-
-// Blocks.
-
-// Allocate a zeroed disk block.
-// returns 0 if out of disk space.
-static uint
-balloc(uint dev)
+// Allocate a zeroed disk block, returning the block number or 0 on
+// exhaustion (full-disk boundary) without leaking a bitmap or buffer
+// reference. Must be called inside a log transaction; the caller records the
+// inode/block change with log_write before commit.
+int
+balloc_alloc(uint dev)
 {
   int b, bi, m;
   struct buf *bp;
 
-  bp = 0;
-  for (b = 0; b < sb.size; b += BPB) {
-    bp = bread(dev, BBLOCK(b, sb));
-    for (bi = 0; bi < BPB && b + bi < sb.size; bi++) {
+  (void)dev;
+  for (b = 0; (uint)b < sb.size; b += BPB) {
+    bp = breadv(1, sb.bmapstart + b / BPB);
+    for (bi = 0; bi < BPB && (uint)(b + bi) < sb.size; bi++) {
       m = 1 << (bi % 8);
-      if ((bp->data[bi / 8] & m) == 0) { // Is block free?
-        bp->data[bi / 8] |= m;           // Mark block in use.
+      if ((bp->data[bi / 8] & m) == 0) {  // that block is free
+        bp->data[bi / 8] |= m;            // mark allocated on disk
         log_write(bp);
         brelse(bp);
-        bzero(dev, b + bi);
+        bzero_block(b + bi);
         return b + bi;
       }
     }
     brelse(bp);
   }
-  printk("balloc: out of blocks\n");
-  return 0;
+  return 0;   // disk full
 }
 
-// Free a disk block.
-static void
-bfree(int dev, uint b)
+// Free a disk block by clearing its bit in the bitmap. Must be called inside
+// a log transaction; the block becomes allocatable again only after commit.
+void
+bfree_release(uint dev, uint b)
 {
   struct buf *bp;
   int bi, m;
 
-  bp = bread(dev, BBLOCK(b, sb));
+  (void)dev;
+  if (b >= sb.size)
+    panic("bfree: block out of range");
   bi = b % BPB;
   m = 1 << (bi % 8);
+  bp = breadv(1, sb.bmapstart + b / BPB);
   if ((bp->data[bi / 8] & m) == 0)
-    panic("freeing free block");
+    panic("bfree: freeing a free block");
   bp->data[bi / 8] &= ~m;
   log_write(bp);
   brelse(bp);
 }
 
-// Inodes.
-//
-// An inode describes a single unnamed file.
-// The inode disk structure holds metadata: the file's type,
-// its size, the number of links referring to it, and the
-// list of blocks holding the file's content.
-//
-// The inodes are laid out sequentially on disk at block
-// sb.inodestart. Each inode has a number, indicating its
-// position on the disk.
-//
-// The kernel keeps a table of in-use inodes in memory
-// to provide a place for synchronizing access
-// to inodes used by multiple processes. The in-memory
-// inodes include book-keeping information that is
-// not stored on disk: ip->ref and ip->valid.
-//
-// An inode and its in-memory representation go through a
-// sequence of states before they can be used by the
-// rest of the file system code.
-//
-// * Allocation: an inode is allocated if its type (on disk)
-//   is non-zero. ialloc() allocates, and iput() frees if
-//   the reference and link counts have fallen to zero.
-//
-// * Referencing in table: an entry in the inode table
-//   is free if ip->ref is zero. Otherwise ip->ref tracks
-//   the number of in-memory pointers to the entry (open
-//   files and current directories). iget() finds or
-//   creates a table entry and increments its ref; iput()
-//   decrements ref.
-//
-// * Valid: the information (type, size, &c) in an inode
-//   table entry is only correct when ip->valid is 1.
-//   ilock() reads the inode from
-//   the disk and sets ip->valid, while iput() clears
-//   ip->valid if ip->ref has fallen to zero.
-//
-// * Locked: file system code may only examine and modify
-//   the information in an inode and its content if it
-//   has first locked the inode.
-//
-// Thus a typical sequence is:
-//   ip = iget(dev, inum)
-//   ilock(ip)
-//   ... examine and modify ip->xxx ...
-//   iunlock(ip)
-//   iput(ip)
-//
-// ilock() is separate from iget() so that system calls can
-// get a long-term reference to an inode (as for an open file)
-// and only lock it for short periods (e.g., in read()).
-// The separation also helps avoid deadlock and races during
-// pathname lookup. iget() increments ip->ref so that the inode
-// stays in the table and pointers to it remain valid.
-//
-// Many internal file system functions expect the caller to
-// have locked the inodes involved; this lets callers create
-// multi-step atomic operations.
-//
-// The itable.lock spin-lock protects the allocation of itable
-// entries. Since ip->ref indicates whether an entry is free,
-// and ip->dev and ip->inum indicate which i-node an entry
-// holds, one must hold itable.lock while using any of those fields.
-//
-// An ip->lock sleep-lock protects all ip-> fields other than ref,
-// dev, and inum.  One must hold ip->lock in order to
-// read or write that inode's ip->valid, ip->size, ip->type, &c.
-
-struct {
-  struct spinlock lock;
-  struct inode inode[NINODE];
-} itable;
-
-void
-iinit()
+// Zero a disk block (used when allocating so a fresh data/inode block reads
+// as entirely zero).
+static void
+bzero_block(uint b)
 {
-  int i = 0;
-
-  initlock(&itable.lock, "itable");
-  for (i = 0; i < NINODE; i++) {
-    initsleeplock(&itable.inode[i].lock, "inode");
-  }
+  struct buf *bp = breadv(1, b);
+  memset(bp->data, 0, BSIZE);
+  log_write(bp);
+  brelse(bp);
 }
 
-static struct inode *iget(uint dev, uint inum);
+// ---- inode cache operations ----
 
-// Allocate an inode on device dev.
-// Mark it as allocated by  giving it type type.
-// Returns an unlocked but allocated and referenced inode,
-// or NULL if there is no free inode.
+// Initialize the inode cache: one spinlock and each inode's sleep lock.
+void
+iinit(void)
+{
+  int i;
+
+  initlock(&icache.lock, "icache");
+  for (i = 0; i < NINODE; i++)
+    initsleeplock(&icache.inode[i].lock, "inode");
+}
+
+// Allocate a new inode with the given type on device dev, returning the
+// inode locked (ilock held) and referenced, or 0 on inode exhaustion.
+// Must be called inside a log transaction.
 struct inode *
-ialloc(uint dev, short type)
+ialloc_alloc(uint dev, short type)
 {
   int inum;
   struct buf *bp;
   struct dinode *dip;
 
-  for (inum = 1; inum < sb.ninodes; inum++) {
-    bp = bread(dev, IBLOCK(inum, sb));
+  for (inum = 1; inum < (int)sb.ninodes; inum++) {
+    bp = breadv(1, sb.inodestart + inum / IPB);
     dip = (struct dinode *)bp->data + inum % IPB;
-    if (dip->type == 0) { // a free inode
+    if (dip->type == 0) {  // a free inode
       memset(dip, 0, sizeof(*dip));
       dip->type = type;
-      log_write(bp); // mark it allocated on the disk
+      log_write(bp);       // mark it allocated on disk
       brelse(bp);
       return iget(dev, inum);
     }
     brelse(bp);
   }
-  printk("ialloc: no inodes\n");
   return 0;
 }
 
-// Copy a modified in-memory inode to disk.
-// Must be called after every change to an ip->xxx field
-// that lives on disk.
-// Caller must hold ip->lock.
-void
-iupdate(struct inode *ip)
-{
-  struct buf *bp;
-  struct dinode *dip;
-
-  bp = bread(ip->dev, IBLOCK(ip->inum, sb));
-  dip = (struct dinode *)bp->data + ip->inum % IPB;
-  dip->type = ip->type;
-  dip->major = ip->major;
-  dip->minor = ip->minor;
-  dip->nlink = ip->nlink;
-  dip->size = ip->size;
-  memmove(dip->addrs, ip->addrs, sizeof(ip->addrs));
-  log_write(bp);
-  brelse(bp);
-}
-
-// Find the inode with number inum on device dev
-// and return the in-memory copy. Does not lock
-// the inode and does not read it from disk.
-static struct inode *
+// Return the inode with the given inum on device dev, with a new reference.
+// Does not lock it; callers must ilock before use.
+struct inode *
 iget(uint dev, uint inum)
 {
   struct inode *ip, *empty;
 
-  acquire(&itable.lock);
-
-  // Is the inode already in the table?
+  acquire(&icache.lock);
+  // Is the inode already cached?
   empty = 0;
-  for (ip = &itable.inode[0]; ip < &itable.inode[NINODE]; ip++) {
+  for (ip = &icache.inode[0]; ip < &icache.inode[NINODE]; ip++) {
     if (ip->ref > 0 && ip->dev == dev && ip->inum == inum) {
       ip->ref++;
-      release(&itable.lock);
+      release(&icache.lock);
       return ip;
     }
-    if (empty == 0 && ip->ref == 0) // Remember empty slot.
+    if (empty == 0 && ip->ref == 0)
       empty = ip;
   }
-
-  // Recycle an inode entry.
+  // Recycle an inode cache slot.
   if (empty == 0)
     panic("iget: no inodes");
-
   ip = empty;
   ip->dev = dev;
   ip->inum = inum;
   ip->ref = 1;
   ip->valid = 0;
-  release(&itable.lock);
-
+  release(&icache.lock);
   return ip;
 }
 
-// Increment reference count for ip.
-// Returns ip to enable ip = idup(ip1) idiom.
+// Increment the reference count of an inode (e.g. when a file object aliases
+// it). Returns the same inode.
 struct inode *
 idup(struct inode *ip)
 {
-  acquire(&itable.lock);
+  acquire(&icache.lock);
   ip->ref++;
-  release(&itable.lock);
+  release(&icache.lock);
   return ip;
 }
 
-// Lock the given inode.
-// Reads the inode from disk if necessary.
+// Lock the given inode, reading it into memory if it has never been loaded
+// (valid == 0). Blocks (sleeps) on the per-inode sleep lock; the cache
+// spinlock is never held across a sleep-lock wait (lock_order).
 void
 ilock(struct inode *ip)
 {
@@ -303,7 +233,7 @@ ilock(struct inode *ip)
   acquiresleep(&ip->lock);
 
   if (ip->valid == 0) {
-    bp = bread(ip->dev, IBLOCK(ip->inum, sb));
+    bp = breadv(ip->dev, sb.inodestart + ip->inum / IPB);
     dip = (struct dinode *)bp->data + ip->inum % IPB;
     ip->type = dip->type;
     ip->major = dip->major;
@@ -324,46 +254,43 @@ iunlock(struct inode *ip)
 {
   if (ip == 0 || !holdingsleep(&ip->lock) || ip->ref < 1)
     panic("iunlock");
-
   releasesleep(&ip->lock);
 }
 
-// Drop a reference to an in-memory inode.
-// If that was the last reference, the inode table entry can
-// be recycled.
-// If that was the last reference and the inode has no links
-// to it, free the inode (and its content) on disk.
-// All calls to iput() must be inside a transaction in
-// case it has to free the inode.
+// Drop a reference to an inode, freeing it (and its blocks) if the inode has
+// no remaining links (nlink == 0) and no other references (allocation-
+// reference-consistency).
 void
 iput(struct inode *ip)
 {
-  acquire(&itable.lock);
-
-  if (ip->ref == 1 && ip->valid && ip->nlink == 0) {
-    // inode has no links and no other references: truncate and free.
-
-    // ip->ref == 1 means no other process can have ip locked,
-    // so this acquiresleep() won't block (or deadlock).
-    acquiresleep(&ip->lock);
-
-    release(&itable.lock);
-
-    itrunc(ip);
-    ip->type = 0;
-    iupdate(ip);
-    ip->valid = 0;
-
-    releasesleep(&ip->lock);
-
-    acquire(&itable.lock);
+  if (ip->ref != 1 || !ip->valid || ip->nlink != 0) {
+    // Still referenced or still linked: just drop one reference.
+    acquire(&icache.lock);
+    if (ip->ref < 1)
+      panic("iput");
+    ip->ref--;
+    release(&icache.lock);
+    return;
   }
 
-  ip->ref--;
-  release(&itable.lock);
+  // Last reference and unlinked: reclaim the inode and free its blocks. The
+  // ref==1 guard guarantees no other holder owns the sleep lock, so
+  // acquiresleep cannot actually block here.
+  acquiresleep(&ip->lock);
+  itrunc(ip);
+  ip->type = 0;
+  iupdate(ip);
+  releasesleep(&ip->lock);
+
+  acquire(&icache.lock);
+  ip->valid = 0;
+  if (ip->ref != 1)
+    panic("iput: concurrent reference");
+  ip->ref = 0;
+  release(&icache.lock);
 }
 
-// Common idiom: unlock, then put.
+// Unlock and drop a reference to inode (the common combination after use).
 void
 iunlockput(struct inode *ip)
 {
@@ -371,39 +298,32 @@ iunlockput(struct inode *ip)
   iput(ip);
 }
 
+// Copy a modified inode back to disk. Must be called from within a log
+// transaction, with the inode locked.
 void
-ireclaim(int dev)
+iupdate(struct inode *ip)
 {
-  for (int inum = 1; inum < sb.ninodes; inum++) {
-    struct inode *ip = 0;
-    struct buf *bp = bread(dev, IBLOCK(inum, sb));
-    struct dinode *dip = (struct dinode *)bp->data + inum % IPB;
-    if (dip->type != 0 && dip->nlink == 0) { // is an orphaned inode
-      printk("ireclaim: orphaned inode %d\n", inum);
-      ip = iget(dev, inum);
-    }
-    brelse(bp);
-    if (ip) {
-      begin_op();
-      ilock(ip);
-      iunlock(ip);
-      iput(ip);
-      end_op();
-    }
-  }
+  struct buf *bp;
+  struct dinode *dip;
+
+  bp = breadv(ip->dev, sb.inodestart + ip->inum / IPB);
+  dip = (struct dinode *)bp->data + ip->inum % IPB;
+  dip->type = ip->type;
+  dip->major = ip->major;
+  dip->minor = ip->minor;
+  dip->nlink = ip->nlink;
+  dip->size = ip->size;
+  memmove(dip->addrs, ip->addrs, sizeof(ip->addrs));
+  log_write(bp);
+  brelse(bp);
 }
 
-// Inode content
-//
-// The content (data) associated with each inode is stored
-// in blocks on the disk. The first NDIRECT block numbers
-// are listed in ip->addrs[].  The next NINDIRECT blocks are
-// listed in block ip->addrs[NDIRECT].
+// ---- block mapping ----
 
-// Return the disk block address of the nth block in inode ip.
-// If there is no such block, bmap allocates one.
-// returns 0 if out of disk space.
-static uint
+// Return the disk block address of the nth block of inode ip. Errors (out of
+// range, indirect block exhaustion) return 0, which callers treat as failure
+// without causing a partial transaction.
+uint
 bmap(struct inode *ip, uint bn)
 {
   uint addr, *a;
@@ -411,7 +331,7 @@ bmap(struct inode *ip, uint bn)
 
   if (bn < NDIRECT) {
     if ((addr = ip->addrs[bn]) == 0) {
-      addr = balloc(ip->dev);
+      addr = balloc_alloc(ip->dev);
       if (addr == 0)
         return 0;
       ip->addrs[bn] = addr;
@@ -423,16 +343,16 @@ bmap(struct inode *ip, uint bn)
   if (bn < NINDIRECT) {
     // Load indirect block, allocating if necessary.
     if ((addr = ip->addrs[NDIRECT]) == 0) {
-      addr = balloc(ip->dev);
+      addr = balloc_alloc(ip->dev);
       if (addr == 0)
         return 0;
       ip->addrs[NDIRECT] = addr;
     }
-    bp = bread(ip->dev, addr);
+    bp = breadv(ip->dev, addr);
     a = (uint *)bp->data;
     if ((addr = a[bn]) == 0) {
-      addr = balloc(ip->dev);
-      if (addr) {
+      addr = balloc_alloc(ip->dev);
+      if (addr != 0) {
         a[bn] = addr;
         log_write(bp);
       }
@@ -440,13 +360,12 @@ bmap(struct inode *ip, uint bn)
     brelse(bp);
     return addr;
   }
-
-  panic("bmap: out of range");
+  return 0;   // bn beyond MAXFILE
 }
 
-// Truncate inode (discard contents).
-// Caller must hold ip->lock.
-void
+// Truncate inode ip: free every block it owns (direct + one indirect block).
+// Must be called with the inode locked, inside a log transaction.
+int
 itrunc(struct inode *ip)
 {
   int i, j;
@@ -455,43 +374,34 @@ itrunc(struct inode *ip)
 
   for (i = 0; i < NDIRECT; i++) {
     if (ip->addrs[i]) {
-      bfree(ip->dev, ip->addrs[i]);
+      bfree_release(ip->dev, ip->addrs[i]);
       ip->addrs[i] = 0;
     }
   }
 
   if (ip->addrs[NDIRECT]) {
-    bp = bread(ip->dev, ip->addrs[NDIRECT]);
+    bp = breadv(ip->dev, ip->addrs[NDIRECT]);
     a = (uint *)bp->data;
-    for (j = 0; j < NINDIRECT; j++) {
+    for (j = 0; (uint)j < NINDIRECT; j++) {
       if (a[j])
-        bfree(ip->dev, a[j]);
+        bfree_release(ip->dev, a[j]);
     }
     brelse(bp);
-    bfree(ip->dev, ip->addrs[NDIRECT]);
+    bfree_release(ip->dev, ip->addrs[NDIRECT]);
     ip->addrs[NDIRECT] = 0;
   }
 
   ip->size = 0;
   iupdate(ip);
+  return 0;
 }
 
-// Copy stat information from inode.
-// Caller must hold ip->lock.
-void
-stati(struct inode *ip, struct stat *st)
-{
-  st->dev = ip->dev;
-  st->ino = ip->inum;
-  st->type = ip->type;
-  st->nlink = ip->nlink;
-  st->size = ip->size;
-}
+// ---- file contents (readi/writei/stati) ----
 
-// Read data from inode.
-// Caller must hold ip->lock.
-// If user_dst==1, then dst is a user virtual address;
-// otherwise, dst is a kernel address.
+// Read up to n bytes from an inode at offset off into buf, returning the
+// number of bytes copied (0 on out-of-range; short reads allowed). user_dst
+// is 1 only when writing to a validated user address; the inode harness uses
+// kernel buffers (user_dst == 0).
 int
 readi(struct inode *ip, int user_dst, uint64 dst, uint off, uint n)
 {
@@ -506,12 +416,11 @@ readi(struct inode *ip, int user_dst, uint64 dst, uint off, uint n)
   for (tot = 0; tot < n; tot += m, off += m, dst += m) {
     uint addr = bmap(ip, off / BSIZE);
     if (addr == 0)
-      break;
-    bp = bread(ip->dev, addr);
+      break;   // out-of-range: stop with a short count
+    bp = breadv(ip->dev, addr);
     m = min(n - tot, BSIZE - off % BSIZE);
     if (either_copyout(user_dst, dst, bp->data + (off % BSIZE), m) == -1) {
       brelse(bp);
-      tot = -1;
       break;
     }
     brelse(bp);
@@ -519,13 +428,8 @@ readi(struct inode *ip, int user_dst, uint64 dst, uint off, uint n)
   return tot;
 }
 
-// Write data to inode.
-// Caller must hold ip->lock.
-// If user_src==1, then src is a user virtual address;
-// otherwise, src is a kernel address.
-// Returns the number of bytes successfully written.
-// If the return value is less than the requested n,
-// there was an error of some kind.
+// Write n bytes from buf into inode ip at offset off, extending ip->size as
+// needed. Returns the number of bytes written or -1 on error.
 int
 writei(struct inode *ip, int user_src, uint64 src, uint off, uint n)
 {
@@ -540,8 +444,8 @@ writei(struct inode *ip, int user_src, uint64 src, uint off, uint n)
   for (tot = 0; tot < n; tot += m, off += m, src += m) {
     uint addr = bmap(ip, off / BSIZE);
     if (addr == 0)
-      break;
-    bp = bread(ip->dev, addr);
+      break;   // out of capacity: stop
+    bp = breadv(ip->dev, addr);
     m = min(n - tot, BSIZE - off % BSIZE);
     if (either_copyin(bp->data + (off % BSIZE), user_src, src, m) == -1) {
       brelse(bp);
@@ -553,27 +457,36 @@ writei(struct inode *ip, int user_src, uint64 src, uint off, uint n)
 
   if (off > ip->size)
     ip->size = off;
-
-  // write the i-node back to disk even if the size didn't change
-  // because the loop above might have called bmap() and added a new
-  // block to ip->addrs[].
   iupdate(ip);
-
   return tot;
 }
 
-// Directories
+// Fill in a stat structure from the inode (used by the fstat ABI).
+void
+stati(struct inode *ip, struct stat *st)
+{
+  st->dev = ip->dev;
+  st->ino = ip->inum;
+  st->type = ip->type;
+  st->nlink = ip->nlink;
+  st->size = ip->size;
+}
 
-int
+// ---- directory helpers (path_resolution) ----
+
+// Compare two directory names, treating the first NUL as the end.
+static int
 namecmp(const char *s, const char *t)
 {
   return strncmp(s, t, DIRSIZ);
 }
 
-// Look for a directory entry in a directory.
-// If found, set *poff to byte offset of entry.
+// Look for a directory entry in a directory. If found, return a referenced
+// inode for the entry's inode number, with *poff pointing to the entry
+// position. The directory's own inode lock must be held. Returns 0 if not
+// found or if dp is not a directory.
 struct inode *
-dirlookup(struct inode *dp, char *name, uint *poff)
+dirlookup(struct inode *dp, const char *name, uint *poff)
 {
   uint off, inum;
   struct dirent de;
@@ -587,34 +500,34 @@ dirlookup(struct inode *dp, char *name, uint *poff)
     if (de.inum == 0)
       continue;
     if (namecmp(name, de.name) == 0) {
-      // entry matches path element
+      // entry matches path element.
       if (poff)
         *poff = off;
       inum = de.inum;
       return iget(dp->dev, inum);
     }
   }
-
   return 0;
 }
 
-// Write a new directory entry (name, inum) into the directory dp.
-// Returns 0 on success, -1 on failure (e.g. out of disk blocks).
+// Write a new directory entry (name, inum) into directory dp. Returns -1 on
+// failure (name already present or directory full) or 0 on success. Must be
+// called with dp locked, inside a log transaction.
 int
-dirlink(struct inode *dp, char *name, uint inum)
+dirlink(struct inode *dp, const char *name, uint inum)
 {
   int off;
   struct dirent de;
   struct inode *ip;
 
-  // Check that name is not present.
+  // Check that no name already exists.
   if ((ip = dirlookup(dp, name, 0)) != 0) {
     iput(ip);
     return -1;
   }
 
   // Look for an empty dirent.
-  for (off = 0; off < dp->size; off += sizeof(de)) {
+  for (off = 0; (uint)off < dp->size; off += sizeof(de)) {
     if (readi(dp, 0, (uint64)&de, off, sizeof(de)) != sizeof(de))
       panic("dirlink read");
     if (de.inum == 0)
@@ -625,97 +538,263 @@ dirlink(struct inode *dp, char *name, uint inum)
   de.inum = inum;
   if (writei(dp, 0, (uint64)&de, off, sizeof(de)) != sizeof(de))
     return -1;
-
   return 0;
 }
 
-// Paths
-
-// Copy the next path element from path into name.
-// Return a pointer to the element following the copied one.
-// The returned path has no leading slashes,
-// so the caller can check *path=='\0' to see if the name is the last one.
-// If no name to remove, return 0.
-//
-// Examples:
-//   skipelem("a/bb/c", name) = "bb/c", setting name = "a"
-//   skipelem("///a//bb", name) = "bb", setting name = "a"
-//   skipelem("a", name) = "", setting name = "a"
-//   skipelem("", name) = skipelem("////", name) = 0
-//
-static char *
-skipelem(char *path, char *name)
+// Is a directory empty (contains only "." and "..")? Used to prevent unlink
+// of a non-empty directory.
+static int
+isdirempty(struct inode *dp)
 {
-  char *s;
+  int off;
+  struct dirent de;
+
+  for (off = 2 * (int)sizeof(de); (uint)off < dp->size; off += sizeof(de)) {
+    if (readi(dp, 0, (uint64)&de, off, sizeof(de)) != sizeof(de))
+      panic("isdirempty: readi");
+    if (de.inum != 0)
+      return 0;
+  }
+  return 1;
+}
+
+// Remove the directory entry `name` from its parent and, if it is the last
+// link, reclaim the inode. Returns 0 on success, -1 on failure (not found,
+// nonempty directory, . or ..). Must be called inside a log transaction.
+// On success, produces ONE committed directory mutation.
+int
+unlink_helper(const char *path, struct inode **pip, struct inode **ppip)
+{
+  struct inode *ip, *dp;
+  struct dirent de;
+  uint off;
+  char name[DIRSIZ];
+
+  (void)pip; (void)ppip;
+  dp = nameiparent(path, name);
+  if (dp == 0)
+    return -1;
+
+  ilock(dp);
+  ip = dirlookup(dp, name, &off);
+  if (ip == 0) {
+    iunlockput(dp);
+    return -1;
+  }
+  ilock(ip);
+
+  // Cannot unlink "." or ".." .
+  if (namecmp(name, ".") == 0 || namecmp(name, "..") == 0)
+    goto bad;
+
+  // Cannot unlink a non-empty directory.
+  if (ip->type == T_DIR && !isdirempty(ip))
+    goto bad;
+
+  // Zero out the directory entry (instead of replacing it with another,
+  // since the entry might be in a sub-block).
+  memset(&de, 0, sizeof(de));
+  if (writei(dp, 0, (uint64)&de, off, sizeof(de)) != sizeof(de))
+    goto bad;
+
+  ip->nlink--;
+  iupdate(ip);
+  iunlockput(ip);
+  iunlockput(dp);
+  return 0;
+
+bad:
+  iunlockput(ip);
+  iunlockput(dp);
+  return -1;
+}
+
+// ---- path resolution ----
+
+// Skip leading slashes and copy the next path element (up to the next slash
+// or end) into name, which must be at least DIRSIZ bytes and is always made
+// NUL-terminated. Returns a pointer to the next component, or 0 at path end.
+static char *
+skipelem(const char *path, char *name)
+{
+  const char *s;
   int len;
 
   while (*path == '/')
     path++;
   if (*path == 0)
     return 0;
+
   s = path;
   while (*path != '/' && *path != 0)
     path++;
   len = path - s;
   if (len >= DIRSIZ)
-    memmove(name, s, DIRSIZ);
-  else {
-    memmove(name, s, len);
-    name[len] = 0;
-  }
+    len = DIRSIZ - 1;
+  memmove(name, s, len);
+  name[len] = 0;
+
   while (*path == '/')
     path++;
-  return path;
+  return (char *)path;
 }
 
-// Look up and return the inode for a path name.
-// If parent != 0, return the inode for the parent and copy the final
-// path element into name, which must have room for DIRSIZ bytes.
-// Must be called inside a transaction since it calls iput().
-static struct inode *
-namex(char *path, int nameiparent, char *name)
+// Look up the inode for a path. In normal mode (nameiparent == 0) return a
+// referenced (unlocked) inode for the full path. In nameiparent mode return
+// the referenced (unlocked) parent inode and copy the final path element
+// into name. Returns 0 on failure, without retaining a parent or child lock.
+struct inode *
+dnamex(const char *path, int nameiparent_flag, char *name)
 {
   struct inode *ip, *next;
+  char element[DIRSIZ];
 
-  if (*path == '/')
-    ip = iget(ROOTDEV, ROOTINO);
-  else
-    ip = idup(myproc()->cwd);
+  ip = iget(ROOTDEV, ROOTINO);
+  if (ip == 0)
+    return 0;
 
-  while ((path = skipelem(path, name)) != 0) {
+  while ((path = skipelem(path, element)) != 0) {
     ilock(ip);
     if (ip->type != T_DIR) {
       iunlockput(ip);
       return 0;
     }
-    if (nameiparent && *path == '\0') {
-      // Stop one level early.
+    if (nameiparent_flag && *path == '\0') {
+      // Stop one level early: this is the parent inode; the final element is
+      // already in `element`. Copy it out and return the unlocked parent.
       iunlock(ip);
+      safestrcpy(name, element, DIRSIZ);
       return ip;
     }
-    if ((next = dirlookup(ip, name, 0)) == 0) {
+    if ((next = dirlookup(ip, element, 0)) == 0) {
       iunlockput(ip);
       return 0;
     }
     iunlockput(ip);
     ip = next;
   }
-  if (nameiparent) {
+  if (nameiparent_flag) {
     iput(ip);
     return 0;
   }
   return ip;
 }
 
+// Return an unlocked, referenced inode for the path name.
 struct inode *
-namei(char *path)
+namei(const char *path)
 {
-  char name[DIRSIZ];
-  return namex(path, 0, name);
+  char nbuf[MAXPATH];
+  return dnamex(path, 0, nbuf);
 }
 
+// Return an unlocked, referenced inode for the parent directory of the path
+// and copy the final path element into name.
 struct inode *
-nameiparent(char *path, char *name)
+nameiparent(const char *path, char *name)
 {
-  return namex(path, 1, name);
+  return dnamex(path, 1, name);
+}
+
+// ---- fsinit ----
+
+// fsinit - mount the file system from device dev.
+//
+// Reads and validates the superblock geometry, completes kernel/log redo
+// recovery, initializes the inode cache, and resolves the deterministic root
+// inode. All storage layers (kernel/bio, kernel/virtio, kernel/log) must be
+// initialized first.
+//
+// An all-zero superblock region means the root device has no filesystem image
+// yet (a bare lab root boot disk); in that case the module leaves the file
+// system unmounted and returns without mutating anything, so an empty-disk
+// boot can still reach the scheduler. A present-but-invalid magic, or
+// overlapping/out-of-range regions, panics before mutable mount (fsinit
+// errors: invalid geometry panics before mutable access).
+void
+fsinit(int dev)
+{
+  struct superblock probe;
+  struct buf *probe_bp;
+
+  // Probe block 1 to distinguish "no image" (all-zero) from an invalid image.
+  probe_bp = breadv(dev, 1);
+  memmove(&probe, probe_bp->data, sizeof(probe));
+  brelse(probe_bp);
+
+  if (probe.magic == 0 &&
+      probe.size == 0 && probe.nlog == 0 && probe.logstart == 0 &&
+      probe.ninodes == 0 && probe.inodestart == 0 && probe.bmapstart == 0) {
+    // Unformatted root device: leave the file system unmounted. This keeps a
+    // boot on a bare lab disk reaching the scheduler without a spurious mount.
+    return;
+  }
+
+  readsb(dev);
+  if (sb.magic != FSMAGIC)
+    panic("invalid file system superblock");
+  if (sb.size <= 0 || (uint)sb.size > FSSIZE)
+    panic("invalid superblock size");
+  if (sb.nlog <= 0 || sb.logstart <= 1)
+    panic("invalid log region");
+  if (sb.logstart + sb.nlog > sb.size)
+    panic("log region out of range");
+  if (sb.inodestart < sb.logstart + sb.nlog || sb.inodestart >= sb.size)
+    panic("invalid inode region");
+  if (sb.bmapstart < sb.inodestart || sb.bmapstart >= sb.size)
+    panic("invalid bitmap region");
+
+  initlog(dev);   // validates the log superblock subset and recovers redo log
+  iinit();        // initialize the inode cache
+
+  // Resolve the deterministic root inode tree (reads the root directory so a
+  // malformed root is detected before any user file operation).
+  struct inode *root = iget(dev, ROOTINO);
+  ilock(root);
+  if (root->type != T_DIR)
+    panic("fsinit: root not a directory");
+  iunlock(root);
+  iput(root);
+}
+
+// ---- low-level buffer bread used throughout fs.c ----
+static struct buf *
+breadv(uint dev, uint b)
+{
+  return bread(dev, b);
+}
+
+// ---- content-copy helpers ----
+static uint
+min(uint a, uint b)
+{
+  return a < b ? a : b;
+}
+
+// Copy len bytes from kernel src to user address dst if user_dst, else to a
+// kernel buffer. Returns 0 on success, -1 on a failed user copy (validated;
+// never dereferences a raw user pointer directly).
+static int
+either_copyout(int user_dst, uint64 dst, void *src, uint len)
+{
+  struct proc *p = myproc();
+
+  if (user_dst) {
+    return copyout(p->pagetable, dst, (char *)src, len);
+  }
+  memmove((void *)dst, src, len);
+  return 0;
+}
+
+// Copy len bytes from user address src to the kernel buffer dst if user_src,
+// else from a kernel buffer. Returns 0 on success, -1 on a failed user copy.
+static int
+either_copyin(void *dst, int user_src, uint64 src, uint len)
+{
+  struct proc *p = myproc();
+
+  if (user_src)
+    return copyin(p->pagetable, (char *)dst, src, len);
+  memmove(dst, (const void *)src, len);
+  return 0;
 }

@@ -1,14 +1,143 @@
 id: kernel/trap
 module: kernel/trap
-level: 2
-purpose: supervisor trap and interrupt dispatch.
+level: 3
+purpose: Install supervisor and user trap vectors, preserve register state, dispatch bounded device interrupts, and return a validated Lab 5 ecall to user mode.
 owns:
+- kernel/kernelvec.S
 - kernel/trap.c
-- kernel/plic.c
 - kernel/uart.c
-interface: []
+- kernel/console.c
+- kernel/printk.c
+- kernel/plic.c
+- tests/generated/kernel/trap
+interface:
+- name: trapinit
+  pre:
+  - the kernel is executing in supervisor mode with interrupts disabled
+  post:
+  - stvec names kernelvec and interrupt sources remain disabled until per-hart initialization finishes
+  errors:
+  - a missing vector symbol fails the build
+  properties:
+  - id: trap-vector-binding
+    text: kernel_trap_vector_contract observes that stvec is installed before supervisor interrupts are enabled
+- name: kerneltrap
+  pre:
+  - kernelvec saved a complete interrupted register frame
+  post:
+  - handled Lab 4 interrupts return to supervisor mode at the original sepc with the original supervisor sstatus state
+  errors:
+  - an unexpected exception panics with scause, sepc, and stval evidence
+  properties:
+  - id: kerneltrap-preserves-state
+    text: kernel_trap_roundtrip_trace observes a clean boot through vector installation and bounded interrupt dispatch
+- name: devintr
+  pre:
+  - scause describes the current supervisor trap
+  post:
+  - claims, dispatches, and completes recognized external interrupts exactly once
+  errors:
+  - returns zero for an unrecognized cause without acknowledging unrelated state
+  properties:
+  - id: external-interrupt-lifecycle
+    text: kernel_trap_device_contract observes every nonzero PLIC claim is completed after dispatch
+- name: usertrap
+  pre:
+  - the current process owns a mapped trap frame and uservec saved the user register set
+  post:
+  - a user ecall advances sepc, dispatches through kernel/syscall, and reaches usertrapret
+  errors:
+  - an unexpected user exception terminates the process with scause, sepc, and stval evidence
+  properties:
+  - id: user-ecall-dispatch
+    text: kernel_syscall_user_trace observes one bounded user ecall through dispatch and return
+- name: usertrapret
+  pre:
+  - the current trap frame and user page table are valid
+  post:
+  - stvec names uservec, SPP is clear, SPIE is set, and trampoline userret restores user state
+  errors:
+  - invalid process or address-space state fails before sret
+  properties:
+  - id: user-return-privilege
+    text: kernel_syscall_user_trace observes return with supervisor mappings inaccessible to user mode
 properties:
-- id: kernel-trap-deterministic
-  text: behavior is deterministic under the published lab checks
+- id: vector-frame-symmetry
+  text: kernel_trap_frame_fuzz observes that kernelvec saves and restores every register it changes in symmetric stack slots
+- id: interrupt-enable-order
+  text: kernel_trap_boot_public observes that PLIC and UART initialization precede setting supervisor interrupt enable bits and that the Lab 2 banner survives the boot-to-console handoff
+- id: trap-frame-fuzz-build
+  text: kernel_trap_frame_fuzz compiles its harness with warnings enabled before executing every fixed-seed case; unused or undeclared harness state is a failing result
+- id: uart-stage-handoff
+  text: boot owns only its direct polling banner publication; trap-stage uartinit then idempotently re-establishes the same divisor and 8-bit line control before enabling FIFO receive interrupts, after which console and printk own ordinary output
+- id: virtio-interrupt-deferred
+  text: VIRTIO remains mapped for later labs but any VIRTIO IRQ in Lab 4 follows the bounded unknown-IRQ completion and diagnostic path
 errors:
-- invalid state fails explicitly
+- unexpected supervisor exceptions panic with diagnostic register values
+- unknown external IRQs are completed and reported without corrupting device state
+state:
+  stage: traps
+  owned_state:
+  - supervisor trap-vector CSR
+  - UART transmit and receive state
+  - PLIC enable, priority, claim, and completion state
+  resource_lifetime:
+  - the kernel vector and device mappings remain valid for the kernel lifetime
+preconditions:
+- the memory stage has activated the kernel page table
+postconditions:
+- the single boot hart can receive, diagnose, dispatch, and return from supervisor interrupts and validated user ecalls
+invariants:
+- id: kernel-vector-privilege
+  text: kernelvec handles only traps whose saved SPP bit identifies supervisor mode
+- id: plic-claim-completion
+  text: each nonzero claimed interrupt is completed exactly once
+- id: uart-configuration-ownership
+  text: boot polling is a transient pre-handoff path; uartinit becomes the sole authoritative UART configuration at trap-stage interrupt enable and must preserve the earlier banner contract
+- id: non-external-interrupt-scope
+  text: supervisor timer and software interrupts are outside Lab 4 and produce bounded scause, sepc, and stval diagnostics instead of entering external-device dispatch
+dependencies:
+- kernel/boot
+- kernel/memory
+- toolchain
+rely:
+- QEMU virt exposes the UART and PLIC at the addresses declared by the memory layout
+- the boot hart performs initialization while interrupts are disabled
+- the committed SpecPatch grants the trap implementation access to boot-owned shared declarations and memory-owned spinlock declarations without transferring their file ownership
+guarantee:
+- trap entry never runs on the interrupted stack without first reserving the complete register frame
+- diagnostic printing uses bounded synchronous UART output in trap context
+algorithm_intent: Use assembly register frames with C dispatchers; route external interrupts through PLIC claim and completion, and route user ecalls through syscall dispatch before a privilege-clearing trampoline return.
+concurrency:
+  module:
+    module: kernel/trap
+    shared_state:
+    - UART transmit and receive state
+    - PLIC claim and completion state
+    lock_types:
+    - spinlock
+    lock_order:
+    - console lock before no other lock
+    atomic_sections:
+    - PLIC claim through completion for one interrupt
+    interrupt_rules:
+    - trap setup finishes before global supervisor interrupt enable
+    rely:
+    - Lab 4 executes one boot hart
+    guarantee:
+    - trap dispatch does not sleep while handling an interrupt
+    wait_wakeup_rules: []
+    forbidden_patterns:
+    - enabling interrupts before stvec and PLIC initialization
+    - returning from an unexpected supervisor exception
+  operations:
+    kerneltrap:
+      atomicity: one saved trap frame through sret
+      lock_order: []
+      interrupt_state: disabled during dispatch
+      wait_wakeup_rules: []
+    devintr:
+      atomicity: one PLIC claim, dispatch, and completion sequence
+      lock_order: []
+      interrupt_state: disabled during interrupt dispatch
+      wait_wakeup_rules: []
