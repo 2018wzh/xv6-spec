@@ -1,0 +1,9 @@
+id: process-tree-reliability
+objective: Increase deterministic process-tree lifecycle exploration from 500 to 5000 cases without weakening fork rollback, single-reap, or existing cumulative correctness gates.
+metric: The fixed-seed kernel_process_tree_fuzz target completes 5000 lifecycle cases and records the declared reproduction artifact while every existing public, contract, fuzz, and trace target remains passing.
+oracle: The process-tree model rejects unpublished children, duplicated reaps, incorrect exit status, or a slot that remains owned after wait; success requires PROCESS_TREE_MODEL_OK for seed 42 and 5000 cases.
+correctness:
+  - Fork failure leaves the selected child slot UNUSED and unpublished.
+  - Every published child reaches ZOMBIE before wait reclaims it.
+  - Wait returns each child and its exit status exactly once.
+  - Existing kernel build, QEMU boot, public, contract, fuzz, and trace targets remain unchanged and passing.
