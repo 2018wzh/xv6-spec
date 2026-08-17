@@ -7,9 +7,12 @@ ASFLAGS = -march=rv64gc -mabi=lp64
 LDFLAGS = -m elf64lriscv
 OBJS = kernel/boot.o \
   kernel/entry.o \
+  kernel/kalloc.o \
   kernel/main.o \
+  kernel/spinlock.o \
   kernel/start.o \
-  kernel/string.o
+  kernel/string.o \
+  kernel/vm.o
 
 all: $(K)/kernel
 

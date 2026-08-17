@@ -29,3 +29,17 @@ checks:
     env: []
     timeout: 120000
     verifies: [kernel/boot]
+  kalloc_alignment:
+    program: sh
+    args: [tests/public/verify.sh, kalloc_alignment]
+    cwd: .
+    env: []
+    timeout: 120000
+    verifies: [kernel/memory]
+  kvmmake_identity_mapping:
+    program: sh
+    args: [tests/public/verify.sh, kvmmake_identity_mapping]
+    cwd: .
+    env: []
+    timeout: 120000
+    verifies: [kernel/memory]
