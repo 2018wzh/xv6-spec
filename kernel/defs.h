@@ -17,10 +17,20 @@ void            console_write(const char*, int);
 void            shutdown(void);
 void            kernel_main(void);
 
+// console.c
+void            consoleinit(void);
+void            consoleintr(int);
+void            consputc(int);
+
 // kalloc.c
 void*           kalloc(void);
 void            kfree(void *);
 void            kinit(void);
+
+// printk.c
+int             printk(char*, ...) __attribute__ ((format (printf, 1, 2)));
+void            panic(char*) __attribute__((noreturn));
+void            printkinit(void);
 
 // spinlock.c
 void            acquire(struct spinlock*);
@@ -38,6 +48,19 @@ char*           safestrcpy(char*, const char*, int);
 int             strlen(const char*);
 int             strncmp(const char*, const char*, uint);
 char*           strncpy(char*, const char*, int);
+
+// trap.c
+extern uint     ticks;
+void            trapinit(void);
+void            trapinithart(void);
+extern struct spinlock tickslock;
+void            prepare_return(void);
+
+// uart.c
+void            uartinit(void);
+void            uartintr(void);
+void            uartwrite(char [], int);
+void            uartputc_sync(int);
 
 // vm.c
 void            kvminit(void);
@@ -59,8 +82,12 @@ int             copyinstr(pagetable_t, char *, uint64, uint64);
 int             ismapped(pagetable_t, uint64);
 uint64          vmfault(pagetable_t, uint64, int);
 
+// plic.c
+void            plicinit(void);
+void            plicinithart(void);
+int             plic_claim(void);
+void            plic_complete(int);
+
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))
-void kernel_main(void);
-void panic(char*);

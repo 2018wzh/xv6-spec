@@ -6,12 +6,18 @@ CFLAGS = -Wall -Werror -O -fno-omit-frame-pointer -ggdb -std=gnu99 -march=rv64gc
 ASFLAGS = -march=rv64gc -mabi=lp64
 LDFLAGS = -m elf64lriscv
 OBJS = kernel/boot.o \
+  kernel/console.o \
   kernel/entry.o \
   kernel/kalloc.o \
+  kernel/kernelvec.o \
   kernel/main.o \
+  kernel/plic.o \
+  kernel/printk.o \
   kernel/spinlock.o \
   kernel/start.o \
   kernel/string.o \
+  kernel/trap.o \
+  kernel/uart.o \
   kernel/vm.o
 
 all: $(K)/kernel

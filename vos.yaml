@@ -43,3 +43,24 @@ checks:
     env: []
     timeout: 120000
     verifies: [kernel/memory]
+  trap_init_stvec_set:
+    program: sh
+    args: [tests/public/verify.sh, trap_init_stvec_set]
+    cwd: .
+    env: []
+    timeout: 120000
+    verifies: [kernel/trap]
+  devintr_timer:
+    program: sh
+    args: [tests/public/verify.sh, devintr_timer]
+    cwd: .
+    env: []
+    timeout: 120000
+    verifies: [kernel/trap]
+  uart_boot_output:
+    program: sh
+    args: [tests/public/verify.sh, uart_boot_output]
+    cwd: .
+    env: []
+    timeout: 120000
+    verifies: [kernel/trap]
