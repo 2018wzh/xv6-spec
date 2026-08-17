@@ -78,3 +78,24 @@ checks:
     env: []
     timeout: 120000
     verifies: [kernel/process]
+  bread_cache_hit:
+    program: sh
+    args: [tests/public/verify.sh, bread_cache_hit]
+    cwd: .
+    env: []
+    timeout: 120000
+    verifies: [kernel/fs]
+  log_recovery_committed:
+    program: sh
+    args: [tests/public/verify.sh, log_recovery_committed]
+    cwd: .
+    env: []
+    timeout: 120000
+    verifies: [kernel/fs]
+  exec_valid_elf:
+    program: sh
+    args: [tests/public/verify.sh, exec_valid_elf]
+    cwd: .
+    env: []
+    timeout: 120000
+    verifies: [kernel/fs]

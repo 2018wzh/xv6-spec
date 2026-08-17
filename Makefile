@@ -5,15 +5,21 @@ LD = $(TOOLPREFIX)ld
 CFLAGS = -Wall -Werror -O -fno-omit-frame-pointer -ggdb -std=gnu99 -march=rv64gc -mabi=lp64 -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I.
 ASFLAGS = -march=rv64gc -mabi=lp64
 LDFLAGS = -m elf64lriscv
-OBJS = kernel/boot.o \
+OBJS = kernel/bio.o \
+  kernel/boot.o \
   kernel/console.o \
   kernel/entry.o \
+  kernel/exec.o \
+  kernel/file.o \
+  kernel/fs.o \
   kernel/kalloc.o \
   kernel/kernelvec.o \
+  kernel/log.o \
   kernel/main.o \
   kernel/plic.o \
   kernel/printk.o \
   kernel/proc.o \
+  kernel/sleeplock.o \
   kernel/spinlock.o \
   kernel/start.o \
   kernel/string.o \
@@ -23,6 +29,7 @@ OBJS = kernel/boot.o \
   kernel/trampoline.o \
   kernel/trap.o \
   kernel/uart.o \
+  kernel/virtio_disk.o \
   kernel/vm.o
 
 all: $(K)/kernel
